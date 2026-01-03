@@ -213,6 +213,44 @@ h2 {
   color: #888;
 }
 
+.overlay-item .opacity-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.overlay-item .opacity-control label {
+  font-size: 11px;
+  color: #888;
+}
+
+.overlay-item .opacity-slider {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e0e0e0;
+  border-radius: 2px;
+  outline: none;
+}
+
+.overlay-item .opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #1a73e8;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.overlay-item .opacity-value {
+  font-size: 11px;
+  color: #888;
+  width: 32px;
+}
+
 .overlay-item .delete-btn {
   background: none;
   border: none;

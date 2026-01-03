@@ -88,6 +88,7 @@ confirmAddBtn.addEventListener('click', async () => {
     y: 25, // percentage from top
     width: 20,
     height: 35,
+    opacity: 1,
     name: getImageName(src)
   };
 
@@ -146,6 +147,7 @@ function renderOverlayList() {
   emptyState.classList.add('hidden');
 
   overlays.forEach((overlay, index) => {
+    const opacity = overlay.opacity !== undefined ? overlay.opacity : 1;
     const item = document.createElement('div');
     item.className = 'overlay-item';
     item.innerHTML = `
@@ -153,10 +155,30 @@ function renderOverlayList() {
       <div class="info">
         <div class="name">${overlay.name}</div>
         <div class="position">Position: ${Math.round(overlay.x)}%, ${Math.round(overlay.y)}%</div>
+        <div class="opacity-control">
+          <label>Opacity:</label>
+          <input type="range" class="opacity-slider" data-index="${index}" min="0" max="100" value="${Math.round(opacity * 100)}">
+          <span class="opacity-value">${Math.round(opacity * 100)}%</span>
+        </div>
       </div>
       <button class="delete-btn" data-index="${index}" title="Remove">×</button>
     `;
     overlayList.appendChild(item);
+  });
+
+  // Opacity slider handlers
+  overlayList.querySelectorAll('.opacity-slider').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.index);
+      const value = parseInt(e.target.value);
+      overlays[index].opacity = value / 100;
+      e.target.nextElementSibling.textContent = value + '%';
+      renderPreviewOverlays();
+    });
+
+    slider.addEventListener('change', async (e) => {
+      await saveOverlays();
+    });
   });
 
   // Delete handlers
@@ -177,6 +199,7 @@ function renderPreviewOverlays() {
   overlayContainer.innerHTML = '';
 
   overlays.forEach((overlay, index) => {
+    const opacity = overlay.opacity !== undefined ? overlay.opacity : 1;
     const div = document.createElement('div');
     div.className = 'overlay-preview';
     div.dataset.index = index;
@@ -184,6 +207,7 @@ function renderPreviewOverlays() {
     div.style.top = overlay.y + '%';
     div.style.width = overlay.width + '%';
     div.style.height = overlay.height + '%';
+    div.style.opacity = opacity;
 
     const img = document.createElement('img');
     img.src = overlay.src;
