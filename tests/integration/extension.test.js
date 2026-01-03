@@ -3,6 +3,7 @@ import path from 'path';
 
 const extensionPath = path.resolve(process.cwd());
 const isCI = !!process.env.CI;
+const videoDir = path.resolve(process.cwd(), 'test-results/videos');
 
 /**
  * Mock Meet Page Tests - These work reliably in CI
@@ -22,6 +23,10 @@ test.describe('Mock Meet Page Tests', () => {
         '--no-first-run',
         '--disable-gpu',
       ],
+      recordVideo: {
+        dir: videoDir,
+        size: { width: 1280, height: 720 }
+      }
     });
   });
 
@@ -93,6 +98,71 @@ test.describe('Mock Meet Page Tests', () => {
     await page.click('#stop-btn');
     await page.close();
   });
+
+  test('overlay updates with opacity are received', async () => {
+    const page = await context.newPage();
+    await page.goto('http://localhost:8080/mock-meet.html');
+
+    // Send overlay update with opacity
+    const testOverlay = {
+      id: 'test-overlay-1',
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 40,
+      opacity: 0.75,
+      name: 'Test Overlay'
+    };
+
+    await page.evaluate((overlay) => {
+      window.__mockMeet.sendOverlays([overlay]);
+    }, testOverlay);
+
+    // Wait a moment for message to be processed
+    await page.waitForTimeout(100);
+
+    // Verify overlay was received
+    const receivedOverlays = await page.evaluate(() => {
+      return window.__mockMeet.getOverlays();
+    });
+
+    expect(receivedOverlays).toHaveLength(1);
+    expect(receivedOverlays[0].id).toBe('test-overlay-1');
+    expect(receivedOverlays[0].opacity).toBe(0.75);
+    expect(receivedOverlays[0].x).toBe(10);
+    expect(receivedOverlays[0].y).toBe(20);
+
+    await page.close();
+  });
+
+  test('multiple overlays with varying opacities are handled', async () => {
+    const page = await context.newPage();
+    await page.goto('http://localhost:8080/mock-meet.html');
+
+    const testOverlays = [
+      { id: 'full', src: 'data:image/png;base64,xxx', x: 0, y: 0, width: 20, height: 20, opacity: 1, name: 'Full' },
+      { id: 'half', src: 'data:image/png;base64,xxx', x: 30, y: 0, width: 20, height: 20, opacity: 0.5, name: 'Half' },
+      { id: 'quarter', src: 'data:image/png;base64,xxx', x: 60, y: 0, width: 20, height: 20, opacity: 0.25, name: 'Quarter' },
+    ];
+
+    await page.evaluate((overlays) => {
+      window.__mockMeet.sendOverlays(overlays);
+    }, testOverlays);
+
+    await page.waitForTimeout(100);
+
+    const receivedOverlays = await page.evaluate(() => {
+      return window.__mockMeet.getOverlays();
+    });
+
+    expect(receivedOverlays).toHaveLength(3);
+    expect(receivedOverlays.find(o => o.id === 'full').opacity).toBe(1);
+    expect(receivedOverlays.find(o => o.id === 'half').opacity).toBe(0.5);
+    expect(receivedOverlays.find(o => o.id === 'quarter').opacity).toBe(0.25);
+
+    await page.close();
+  });
 });
 
 /**
@@ -115,6 +185,10 @@ test.describe('Extension Popup Tests', () => {
         '--use-fake-ui-for-media-stream',
         '--no-first-run',
       ],
+      recordVideo: {
+        dir: videoDir,
+        size: { width: 1280, height: 720 }
+      }
     });
 
     // Get extension ID from chrome://extensions page
@@ -150,7 +224,7 @@ test.describe('Extension Popup Tests', () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
 
-    await expect(page.locator('h1')).toContainText('Meet Overlay');
+    await expect(page.locator('h1')).toContainText('Camera Overlay');
     await expect(page.locator('#add-overlay')).toBeVisible();
 
     await page.close();
@@ -187,7 +261,7 @@ test.describe('Extension Popup Tests', () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/preview.html`);
 
-    await expect(page.locator('#startCamera')).toBeVisible();
+    await expect(page.locator('#start-btn')).toBeVisible();
 
     await page.close();
   });

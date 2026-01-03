@@ -239,7 +239,45 @@
       getStream: () => currentStream,
       isActive: () => !!currentStream,
       getOverlays: () => window.__mockMeetOverlays || [],
-      isExtensionLoaded: () => !!window.__meetOverlayInjected
+      isExtensionLoaded: () => !!window.__meetOverlayInjected,
+
+      // Send overlay update (simulating what content script does)
+      sendOverlays: (overlays) => {
+        window.postMessage({ type: 'MEET_OVERLAY_UPDATE', overlays }, '*');
+        log(`Sent ${overlays.length} overlays to extension`, 'info');
+      },
+
+      // Capture a frame from the video to a canvas for analysis
+      captureFrame: () => {
+        if (!video.videoWidth) return null;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        return { canvas, ctx };
+      },
+
+      // Get pixel color at a position (for testing overlays)
+      getPixelAt: (x, y) => {
+        const frame = window.__mockMeet.captureFrame();
+        if (!frame) return null;
+        const data = frame.ctx.getImageData(x, y, 1, 1).data;
+        return { r: data[0], g: data[1], b: data[2], a: data[3] };
+      },
+
+      // Check if a region has non-black content (useful for fake camera testing)
+      hasContentInRegion: (x, y, width, height) => {
+        const frame = window.__mockMeet.captureFrame();
+        if (!frame) return false;
+        const data = frame.ctx.getImageData(x, y, width, height).data;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i] > 10 || data[i+1] > 10 || data[i+2] > 10) {
+            return true;
+          }
+        }
+        return false;
+      }
     };
   </script>
 </body>
