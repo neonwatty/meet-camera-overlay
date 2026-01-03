@@ -3,6 +3,7 @@ import path from 'path';
 
 const extensionPath = path.resolve(process.cwd());
 const isCI = !!process.env.CI;
+const videoDir = path.resolve(process.cwd(), 'test-results/videos');
 
 /**
  * Mock Meet Page Tests - These work reliably in CI
@@ -22,6 +23,10 @@ test.describe('Mock Meet Page Tests', () => {
         '--no-first-run',
         '--disable-gpu',
       ],
+      recordVideo: {
+        dir: videoDir,
+        size: { width: 1280, height: 720 }
+      }
     });
   });
 
@@ -180,6 +185,10 @@ test.describe('Extension Popup Tests', () => {
         '--use-fake-ui-for-media-stream',
         '--no-first-run',
       ],
+      recordVideo: {
+        dir: videoDir,
+        size: { width: 1280, height: 720 }
+      }
     });
 
     // Get extension ID from chrome://extensions page
@@ -215,7 +224,7 @@ test.describe('Extension Popup Tests', () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
 
-    await expect(page.locator('h1')).toContainText('Meet Overlay');
+    await expect(page.locator('h1')).toContainText('Camera Overlay');
     await expect(page.locator('#add-overlay')).toBeVisible();
 
     await page.close();
@@ -252,7 +261,7 @@ test.describe('Extension Popup Tests', () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/preview.html`);
 
-    await expect(page.locator('#startCamera')).toBeVisible();
+    await expect(page.locator('#start-btn')).toBeVisible();
 
     await page.close();
   });

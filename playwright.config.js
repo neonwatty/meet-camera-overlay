@@ -15,6 +15,12 @@ export default defineConfig({
     headless: false, // Extensions don't work in headless mode
     viewport: { width: 1280, height: 720 },
 
+    // Record video of tests for visual verification
+    video: 'on',
+
+    // Take screenshot on failure
+    screenshot: 'only-on-failure',
+
     // Grant camera permissions
     permissions: ['camera'],
 
