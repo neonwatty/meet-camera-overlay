@@ -148,7 +148,10 @@
             const y = (overlay.y / 100) * this.canvas.height;
 
             // Flip the image horizontally so it appears correct after Meet's mirror
+            // Apply opacity (default to 1 if not set)
+            const opacity = overlay.opacity !== undefined ? overlay.opacity : 1;
             this.ctx.save();
+            this.ctx.globalAlpha = opacity;
             this.ctx.translate(x + w / 2, y + h / 2);
             this.ctx.scale(-1, 1);
             this.ctx.drawImage(img, -w / 2, -h / 2, w, h);

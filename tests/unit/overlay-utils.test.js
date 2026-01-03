@@ -143,6 +143,24 @@ describe('validateOverlay', () => {
     expect(validateOverlay({ ...validOverlay, height: 0 }).valid).toBe(false);
     expect(validateOverlay({ ...validOverlay, height: 101 }).valid).toBe(false);
   });
+
+  it('accepts valid opacity', () => {
+    expect(validateOverlay({ ...validOverlay, opacity: 0 }).valid).toBe(true);
+    expect(validateOverlay({ ...validOverlay, opacity: 0.5 }).valid).toBe(true);
+    expect(validateOverlay({ ...validOverlay, opacity: 1 }).valid).toBe(true);
+  });
+
+  it('accepts missing opacity (optional field)', () => {
+    const overlayWithoutOpacity = { ...validOverlay };
+    delete overlayWithoutOpacity.opacity;
+    expect(validateOverlay(overlayWithoutOpacity).valid).toBe(true);
+  });
+
+  it('rejects invalid opacity', () => {
+    expect(validateOverlay({ ...validOverlay, opacity: -0.1 }).valid).toBe(false);
+    expect(validateOverlay({ ...validOverlay, opacity: 1.1 }).valid).toBe(false);
+    expect(validateOverlay({ ...validOverlay, opacity: 'half' }).valid).toBe(false);
+  });
 });
 
 describe('generateId', () => {
@@ -170,6 +188,7 @@ describe('createOverlay', () => {
     expect(overlay.y).toBe(25);
     expect(overlay.width).toBe(20);
     expect(overlay.height).toBe(35);
+    expect(overlay.opacity).toBe(1);
     expect(overlay.name).toBe('Image');
   });
 
