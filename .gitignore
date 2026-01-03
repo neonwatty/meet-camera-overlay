@@ -1,3 +1,6 @@
 .DS_Store
 *.log
 _metadata/
+node_modules/
+playwright-report/
+test-results/
