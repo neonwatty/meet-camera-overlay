@@ -393,3 +393,66 @@ h2 {
 .hidden {
   display: none !important;
 }
+
+/* Add buttons container */
+.add-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Effect button */
+.btn-effect {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7c531 100%);
+  color: #fff;
+}
+
+.btn-effect:hover {
+  background: linear-gradient(135deg, #e55a25 0%, #e5b320 100%);
+}
+
+/* Effect item styles */
+.overlay-item.effect-item {
+  border-color: #ff6b35;
+  background: linear-gradient(135deg, #fff5f0 0%, #fffbf0 100%);
+}
+
+.overlay-item.effect-item.active {
+  border-color: #f7c531;
+  background: linear-gradient(135deg, #fff8e6 0%, #fffbf0 100%);
+  box-shadow: 0 0 8px rgba(247, 197, 49, 0.4);
+}
+
+/* Trigger button */
+.trigger-btn {
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 2px solid #ccc;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.trigger-btn:hover {
+  border-color: #ff6b35;
+  background: #fff5f0;
+  color: #ff6b35;
+}
+
+.trigger-btn.active {
+  border-color: #f7c531;
+  background: linear-gradient(135deg, #ff6b35 0%, #f7c531 100%);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(247, 197, 49, 0.5);
+}
+
+/* Modal hint text */
+.modal-hint {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}

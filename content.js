@@ -3,26 +3,42 @@
 
 console.log('[Meet Overlay] Content script loading...');
 
-// Inject the script into page context
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('inject.js');
-script.onload = () => {
-  console.log('[Meet Overlay] Inject script loaded');
-  script.remove();
+// Inject scripts into page context (gif-decoder first, then inject.js)
+function injectScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL(src);
+    script.onload = () => {
+      console.log(`[Meet Overlay] ${src} loaded`);
+      script.remove();
+      resolve();
+    };
+    script.onerror = (e) => {
+      console.error(`[Meet Overlay] Failed to load ${src}:`, e);
+      reject(e);
+    };
+    (document.head || document.documentElement).appendChild(script);
+  });
+}
 
-  // Send initial overlays from chrome.storage to the injected script
-  setTimeout(() => {
-    chrome.storage.local.get(['overlays'], (result) => {
-      const overlays = result.overlays || [];
-      console.log('[Meet Overlay] Sending initial overlays:', overlays.length);
-      window.postMessage({ type: 'MEET_OVERLAY_UPDATE', overlays }, '*');
-    });
-  }, 500);
-};
-script.onerror = (e) => {
-  console.error('[Meet Overlay] Failed to load inject script:', e);
-};
-(document.head || document.documentElement).appendChild(script);
+// Load scripts in order
+(async () => {
+  try {
+    await injectScript('lib/gif-decoder.js');
+    await injectScript('inject.js');
+
+    // Send initial overlays from chrome.storage to the injected script
+    setTimeout(() => {
+      chrome.storage.local.get(['overlays'], (result) => {
+        const overlays = result.overlays || [];
+        console.log('[Meet Overlay] Sending initial overlays:', overlays.length);
+        window.postMessage({ type: 'MEET_OVERLAY_UPDATE', overlays }, '*');
+      });
+    }, 500);
+  } catch (e) {
+    console.error('[Meet Overlay] Failed to inject scripts:', e);
+  }
+})();
 
 // Listen for messages from popup and forward to page context
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -30,6 +46,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'UPDATE_OVERLAYS') {
     window.postMessage({ type: 'MEET_OVERLAY_UPDATE', overlays: message.overlays }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'TOGGLE_EFFECT') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_TOGGLE_EFFECT',
+      id: message.id,
+      active: message.active
+    }, '*');
     sendResponse({ success: true });
   }
 

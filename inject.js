@@ -12,9 +12,12 @@
 
   // Overlay state
   let overlays = [];
-  let overlayImages = new Map(); // id -> HTMLImageElement
+  let overlayImages = new Map(); // id -> HTMLImageElement or AnimatedImage
   let isProcessing = false;
   let activeProcessor = null;
+
+  // Check if AnimatedImage class is available (from gif-decoder.js)
+  const hasGifSupport = typeof window.AnimatedImage !== 'undefined';
 
   // Load saved overlays from storage
   function loadOverlays() {
@@ -39,9 +42,29 @@
   }
 
   // Load an image for an overlay
-  function loadOverlayImage(overlay) {
+  async function loadOverlayImage(overlay) {
     if (!overlay.src) return;
 
+    // Check if it's an animated GIF
+    if (hasGifSupport && window.isAnimatedGif(overlay.src)) {
+      try {
+        console.log('[Meet Overlay] Loading animated GIF:', overlay.id);
+        const animatedImage = await window.decodeGifFromDataUrl(overlay.src);
+        overlayImages.set(overlay.id, animatedImage);
+        console.log('[Meet Overlay] Loaded animated GIF with', animatedImage.frames.length, 'frames');
+      } catch (e) {
+        console.error('[Meet Overlay] Failed to decode GIF:', e);
+        // Fallback to static image
+        loadStaticImage(overlay);
+      }
+      return;
+    }
+
+    loadStaticImage(overlay);
+  }
+
+  // Load a static image
+  function loadStaticImage(overlay) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -93,7 +116,7 @@
 
       // Start render loop
       this.running = true;
-      this.render();
+      requestAnimationFrame((ts) => this.render(ts));
 
       // Capture canvas as stream
       const canvasStream = this.canvas.captureStream(30);
@@ -113,7 +136,7 @@
       return this.outputStream;
     }
 
-    render() {
+    render(timestamp) {
       if (!this.running) return;
 
       if (this.video.readyState >= 2) {
@@ -122,45 +145,71 @@
 
         // Draw overlays (mirror since Meet mirrors self-view)
         overlays.forEach(overlay => {
-          const img = overlayImages.get(overlay.id);
-          if (img && img.complete && img.naturalWidth > 0) {
-            // Calculate the target box size from overlay percentages
-            const boxW = (overlay.width / 100) * this.canvas.width;
-            const boxH = (overlay.height / 100) * this.canvas.height;
+          // Check if overlay should be rendered (effects only when active)
+          if (overlay.type === 'effect' && !overlay.active) return;
 
-            // Preserve image aspect ratio (fit within box)
-            const imgAspect = img.naturalWidth / img.naturalHeight;
-            const boxAspect = boxW / boxH;
+          const imgOrAnim = overlayImages.get(overlay.id);
+          if (!imgOrAnim) return;
 
-            let w, h;
-            if (imgAspect > boxAspect) {
-              // Image is wider than box - fit to width
-              w = boxW;
-              h = boxW / imgAspect;
-            } else {
-              // Image is taller than box - fit to height
-              h = boxH;
-              w = boxH * imgAspect;
-            }
+          // Check if this is an AnimatedImage or regular Image
+          const isAnimated = imgOrAnim instanceof window.AnimatedImage;
 
-            // Mirror the x-position so it appears where user intended after Meet mirrors
-            const x = this.canvas.width - ((overlay.x / 100) * this.canvas.width) - w;
-            const y = (overlay.y / 100) * this.canvas.height;
+          // Get the drawable image (current frame for animated, the image itself for static)
+          let drawableImg;
+          let imgWidth, imgHeight;
 
-            // Flip the image horizontally so it appears correct after Meet's mirror
-            // Apply opacity (default to 1 if not set)
-            const opacity = overlay.opacity !== undefined ? overlay.opacity : 1;
-            this.ctx.save();
-            this.ctx.globalAlpha = opacity;
-            this.ctx.translate(x + w / 2, y + h / 2);
-            this.ctx.scale(-1, 1);
-            this.ctx.drawImage(img, -w / 2, -h / 2, w, h);
-            this.ctx.restore();
+          if (isAnimated) {
+            // Update animation frame
+            imgOrAnim.update(timestamp);
+            drawableImg = imgOrAnim.currentFrame;
+            imgWidth = imgOrAnim.width;
+            imgHeight = imgOrAnim.height;
+          } else {
+            // Static image
+            if (!imgOrAnim.complete || !imgOrAnim.naturalWidth) return;
+            drawableImg = imgOrAnim;
+            imgWidth = imgOrAnim.naturalWidth;
+            imgHeight = imgOrAnim.naturalHeight;
           }
+
+          if (!drawableImg) return;
+
+          // Calculate the target box size from overlay percentages
+          const boxW = (overlay.width / 100) * this.canvas.width;
+          const boxH = (overlay.height / 100) * this.canvas.height;
+
+          // Preserve image aspect ratio (fit within box)
+          const imgAspect = imgWidth / imgHeight;
+          const boxAspect = boxW / boxH;
+
+          let w, h;
+          if (imgAspect > boxAspect) {
+            // Image is wider than box - fit to width
+            w = boxW;
+            h = boxW / imgAspect;
+          } else {
+            // Image is taller than box - fit to height
+            h = boxH;
+            w = boxH * imgAspect;
+          }
+
+          // Mirror the x-position so it appears where user intended after Meet mirrors
+          const x = this.canvas.width - ((overlay.x / 100) * this.canvas.width) - w;
+          const y = (overlay.y / 100) * this.canvas.height;
+
+          // Flip the image horizontally so it appears correct after Meet's mirror
+          // Apply opacity (default to 1 if not set)
+          const opacity = overlay.opacity !== undefined ? overlay.opacity : 1;
+          this.ctx.save();
+          this.ctx.globalAlpha = opacity;
+          this.ctx.translate(x + w / 2, y + h / 2);
+          this.ctx.scale(-1, 1);
+          this.ctx.drawImage(drawableImg, -w / 2, -h / 2, w, h);
+          this.ctx.restore();
         });
       }
 
-      requestAnimationFrame(() => this.render());
+      requestAnimationFrame((ts) => this.render(ts));
     }
 
     stop() {
@@ -223,6 +272,27 @@
 
     if (event.data.type === 'MEET_OVERLAY_PING') {
       window.postMessage({ type: 'MEET_OVERLAY_PONG', processing: isProcessing }, '*');
+    }
+
+    if (event.data.type === 'MEET_OVERLAY_TOGGLE_EFFECT') {
+      const { id, active } = event.data;
+      console.log('[Meet Overlay] Toggling effect:', id, 'active:', active);
+
+      const overlay = overlays.find(o => o.id === id);
+      if (overlay && overlay.type === 'effect') {
+        overlay.active = active;
+
+        // Reset animation when activating
+        if (active) {
+          const img = overlayImages.get(id);
+          if (img && img instanceof window.AnimatedImage) {
+            img.reset();
+          }
+        }
+        // Note: Don't call saveOverlays() here - popup.js already saved to storage
+        // and sent UPDATE_OVERLAYS to all tabs. Calling save here causes race conditions
+        // between multiple Meet tabs.
+      }
     }
   });
 

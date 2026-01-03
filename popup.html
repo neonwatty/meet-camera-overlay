@@ -24,23 +24,27 @@
     <div class="overlay-section">
       <div class="section-header">
         <h2>Overlays</h2>
-        <button id="add-overlay" class="btn btn-primary">+ Add Image</button>
+        <div class="add-buttons">
+          <button id="add-overlay" class="btn btn-primary">+ Add Image</button>
+          <button id="add-effect" class="btn btn-effect">+ Add Effect</button>
+        </div>
       </div>
       <div id="overlay-list"></div>
-      <p id="empty-state" class="empty-state">No overlays yet. Click "Add Image" to get started.</p>
+      <p id="empty-state" class="empty-state">No overlays yet. Add an image or effect to get started.</p>
     </div>
 
     <!-- Add Overlay Modal -->
     <div id="add-modal" class="modal hidden">
       <div class="modal-content">
-        <h3>Add Image Overlay</h3>
+        <h3 id="modal-title">Add Image Overlay</h3>
+        <p id="modal-hint" class="modal-hint"></p>
         <div class="form-group">
           <label>Image URL</label>
           <input type="text" id="image-url" placeholder="https://example.com/image.png">
         </div>
         <div class="form-group">
           <label>Or upload a file</label>
-          <input type="file" id="image-file" accept="image/*">
+          <input type="file" id="image-file" accept="image/*,.gif">
         </div>
         <div class="modal-actions">
           <button id="cancel-add" class="btn btn-secondary">Cancel</button>
