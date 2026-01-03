@@ -1,0 +1,17 @@
+{
+  "name": "meet-camera-overlay",
+  "version": "1.0.0",
+  "description": "Chrome extension that adds image overlays to your Google Meet camera feed",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:integration": "playwright test",
+    "test:integration:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "vitest": "^1.0.0"
+  },
+  "type": "module"
+}

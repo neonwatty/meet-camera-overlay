@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mock Google Meet - Testing</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #202124;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-weight: 400;
+    }
+    .video-container {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      background: #3c4043;
+      border-radius: 8px;
+      overflow: hidden;
+      /* Mirror like Meet does */
+      transform: scaleX(-1);
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 24px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .start-btn {
+      background: #8ab4f8;
+      color: #202124;
+    }
+    .start-btn:hover {
+      background: #aecbfa;
+    }
+    .stop-btn {
+      background: #ea4335;
+      color: white;
+    }
+    .stop-btn:hover {
+      background: #f28b82;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #3c4043;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .status.success {
+      background: #137333;
+    }
+    .status.error {
+      background: #c5221f;
+    }
+    #log {
+      margin-top: 20px;
+      width: 640px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: #292a2d;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .log-entry {
+      padding: 2px 0;
+      border-bottom: 1px solid #3c4043;
+    }
+    .log-entry.info { color: #8ab4f8; }
+    .log-entry.success { color: #81c995; }
+    .log-entry.error { color: #f28b82; }
+  </style>
+</head>
+<body>
+  <h1>Mock Google Meet</h1>
+
+  <div class="video-container">
+    <video id="video" autoplay playsinline muted></video>
+  </div>
+
+  <div class="controls">
+    <button id="start-btn" class="start-btn">Start Camera</button>
+    <button id="stop-btn" class="stop-btn" disabled>Stop Camera</button>
+  </div>
+
+  <div id="status" class="status">Ready to start camera</div>
+
+  <div id="log"></div>
+
+  <script>
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+
+    let currentStream = null;
+
+    function log(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(`[MockMeet] ${message}`);
+    }
+
+    function setStatus(message, type = '') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    // Check if our extension is injected
+    function checkExtensionInjected() {
+      if (window.__meetOverlayInjected) {
+        log('Extension inject.js detected!', 'success');
+        return true;
+      }
+      return false;
+    }
+
+    startBtn.addEventListener('click', async () => {
+      log('Requesting camera access...');
+      setStatus('Requesting camera...', '');
+
+      try {
+        // This mimics how Meet requests camera
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          },
+          audio: false
+        });
+
+        log('Got media stream', 'success');
+
+        // Check if stream was intercepted (will have been processed)
+        const videoTrack = currentStream.getVideoTracks()[0];
+        const settings = videoTrack.getSettings();
+        log(`Video track: ${videoTrack.label}`, 'info');
+        log(`Resolution: ${settings.width}x${settings.height}`, 'info');
+
+        // Check for canvas capture (indicates our extension processed it)
+        if (videoTrack.label.includes('canvas') || videoTrack.label === '') {
+          log('Stream appears to be processed by extension!', 'success');
+          setStatus('Camera active (extension processing)', 'success');
+        } else {
+          log('Stream is direct camera (extension may not be active)', 'info');
+          setStatus('Camera active (direct)', 'success');
+        }
+
+        video.srcObject = currentStream;
+        await video.play();
+
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        // Expose for testing
+        window.__mockMeetStream = currentStream;
+        window.__mockMeetActive = true;
+
+      } catch (err) {
+        log(`Error: ${err.message}`, 'error');
+        setStatus(`Error: ${err.message}`, 'error');
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+        video.srcObject = null;
+
+        log('Camera stopped');
+        setStatus('Camera stopped', '');
+
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+
+        window.__mockMeetStream = null;
+        window.__mockMeetActive = false;
+      }
+    });
+
+    // Check for extension on load
+    window.addEventListener('load', () => {
+      log('Mock Meet page loaded');
+
+      // Check multiple times as extension may inject after page load
+      setTimeout(() => checkExtensionInjected(), 100);
+      setTimeout(() => checkExtensionInjected(), 500);
+      setTimeout(() => checkExtensionInjected(), 1000);
+    });
+
+    // Listen for overlay updates from extension
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'MEET_OVERLAY_UPDATE') {
+        log(`Received overlay update: ${event.data.overlays?.length || 0} overlays`, 'success');
+        window.__mockMeetOverlays = event.data.overlays;
+      }
+      if (event.data.type === 'MEET_OVERLAY_PING') {
+        log('Received ping from extension', 'info');
+      }
+    });
+
+    // Expose test helpers
+    window.__mockMeet = {
+      getStream: () => currentStream,
+      isActive: () => !!currentStream,
+      getOverlays: () => window.__mockMeetOverlays || [],
+      isExtensionLoaded: () => !!window.__meetOverlayInjected
+    };
+  </script>
+</body>
+</html>
