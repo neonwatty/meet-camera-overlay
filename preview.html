@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Camera Overlay Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #1a73e8;
+      margin-bottom: 20px;
+    }
+    .preview-area {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    #canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      cursor: default;
+    }
+    #canvas.dragging {
+      cursor: grabbing;
+    }
+    #canvas.can-drag {
+      cursor: grab;
+    }
+    #canvas.can-resize {
+      cursor: se-resize;
+    }
+    .hint {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 15px;
+    }
+    .placeholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: rgba(255,255,255,0.6);
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary {
+      background: #1a73e8;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-secondary {
+      background: #333;
+      color: #fff;
+    }
+    .btn-secondary:hover { background: #444; }
+    .btn-danger {
+      background: #d93025;
+      color: #fff;
+    }
+    .btn-danger:hover { background: #b5281e; }
+
+    .overlay-controls {
+      background: #2a2a3e;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .overlay-controls h2 {
+      font-size: 16px;
+      margin-bottom: 15px;
+      color: #ccc;
+    }
+    .overlay-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .overlay-item {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .overlay-item img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 6px;
+      background: #333;
+    }
+    .overlay-item .info {
+      flex: 1;
+    }
+    .overlay-item .name {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .overlay-item .position {
+      font-size: 12px;
+      color: #888;
+    }
+    .add-form {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .add-form input[type="text"] {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #444;
+      border-radius: 6px;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 14px;
+    }
+    .add-form input[type="text"]:focus {
+      outline: none;
+      border-color: #1a73e8;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .status.success { background: rgba(26, 115, 232, 0.2); color: #8ab4f8; }
+    .status.error { background: rgba(217, 48, 37, 0.2); color: #f28b82; }
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Camera Overlay Preview</h1>
+
+    <div id="status" class="status" style="display:none;"></div>
+
+    <div class="preview-area">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <div id="placeholder" class="placeholder">
+        <p>Click "Start Camera" to begin</p>
+      </div>
+    </div>
+
+    <p class="hint">Drag overlays to move them. Drag the bottom-right corner to resize.</p>
+
+    <div class="controls">
+      <button id="start-btn" class="btn btn-primary">Start Camera</button>
+      <button id="stop-btn" class="btn btn-secondary" disabled>Stop Camera</button>
+    </div>
+
+    <div class="overlay-controls">
+      <h2>Overlays</h2>
+      <div id="overlay-list" class="overlay-list">
+        <p id="empty-state" class="empty-state">No overlays added yet</p>
+      </div>
+      <div class="add-form">
+        <input type="text" id="image-url" placeholder="Enter image URL (e.g., https://picsum.photos/200)">
+        <button id="add-btn" class="btn btn-primary">Add Overlay</button>
+      </div>
+      <div class="add-form" style="margin-top: 10px;">
+        <input type="file" id="image-file" accept="image/*">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const placeholder = document.getElementById('placeholder');
+    const statusEl = document.getElementById('status');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const overlayListEl = document.getElementById('overlay-list');
+    const emptyState = document.getElementById('empty-state');
+    const imageUrlInput = document.getElementById('image-url');
+    const imageFileInput = document.getElementById('image-file');
+    const addBtn = document.getElementById('add-btn');
+
+    let stream = null;
+    let animationId = null;
+    let overlays = [];
+    let overlayImages = new Map();
+
+    // Load overlays from localStorage (shared with extension)
+    function loadOverlays() {
+      try {
+        const saved = localStorage.getItem('meetOverlays');
+        if (saved) {
+          overlays = JSON.parse(saved);
+          overlays.forEach(loadOverlayImage);
+          renderOverlayList();
+        }
+      } catch (e) {
+        console.error('Failed to load overlays:', e);
+      }
+    }
+
+    // Save overlays to localStorage
+    function saveOverlays() {
+      try {
+        localStorage.setItem('meetOverlays', JSON.stringify(overlays));
+      } catch (e) {
+        console.error('Failed to save overlays:', e);
+      }
+    }
+
+    // Load image for overlay
+    function loadOverlayImage(overlay) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        overlayImages.set(overlay.id, img);
+        console.log('Loaded overlay image:', overlay.id);
+      };
+      img.onerror = () => {
+        console.error('Failed to load overlay image:', overlay.src);
+        showStatus('Failed to load image: ' + overlay.src, 'error');
+      };
+      img.src = overlay.src;
+    }
+
+    // Generate unique ID
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    // Show status message
+    function showStatus(msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status ' + type;
+      statusEl.style.display = 'block';
+      setTimeout(() => {
+        statusEl.style.display = 'none';
+      }, 4000);
+    }
+
+    // Render overlay list
+    function renderOverlayList() {
+      overlayListEl.innerHTML = '';
+
+      if (overlays.length === 0) {
+        overlayListEl.innerHTML = '<p class="empty-state">No overlays added yet</p>';
+        return;
+      }
+
+      overlays.forEach((overlay, index) => {
+        const item = document.createElement('div');
+        item.className = 'overlay-item';
+        item.innerHTML = `
+          <img src="${overlay.src}" alt="">
+          <div class="info">
+            <div class="name">${overlay.name || 'Overlay ' + (index + 1)}</div>
+            <div class="position">Position: ${Math.round(overlay.x)}%, ${Math.round(overlay.y)}% | Size: ${Math.round(overlay.width)}% x ${Math.round(overlay.height)}%</div>
+          </div>
+          <button class="btn btn-danger" data-index="${index}">Remove</button>
+        `;
+        overlayListEl.appendChild(item);
+      });
+
+      // Add remove handlers
+      overlayListEl.querySelectorAll('.btn-danger').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = parseInt(e.target.dataset.index);
+          const overlay = overlays[index];
+          overlayImages.delete(overlay.id);
+          overlays.splice(index, 1);
+          saveOverlays();
+          renderOverlayList();
+          showStatus('Overlay removed', 'success');
+        });
+      });
+    }
+
+    // Add overlay
+    async function addOverlay(src) {
+      // Validate image loads
+      try {
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+      } catch (e) {
+        showStatus('Could not load image', 'error');
+        return;
+      }
+
+      const overlay = {
+        id: generateId(),
+        src: src,
+        x: 5,
+        y: 25,
+        width: 20,
+        height: 35,
+        name: src.startsWith('data:') ? 'Uploaded Image' : new URL(src).pathname.split('/').pop() || 'Image'
+      };
+
+      overlays.push(overlay);
+      loadOverlayImage(overlay);
+      saveOverlays();
+      renderOverlayList();
+      showStatus('Overlay added!', 'success');
+    }
+
+    // File to data URL
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Drag state
+    let dragState = null;
+    const RESIZE_HANDLE_SIZE = 20; // pixels for resize corner detection
+
+    // Convert mouse event to canvas coordinates (accounting for CSS scaling)
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    // Check if point is in overlay, returns { overlay, index, isResize }
+    function hitTest(px, py) {
+      // Check in reverse order (top overlays first)
+      for (let i = overlays.length - 1; i >= 0; i--) {
+        const overlay = overlays[i];
+        const x = (overlay.x / 100) * canvas.width;
+        const y = (overlay.y / 100) * canvas.height;
+        const w = (overlay.width / 100) * canvas.width;
+        const h = (overlay.height / 100) * canvas.height;
+
+        // Check resize handle (bottom-right corner)
+        if (px >= x + w - RESIZE_HANDLE_SIZE && px <= x + w + 5 &&
+            py >= y + h - RESIZE_HANDLE_SIZE && py <= y + h + 5) {
+          return { overlay, index: i, isResize: true };
+        }
+
+        // Check if inside overlay
+        if (px >= x && px <= x + w && py >= y && py <= y + h) {
+          return { overlay, index: i, isResize: false };
+        }
+      }
+      return null;
+    }
+
+    // Mouse down - start drag
+    canvas.addEventListener('mousedown', (e) => {
+      if (!stream) return;
+      const coords = getCanvasCoords(e);
+      const hit = hitTest(coords.x, coords.y);
+
+      if (hit) {
+        e.preventDefault();
+        dragState = {
+          index: hit.index,
+          isResize: hit.isResize,
+          startX: coords.x,
+          startY: coords.y,
+          origX: hit.overlay.x,
+          origY: hit.overlay.y,
+          origW: hit.overlay.width,
+          origH: hit.overlay.height
+        };
+        canvas.classList.add('dragging');
+      }
+    });
+
+    // Mouse move - drag or update cursor
+    canvas.addEventListener('mousemove', (e) => {
+      if (!stream) return;
+      const coords = getCanvasCoords(e);
+
+      if (dragState) {
+        const overlay = overlays[dragState.index];
+        const dx = ((coords.x - dragState.startX) / canvas.width) * 100;
+        const dy = ((coords.y - dragState.startY) / canvas.height) * 100;
+
+        if (dragState.isResize) {
+          // Resize
+          overlay.width = Math.max(5, Math.min(100 - overlay.x, dragState.origW + dx));
+          overlay.height = Math.max(5, Math.min(100 - overlay.y, dragState.origH + dy));
+        } else {
+          // Move
+          overlay.x = Math.max(0, Math.min(100 - overlay.width, dragState.origX + dx));
+          overlay.y = Math.max(0, Math.min(100 - overlay.height, dragState.origY + dy));
+        }
+        renderOverlayList();
+      } else {
+        // Update cursor based on what's under mouse
+        const hit = hitTest(coords.x, coords.y);
+        canvas.classList.remove('can-drag', 'can-resize');
+        if (hit) {
+          canvas.classList.add(hit.isResize ? 'can-resize' : 'can-drag');
+        }
+      }
+    });
+
+    // Mouse up - end drag
+    canvas.addEventListener('mouseup', () => {
+      if (dragState) {
+        dragState = null;
+        canvas.classList.remove('dragging');
+        saveOverlays();
+      }
+    });
+
+    // Mouse leave - end drag
+    canvas.addEventListener('mouseleave', () => {
+      if (dragState) {
+        dragState = null;
+        canvas.classList.remove('dragging');
+        saveOverlays();
+      }
+      canvas.classList.remove('can-drag', 'can-resize');
+    });
+
+    // Render loop
+    function render() {
+      if (!stream) return;
+
+      if (video.readyState >= 2) {
+        // Draw video frame
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Draw overlays
+        overlays.forEach((overlay, index) => {
+          const img = overlayImages.get(overlay.id);
+          if (img && img.complete && img.naturalWidth > 0) {
+            const x = (overlay.x / 100) * canvas.width;
+            const y = (overlay.y / 100) * canvas.height;
+            const w = (overlay.width / 100) * canvas.width;
+            const h = (overlay.height / 100) * canvas.height;
+
+            // Draw the image
+            ctx.drawImage(img, x, y, w, h);
+
+            // Draw border when hovering or dragging
+            if (dragState && dragState.index === index) {
+              ctx.strokeStyle = '#1a73e8';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(x, y, w, h);
+
+              // Draw resize handle
+              ctx.fillStyle = '#1a73e8';
+              ctx.fillRect(x + w - 10, y + h - 10, 12, 12);
+            }
+          }
+        });
+      }
+
+      animationId = requestAnimationFrame(render);
+    }
+
+    // Start camera
+    startBtn.addEventListener('click', async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720 }
+        });
+
+        video.srcObject = stream;
+        await video.play();
+
+        const settings = stream.getVideoTracks()[0].getSettings();
+        canvas.width = settings.width || 1280;
+        canvas.height = settings.height || 720;
+
+        placeholder.style.display = 'none';
+        video.style.display = 'none'; // We show canvas instead
+        canvas.style.display = 'block';
+
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        showStatus('Camera started!', 'success');
+        render();
+
+      } catch (err) {
+        console.error('Camera error:', err);
+        showStatus('Camera error: ' + err.message, 'error');
+      }
+    });
+
+    // Stop camera
+    stopBtn.addEventListener('click', () => {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+      video.srcObject = null;
+      placeholder.style.display = 'block';
+      canvas.style.display = 'none';
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      showStatus('Camera stopped', 'success');
+    });
+
+    // Add overlay from URL
+    addBtn.addEventListener('click', () => {
+      const url = imageUrlInput.value.trim();
+      if (url) {
+        addOverlay(url);
+        imageUrlInput.value = '';
+      }
+    });
+
+    // Add overlay from file
+    imageFileInput.addEventListener('change', async () => {
+      if (imageFileInput.files.length > 0) {
+        const dataUrl = await fileToDataUrl(imageFileInput.files[0]);
+        addOverlay(dataUrl);
+        imageFileInput.value = '';
+      }
+    });
+
+    // Enter key to add URL
+    imageUrlInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        addBtn.click();
+      }
+    });
+
+    // Load saved overlays on init
+    loadOverlays();
+  </script>
+</body>
+</html>
