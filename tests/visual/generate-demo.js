@@ -13,7 +13,7 @@
  *   - test-results/visual/opacity-demo.gif (animated)
  */
 
-import { createCanvas, loadImage } from 'canvas';
+import { createCanvas } from 'canvas';
 import { drawOverlay } from '../../lib/canvas-renderer.js';
 import fs from 'fs';
 import path from 'path';

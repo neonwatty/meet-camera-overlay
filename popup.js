@@ -49,8 +49,8 @@ function sortOverlaysByLayer(overlays) {
   });
 }
 
-// Recalculate zIndex values after reordering
-function recalculateZIndices() {
+// Recalculate zIndex values after reordering (kept for potential future use)
+function _recalculateZIndices() {
   const background = overlays.filter(o => o.layer === LAYER_BACKGROUND);
   const foreground = overlays.filter(o => o.layer !== LAYER_BACKGROUND);
 
@@ -161,7 +161,7 @@ confirmAddBtn.addEventListener('click', async () => {
   // Validate image loads
   try {
     await loadImage(src);
-  } catch (err) {
+  } catch {
     showStatus('Could not load image. Check the URL.', 'error');
     return;
   }
@@ -377,7 +377,7 @@ function setupOverlayItemHandlers(listElement) {
       renderPreviewOverlays();
     });
 
-    slider.addEventListener('change', async (e) => {
+    slider.addEventListener('change', async () => {
       await saveOverlays();
     });
   });
@@ -651,7 +651,7 @@ function handleDragStart(e) {
   }, 0);
 }
 
-function handleDragEnd(e) {
+function handleDragEnd(_e) {
   this.classList.remove('dragging');
   this.style.opacity = '';
   draggedItem = null;
@@ -680,7 +680,7 @@ function handleDragEnter(e) {
   }
 }
 
-function handleDragLeave(e) {
+function handleDragLeave(_e) {
   this.classList.remove('drag-over');
 }
 
