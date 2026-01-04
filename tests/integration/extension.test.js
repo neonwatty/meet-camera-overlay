@@ -760,4 +760,132 @@ test.describe('Extension Popup Tests', () => {
 
     await page.close();
   });
+
+  test('bundled effects section appears when bundled effects exist', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Add a bundled effect to storage
+    await page.evaluate(() => {
+      const bundledEffect = {
+        id: 'bundled-test',
+        src: 'chrome-extension://test/assets/effects/test.gif',
+        x: 0, y: 0, width: 100, height: 100,
+        opacity: 1,
+        type: 'effect',
+        active: false,
+        name: 'Test Aura',
+        category: 'bundled',
+        layer: 'background',
+        zIndex: 0,
+        createdAt: Date.now()
+      };
+      chrome.storage.local.set({ overlays: [bundledEffect] });
+    });
+    await page.reload();
+
+    // Bundled section should be visible
+    await expect(page.locator('#bundled-section')).toBeVisible();
+    await expect(page.locator('#bundled-section h2')).toContainText('Bundled Effects');
+    await expect(page.locator('#bundled-overlay-list .overlay-item')).toHaveCount(1);
+
+    // Clean up
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.close();
+  });
+
+  test('bundled effects have trigger button for activation', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Add a bundled effect
+    await page.evaluate(() => {
+      const bundledEffect = {
+        id: 'bundled-test-2',
+        src: 'chrome-extension://test/assets/effects/test.gif',
+        x: 0, y: 0, width: 100, height: 100,
+        opacity: 1,
+        type: 'effect',
+        active: false,
+        name: 'Test Aura',
+        category: 'bundled',
+        layer: 'background',
+        zIndex: 0,
+        createdAt: Date.now()
+      };
+      chrome.storage.local.set({ overlays: [bundledEffect] });
+    });
+    await page.reload();
+
+    // Check trigger button exists and shows OFF state
+    const triggerBtn = page.locator('#bundled-overlay-list .trigger-btn');
+    await expect(triggerBtn).toBeVisible();
+    await expect(triggerBtn).toContainText('OFF');
+
+    // Clean up
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.close();
+  });
+
+  test('bundled and user overlays display in separate sections', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Add both bundled and user overlays
+    await page.evaluate(() => {
+      const overlays = [
+        {
+          id: 'user-overlay-1',
+          src: 'data:image/png;base64,abc',
+          x: 10, y: 10, width: 20, height: 20,
+          opacity: 1,
+          type: 'standard',
+          name: 'User Image',
+          category: 'user',
+          layer: 'foreground',
+          zIndex: 0,
+          createdAt: Date.now()
+        },
+        {
+          id: 'bundled-aura-1',
+          src: 'chrome-extension://test/assets/effects/blue.gif',
+          x: 0, y: 0, width: 100, height: 100,
+          opacity: 1,
+          type: 'effect',
+          active: false,
+          name: 'Blue Aura',
+          category: 'bundled',
+          layer: 'background',
+          zIndex: 0,
+          createdAt: Date.now()
+        }
+      ];
+      chrome.storage.local.set({ overlays });
+    });
+    await page.reload();
+
+    // User overlay in user section
+    await expect(page.locator('#user-overlay-list .overlay-item')).toHaveCount(1);
+    await expect(page.locator('#user-overlay-list .overlay-item .name')).toContainText('User Image');
+
+    // Bundled overlay in bundled section
+    await expect(page.locator('#bundled-overlay-list .overlay-item')).toHaveCount(1);
+    await expect(page.locator('#bundled-overlay-list .overlay-item .name')).toContainText('Blue Aura');
+
+    // Clean up
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.close();
+  });
 });
