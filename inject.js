@@ -10,6 +10,10 @@
   // Store original getUserMedia
   const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
+  // Constants for layer ordering
+  const LAYER_BACKGROUND = 'background';
+  const LAYER_FOREGROUND = 'foreground';
+
   // Overlay state
   let overlays = [];
   let overlayImages = new Map(); // id -> HTMLImageElement or AnimatedImage
@@ -19,12 +23,45 @@
   // Check if AnimatedImage class is available (from gif-decoder.js)
   const hasGifSupport = typeof window.AnimatedImage !== 'undefined';
 
+  // Sort overlays by layer and zIndex for correct rendering order
+  function sortOverlaysByLayer(overlays) {
+    return [...overlays].sort((a, b) => {
+      // Background = 0, Foreground = 1
+      const aLayerOrder = a.layer === LAYER_BACKGROUND ? 0 : 1;
+      const bLayerOrder = b.layer === LAYER_BACKGROUND ? 0 : 1;
+
+      // First sort by layer
+      if (aLayerOrder !== bLayerOrder) {
+        return aLayerOrder - bLayerOrder;
+      }
+
+      // Within same layer, sort by zIndex
+      const aZIndex = a.zIndex || 0;
+      const bZIndex = b.zIndex || 0;
+      return aZIndex - bZIndex;
+    });
+  }
+
+  // Migrate an overlay to include new fields if missing
+  function migrateOverlay(overlay) {
+    if (!overlay) return overlay;
+    const migrated = { ...overlay };
+    if (!migrated.layer) {
+      migrated.layer = migrated.type === 'effect' ? LAYER_BACKGROUND : LAYER_FOREGROUND;
+    }
+    if (migrated.zIndex === undefined) {
+      migrated.zIndex = 0;
+    }
+    return migrated;
+  }
+
   // Load saved overlays from storage
   function loadOverlays() {
     try {
       const saved = localStorage.getItem('meetOverlays');
       if (saved) {
-        overlays = JSON.parse(saved);
+        const rawOverlays = JSON.parse(saved);
+        overlays = rawOverlays.map(migrateOverlay);
         overlays.forEach(loadOverlayImage);
       }
     } catch (e) {
@@ -143,8 +180,9 @@
         // Draw original video frame
         this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw overlays (mirror since Meet mirrors self-view)
-        overlays.forEach(overlay => {
+        // Sort overlays by layer and zIndex, then draw
+        const sortedOverlays = sortOverlaysByLayer(overlays);
+        sortedOverlays.forEach(overlay => {
           // Check if overlay should be rendered (effects only when active)
           if (overlay.type === 'effect' && !overlay.active) return;
 
@@ -251,7 +289,8 @@
 
     if (event.data.type === 'MEET_OVERLAY_UPDATE') {
       console.log('[Meet Overlay] Received overlay update:', event.data.overlays);
-      overlays = event.data.overlays;
+      // Migrate overlays to ensure they have layer/zIndex fields
+      overlays = event.data.overlays.map(migrateOverlay);
 
       // Load any new images
       overlays.forEach(overlay => {

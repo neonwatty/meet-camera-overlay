@@ -251,15 +251,27 @@ h2 {
   width: 32px;
 }
 
+.overlay-item .duplicate-btn,
 .overlay-item .delete-btn {
   background: none;
   border: none;
-  color: #d93025;
   cursor: pointer;
   padding: 4px 8px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
   border-radius: 4px;
+}
+
+.overlay-item .duplicate-btn {
+  color: #1a73e8;
+}
+
+.overlay-item .duplicate-btn:hover {
+  background: #e8f0fe;
+}
+
+.overlay-item .delete-btn {
+  color: #d93025;
 }
 
 .overlay-item .delete-btn:hover {
@@ -455,4 +467,134 @@ h2 {
   color: #666;
   margin-bottom: 12px;
   line-height: 1.4;
+}
+
+/* Drag handle for reordering */
+.drag-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 4px;
+  cursor: grab;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: #888;
+  border-radius: 1px;
+}
+
+/* Dragging state for overlay items */
+.overlay-item.dragging {
+  opacity: 0.5;
+  background: #e3f2fd;
+  border-color: #1a73e8;
+}
+
+.overlay-item.drag-over {
+  border-color: #1a73e8;
+  border-style: dashed;
+}
+
+/* Layer indicator badge */
+.layer-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.layer-badge.foreground {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.layer-badge.background {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+/* Order indicator */
+.order-indicator {
+  font-size: 11px;
+  color: #888;
+  margin-right: 4px;
+}
+
+/* Bundled section styling */
+.bundled-section {
+  margin-top: 12px;
+  background: #f0f4f8;
+}
+
+.bundled-section h2 {
+  color: #5f6368;
+}
+
+/* Overlay list container */
+.overlay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Controls row for opacity + layer toggle */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* Layer toggle buttons */
+.layer-toggle {
+  display: flex;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #ddd;
+}
+
+.layer-toggle .layer-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  border: none;
+  background: #f5f5f5;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.layer-toggle .layer-btn:first-child {
+  border-right: 1px solid #ddd;
+}
+
+.layer-toggle .layer-btn:hover {
+  background: #e8e8e8;
+}
+
+.layer-toggle .layer-btn.active {
+  background: #1a73e8;
+  color: #fff;
+}
+
+.layer-toggle .layer-btn.active[data-layer="background"] {
+  background: #ef6c00;
+}
+
+.layer-toggle .layer-btn.active[data-layer="foreground"] {
+  background: #2e7d32;
 }

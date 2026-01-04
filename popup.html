@@ -20,17 +20,25 @@
       <p class="hint">Drag overlays to position them. They'll appear on your Meet camera.</p>
     </div>
 
-    <!-- Overlay List -->
+    <!-- My Overlays Section -->
     <div class="overlay-section">
       <div class="section-header">
-        <h2>Overlays</h2>
+        <h2>My Overlays</h2>
         <div class="add-buttons">
           <button id="add-overlay" class="btn btn-primary">+ Add Image</button>
           <button id="add-effect" class="btn btn-effect">+ Add Effect</button>
         </div>
       </div>
-      <div id="overlay-list"></div>
-      <p id="empty-state" class="empty-state">No overlays yet. Add an image or effect to get started.</p>
+      <div id="user-overlay-list" class="overlay-list"></div>
+      <p id="user-empty-state" class="empty-state">No custom overlays yet. Add an image or effect to get started.</p>
+    </div>
+
+    <!-- Bundled Effects Section (hidden if empty) -->
+    <div id="bundled-section" class="overlay-section bundled-section hidden">
+      <div class="section-header">
+        <h2>Bundled Effects</h2>
+      </div>
+      <div id="bundled-overlay-list" class="overlay-list"></div>
     </div>
 
     <!-- Add Overlay Modal -->
