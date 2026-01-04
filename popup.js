@@ -10,6 +10,18 @@ let overlays = [];
 let dragState = null;
 let addingType = 'standard'; // 'standard' or 'effect'
 
+// Undo/redo state
+let previousState = null;      // Snapshot before last action
+let lastActionType = null;     // 'add', 'delete', 'move', etc.
+let canRedo = false;
+let redoState = null;
+
+// Selection state for keyboard shortcuts
+let selectedOverlayId = null;
+
+// Track if opacity slider is being dragged (to capture state only once)
+let opacityDragStarted = false;
+
 // DOM elements
 const overlayContainer = document.getElementById('overlay-container');
 const userOverlayList = document.getElementById('user-overlay-list');
@@ -26,6 +38,14 @@ const imageFileInput = document.getElementById('image-file');
 const cancelAddBtn = document.getElementById('cancel-add');
 const confirmAddBtn = document.getElementById('confirm-add');
 const statusEl = document.getElementById('status');
+
+// Confirmation modal elements
+const confirmModal = document.getElementById('confirm-modal');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmCancelBtn = document.getElementById('confirm-cancel');
+const confirmOkBtn = document.getElementById('confirm-ok');
+let confirmCallback = null;
 
 // Initialize
 async function init() {
@@ -209,6 +229,7 @@ confirmAddBtn.addEventListener('click', async () => {
     };
   }
 
+  captureStateForUndo('add');
   overlays.push(overlay);
   await saveOverlays();
   renderOverlayList();
@@ -367,8 +388,30 @@ function renderOverlayList() {
 
 // Set up event handlers for overlay items in a list
 function setupOverlayItemHandlers(listElement) {
+  // Click to select overlay items
+  listElement.querySelectorAll('.overlay-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      // Don't select when clicking on controls
+      if (e.target.closest('button') ||
+          e.target.closest('input') ||
+          e.target.closest('.drag-handle') ||
+          e.target.closest('.layer-toggle')) {
+        return;
+      }
+      selectOverlay(item.dataset.id);
+    });
+  });
+
   // Opacity slider handlers
   listElement.querySelectorAll('.opacity-slider').forEach(slider => {
+    // Capture state at start of drag
+    slider.addEventListener('mousedown', () => {
+      if (!opacityDragStarted) {
+        captureStateForUndo('opacity');
+        opacityDragStarted = true;
+      }
+    });
+
     slider.addEventListener('input', (e) => {
       const index = parseInt(e.target.dataset.index);
       const value = parseInt(e.target.value);
@@ -379,18 +422,29 @@ function setupOverlayItemHandlers(listElement) {
 
     slider.addEventListener('change', async () => {
       await saveOverlays();
+      opacityDragStarted = false;
     });
   });
 
-  // Delete handlers
+  // Delete handlers with confirmation
   listElement.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const index = parseInt(e.target.dataset.index);
-      overlays.splice(index, 1);
-      await saveOverlays();
-      renderOverlayList();
-      renderPreviewOverlays();
-      showStatus('Overlay removed', 'success');
+      const overlay = overlays[index];
+      if (!overlay) return;
+
+      showConfirmDialog(
+        'Delete Overlay?',
+        `Are you sure you want to delete "<strong>${overlay.name}</strong>"?<br><small>This action can be undone with Ctrl+Z.</small>`,
+        async () => {
+          captureStateForUndo('delete');
+          overlays.splice(index, 1);
+          await saveOverlays();
+          renderOverlayList();
+          renderPreviewOverlays();
+          showStatus('Overlay removed', 'success');
+        }
+      );
     });
   });
 
@@ -441,6 +495,7 @@ function setupOverlayItemHandlers(listElement) {
         zIndex: (overlay.zIndex || 0) + 1
       };
 
+      captureStateForUndo('duplicate');
       overlays.push(duplicate);
       await saveOverlays();
       renderOverlayList();
@@ -458,6 +513,8 @@ function setupOverlayItemHandlers(listElement) {
 
       const overlay = overlays.find(o => o.id === overlayId);
       if (!overlay || overlay.layer === newLayer) return;
+
+      captureStateForUndo('layer');
 
       // Update the layer
       overlay.layer = newLayer;
@@ -503,17 +560,27 @@ function renderPreviewOverlays() {
     handle.className = 'resize-handle se';
     div.appendChild(handle);
 
-    // Delete handle
+    // Delete handle with confirmation
     const deleteHandle = document.createElement('div');
     deleteHandle.className = 'delete-handle';
     deleteHandle.textContent = '×';
     deleteHandle.addEventListener('click', async (e) => {
       e.stopPropagation();
-      overlays.splice(index, 1);
-      await saveOverlays();
-      renderOverlayList();
-      renderPreviewOverlays();
-      showStatus('Overlay removed', 'success');
+      const overlay = overlays[index];
+      if (!overlay) return;
+
+      showConfirmDialog(
+        'Delete Overlay?',
+        `Are you sure you want to delete "<strong>${overlay.name}</strong>"?<br><small>This action can be undone with Ctrl+Z.</small>`,
+        async () => {
+          captureStateForUndo('delete');
+          overlays.splice(index, 1);
+          await saveOverlays();
+          renderOverlayList();
+          renderPreviewOverlays();
+          showStatus('Overlay removed', 'success');
+        }
+      );
     });
     div.appendChild(deleteHandle);
 
@@ -536,6 +603,9 @@ function renderPreviewOverlays() {
 // Drag handling
 function startDrag(e, index, mode) {
   e.preventDefault();
+
+  // Capture state before move/resize
+  captureStateForUndo(mode === 'move' ? 'move' : 'resize');
 
   const overlay = overlays[index];
   const container = overlayContainer.getBoundingClientRect();
@@ -608,6 +678,146 @@ function showStatus(msg, type) {
   }, 3000);
 }
 
+// ==================== UNDO/REDO ====================
+
+// Capture state before an action for undo
+function captureStateForUndo(actionType) {
+  // Deep copy current state
+  previousState = JSON.parse(JSON.stringify(overlays));
+  lastActionType = actionType;
+  canRedo = false;
+  redoState = null;
+}
+
+// Undo the last action
+async function undo() {
+  if (!previousState) {
+    showStatus('Nothing to undo', 'error');
+    return;
+  }
+
+  // Save current state for redo
+  redoState = JSON.parse(JSON.stringify(overlays));
+  canRedo = true;
+
+  // Restore previous state
+  overlays = previousState;
+  previousState = null;
+
+  await saveOverlays();
+  renderOverlayList();
+  renderPreviewOverlays();
+  showStatus(`Undid ${lastActionType}`, 'success');
+  lastActionType = null;
+}
+
+// Redo the undone action
+async function redo() {
+  if (!canRedo || !redoState) {
+    showStatus('Nothing to redo', 'error');
+    return;
+  }
+
+  // Save current state in case user wants to undo again
+  previousState = JSON.parse(JSON.stringify(overlays));
+
+  // Restore redo state
+  overlays = redoState;
+  redoState = null;
+  canRedo = false;
+
+  await saveOverlays();
+  renderOverlayList();
+  renderPreviewOverlays();
+  showStatus('Redid action', 'success');
+}
+
+// ==================== CONFIRMATION DIALOG ====================
+
+// Show confirmation dialog
+function showConfirmDialog(title, message, onConfirm) {
+  confirmTitle.textContent = title;
+  confirmMessage.innerHTML = message;
+  confirmCallback = onConfirm;
+  confirmModal.classList.remove('hidden');
+}
+
+// Hide confirmation dialog
+function hideConfirmDialog() {
+  confirmModal.classList.add('hidden');
+  confirmCallback = null;
+}
+
+// Confirmation modal event handlers
+confirmCancelBtn.addEventListener('click', hideConfirmDialog);
+
+confirmOkBtn.addEventListener('click', async () => {
+  if (confirmCallback) {
+    await confirmCallback();
+  }
+  hideConfirmDialog();
+});
+
+// Close confirm modal on outside click
+confirmModal.addEventListener('click', (e) => {
+  if (e.target === confirmModal) {
+    hideConfirmDialog();
+  }
+});
+
+// ==================== SELECTION ====================
+
+// Select an overlay item
+function selectOverlay(overlayId) {
+  // Deselect previous
+  document.querySelectorAll('.overlay-item.selected').forEach(el => {
+    el.classList.remove('selected');
+  });
+
+  selectedOverlayId = overlayId;
+
+  // Select new
+  if (overlayId) {
+    const item = document.querySelector(`.overlay-item[data-id="${overlayId}"]`);
+    if (item) {
+      item.classList.add('selected');
+    }
+  }
+}
+
+// Deselect all
+function deselectAll() {
+  selectedOverlayId = null;
+  document.querySelectorAll('.overlay-item.selected').forEach(el => {
+    el.classList.remove('selected');
+  });
+}
+
+// Delete selected overlay with confirmation
+async function deleteSelectedOverlay() {
+  if (!selectedOverlayId) return;
+
+  const overlay = overlays.find(o => o.id === selectedOverlayId);
+  if (!overlay) return;
+
+  showConfirmDialog(
+    'Delete Overlay?',
+    `Are you sure you want to delete "<strong>${overlay.name}</strong>"?<br><small>This action can be undone with Ctrl+Z.</small>`,
+    async () => {
+      captureStateForUndo('delete');
+      const index = overlays.findIndex(o => o.id === selectedOverlayId);
+      if (index !== -1) {
+        overlays.splice(index, 1);
+        await saveOverlays();
+        renderOverlayList();
+        renderPreviewOverlays();
+        showStatus('Overlay removed', 'success');
+      }
+      selectedOverlayId = null;
+    }
+  );
+}
+
 // Close modal on outside click
 addModal.addEventListener('click', (e) => {
   if (e.target === addModal) {
@@ -641,13 +851,19 @@ function handleDragStart(e) {
   draggedOverlayId = this.dataset.id;
   this.classList.add('dragging');
 
+  // Add dragging-active to parent list for enhanced feedback
+  const parentList = this.closest('.overlay-list');
+  if (parentList) {
+    parentList.classList.add('dragging-active');
+  }
+
   // Set drag data
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', this.dataset.id);
 
   // Delay to allow the dragging class to apply
   setTimeout(() => {
-    this.style.opacity = '0.5';
+    this.style.opacity = '0.4';
   }, 0);
 }
 
@@ -657,8 +873,9 @@ function handleDragEnd(_e) {
   draggedItem = null;
   draggedOverlayId = null;
 
-  // Remove drag-over from all items in both lists
+  // Remove drag-over and dragging-active from all lists
   [userOverlayList, bundledOverlayList].forEach(listElement => {
+    listElement.classList.remove('dragging-active');
     listElement.querySelectorAll('.overlay-item').forEach(item => {
       item.classList.remove('drag-over');
     });
@@ -705,6 +922,8 @@ async function handleDrop(e) {
     return;
   }
 
+  captureStateForUndo('reorder');
+
   // Get all overlays in this layer, sorted by zIndex
   const layerOverlays = overlays
     .filter(o => o.layer === targetLayer)
@@ -734,3 +953,54 @@ async function handleDrop(e) {
 
 // Init
 init();
+
+// ==================== KEYBOARD SHORTCUTS ====================
+
+document.addEventListener('keydown', (e) => {
+  // Skip if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  // Ctrl/Cmd + Z - Undo
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+    return;
+  }
+
+  // Ctrl/Cmd + Y or Ctrl/Cmd + Shift + Z - Redo
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+    return;
+  }
+
+  // Delete or Backspace - Remove selected overlay
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedOverlayId) {
+    e.preventDefault();
+    deleteSelectedOverlay();
+    return;
+  }
+
+  // Escape - Close modals and deselect
+  if (e.key === 'Escape') {
+    if (!confirmModal.classList.contains('hidden')) {
+      hideConfirmDialog();
+    } else if (!addModal.classList.contains('hidden')) {
+      addModal.classList.add('hidden');
+    } else {
+      deselectAll();
+    }
+    return;
+  }
+});
+
+// Click outside overlay items to deselect
+document.addEventListener('click', (e) => {
+  // Don't deselect when clicking on overlay items or controls
+  if (e.target.closest('.overlay-item') ||
+      e.target.closest('.modal') ||
+      e.target.closest('.btn')) {
+    return;
+  }
+  deselectAll();
+});

@@ -598,3 +598,69 @@ h2 {
 .layer-toggle .layer-btn.active[data-layer="foreground"] {
   background: #2e7d32;
 }
+
+/* Danger button for confirmations */
+.btn-danger {
+  background: #d93025;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #b71c1c;
+}
+
+/* Confirmation dialog styling */
+.confirm-dialog {
+  max-width: 300px;
+}
+
+.confirm-dialog h3 {
+  color: #d93025;
+}
+
+.confirm-dialog p {
+  color: #555;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+/* Selection state for overlay items */
+.overlay-item.selected {
+  outline: 2px solid #1a73e8;
+  outline-offset: 2px;
+  background: #e8f4fd;
+}
+
+/* Enhanced drag feedback */
+.overlay-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  background: #e3f2fd;
+  border-color: #1a73e8;
+}
+
+.overlay-item.drag-over {
+  border: 2px dashed #1a73e8;
+  background: #e8f4fd;
+  position: relative;
+}
+
+.overlay-item.drag-over::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #1a73e8;
+  border-radius: 2px;
+}
+
+.overlay-list.dragging-active .overlay-item {
+  transition: transform 0.15s ease;
+}
+
+.overlay-list.dragging-active .overlay-item:not(.dragging) {
+  opacity: 0.8;
+}

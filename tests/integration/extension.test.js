@@ -299,11 +299,17 @@ test.describe('Extension Popup Tests', () => {
     await page.close();
   });
 
-  test('can add and delete an overlay', async () => {
+  test('can add and delete an overlay with confirmation', async () => {
     test.skip(!extensionId, 'Could not get extension ID');
 
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear existing overlays
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
 
     // Add overlay
     await page.click('#add-overlay');
@@ -315,12 +321,49 @@ test.describe('Extension Popup Tests', () => {
 
     await expect(page.locator('.overlay-item')).toBeVisible({ timeout: 5000 });
 
-    // Delete overlay
+    // Delete overlay - now requires confirmation
     await page.click('.overlay-item .delete-btn');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#confirm-title')).toContainText('Delete');
+
+    // Confirm deletion
+    await page.click('#confirm-ok');
     await page.waitForTimeout(500);
 
-    await expect(page.locator('#empty-state')).toBeVisible();
+    await expect(page.locator('#user-empty-state')).toBeVisible();
 
+    await page.close();
+  });
+
+  test('can cancel delete confirmation', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear and add an overlay
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+
+    // Click delete, then cancel
+    await page.click('.overlay-item .delete-btn');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.click('#confirm-cancel');
+
+    // Overlay should still exist
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+
+    // Clean up
+    await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
     await page.close();
   });
 
@@ -372,8 +415,9 @@ test.describe('Extension Popup Tests', () => {
     // Verify status message
     await expect(page.locator('#status')).toContainText('background');
 
-    // Clean up
+    // Clean up - confirm deletion
     await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
     await page.close();
   });
 
@@ -410,9 +454,11 @@ test.describe('Extension Popup Tests', () => {
     // Verify status message
     await expect(page.locator('#status')).toContainText('duplicated');
 
-    // Clean up
+    // Clean up - confirm deletions
     await page.click('.overlay-item:first-child .delete-btn');
+    await page.click('#confirm-ok');
     await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
     await page.close();
   });
 
@@ -445,8 +491,9 @@ test.describe('Extension Popup Tests', () => {
     // Bundled section should remain hidden (no bundled overlays)
     await expect(page.locator('#bundled-section')).toBeHidden();
 
-    // Clean up
+    // Clean up - confirm deletion
     await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
     await page.close();
   });
 
@@ -481,9 +528,11 @@ test.describe('Extension Popup Tests', () => {
     const firstItem = page.locator('.overlay-item').first();
     await expect(firstItem).toHaveAttribute('draggable', 'true');
 
-    // Clean up
+    // Clean up - confirm deletions
     await page.click('.overlay-item:first-child .delete-btn');
+    await page.click('#confirm-ok');
     await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
     await page.close();
   });
 
@@ -504,6 +553,210 @@ test.describe('Extension Popup Tests', () => {
     // Cancel
     await page.click('#cancel-add');
     await expect(page.locator('#add-modal')).toBeHidden();
+
+    await page.close();
+  });
+
+  test('undo restores deleted overlay with Ctrl+Z', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear and add an overlay
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+
+    // Delete with confirmation
+    await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
+    await expect(page.locator('.overlay-item')).toHaveCount(0);
+
+    // Undo with Ctrl+Z
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+    await expect(page.locator('#status')).toContainText('Undid');
+
+    // Clean up
+    await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
+    await page.close();
+  });
+
+  test('redo restores action after undo with Ctrl+Y', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear and add an overlay
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+
+    // Undo the add
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.overlay-item')).toHaveCount(0);
+
+    // Redo with Ctrl+Y
+    await page.keyboard.press('Control+y');
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+    await expect(page.locator('#status')).toContainText('Redid');
+
+    // Clean up
+    await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
+    await page.close();
+  });
+
+  test('Escape closes confirmation modal', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear and add an overlay
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+
+    // Open delete confirmation
+    await page.click('.overlay-item .delete-btn');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+
+    // Press Escape to close
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+
+    // Overlay should still exist
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+
+    // Clean up
+    await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
+    await page.close();
+  });
+
+  test('clicking overlay item selects it with visual feedback', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear and add an overlay
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+
+    // Click on overlay item (not on a button)
+    await page.click('.overlay-item .thumb');
+
+    // Should have selected class
+    await expect(page.locator('.overlay-item')).toHaveClass(/selected/);
+
+    // Clean up
+    await page.click('.overlay-item .delete-btn');
+    await page.click('#confirm-ok');
+    await page.close();
+  });
+
+  test('Delete key removes selected overlay', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear and add an overlay
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+
+    // Select the overlay
+    await page.click('.overlay-item .thumb');
+    await expect(page.locator('.overlay-item')).toHaveClass(/selected/);
+
+    // Press Delete key
+    await page.keyboard.press('Delete');
+
+    // Confirmation should appear
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+
+    // Confirm
+    await page.click('#confirm-ok');
+    await expect(page.locator('.overlay-item')).toHaveCount(0);
+
+    await page.close();
+  });
+
+  test('undo after add removes the overlay', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear overlays
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    // Add an overlay
+    await page.click('#add-overlay');
+    await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    await page.click('#confirm-add');
+    await expect(page.locator('.overlay-item')).toHaveCount(1);
+
+    // Undo the add
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.overlay-item')).toHaveCount(0);
+    await expect(page.locator('#status')).toContainText('Undid add');
+
+    await page.close();
+  });
+
+  test('shows error when nothing to undo', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear overlays and any undo state by reloading
+    await page.evaluate(() => {
+      chrome.storage.local.set({ overlays: [] });
+    });
+    await page.reload();
+
+    // Try to undo with nothing to undo
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('#status')).toContainText('Nothing to undo');
 
     await page.close();
   });
