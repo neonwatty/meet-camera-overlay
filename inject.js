@@ -86,7 +86,16 @@
     if (hasGifSupport && window.isAnimatedGif(overlay.src)) {
       try {
         console.log('[Meet Overlay] Loading animated GIF:', overlay.id);
-        const animatedImage = await window.decodeGifFromDataUrl(overlay.src);
+        let animatedImage;
+
+        // Check if it's a data URL or a file URL
+        if (overlay.src.startsWith('data:')) {
+          animatedImage = await window.decodeGifFromDataUrl(overlay.src);
+        } else {
+          // For file URLs (like chrome-extension://), fetch and decode
+          animatedImage = await window.decodeGifFromUrl(overlay.src);
+        }
+
         overlayImages.set(overlay.id, animatedImage);
         console.log('[Meet Overlay] Loaded animated GIF with', animatedImage.frames.length, 'frames');
       } catch (e) {
