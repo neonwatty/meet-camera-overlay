@@ -4,6 +4,7 @@
     "popup.js",
     "content.js",
     "inject.js",
+    "background.js",
     "lib/*.js",
     "scripts/*.js"
   ],
