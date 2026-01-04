@@ -16,7 +16,7 @@
 
   // Overlay state
   let overlays = [];
-  let overlayImages = new Map(); // id -> HTMLImageElement or AnimatedImage
+  const overlayImages = new Map(); // id -> HTMLImageElement or AnimatedImage
   let isProcessing = false;
   let activeProcessor = null;
 

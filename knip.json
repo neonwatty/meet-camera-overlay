@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "popup.js",
+    "content.js",
+    "inject.js",
+    "lib/*.js",
+    "scripts/*.js"
+  ],
+  "project": [
+    "**/*.js"
+  ],
+  "ignore": [
+    "tests/**",
+    "node_modules/**"
+  ]
+}

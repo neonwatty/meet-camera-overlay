@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createCanvas, loadImage } from 'canvas';
+import { createCanvas } from 'canvas';
 import {
   drawOverlay,
   renderOverlays,
-  getRegionAlpha,
   hasContentInRegion,
   getPixelColor
 } from '../../lib/canvas-renderer.js';
@@ -226,7 +225,7 @@ describe('renderOverlays', () => {
 
   it('renders overlays with different opacities', async () => {
     const img1 = await createTestImage(100, 100, 'red');
-    const img2 = await createTestImage(100, 100, 'blue');
+    const _img2 = await createTestImage(100, 100, 'blue'); // kept for potential test expansion
 
     // Use a single overlay to test opacity blending more simply
     const overlays = [

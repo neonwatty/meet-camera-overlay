@@ -10,12 +10,21 @@
     "test:integration:ui": "playwright test --ui",
     "test:visual": "node tests/visual/generate-demo.js",
     "generate:auras": "node scripts/generate-aura.js",
-    "convert:png-to-gif": "node scripts/png-to-gif.js"
+    "convert:png-to-gif": "node scripts/png-to-gif.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --project jsconfig.json",
+    "knip": "knip"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.40.0",
+    "@types/chrome": "^0.1.32",
     "canvas": "^3.2.0",
+    "eslint": "^9.39.2",
     "gifencoder": "^2.0.1",
+    "knip": "^5.79.0",
+    "typescript": "^5.9.3",
     "vitest": "^1.0.0"
   },
   "type": "module"

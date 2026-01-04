@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "types": ["chrome"],
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false
+  },
+  "include": [
+    "lib/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests",
+    "scripts",
+    "test-results",
+    "inject.js",
+    "popup.js",
+    "content.js",
+    "lib/gif-decoder.js"
+  ]
+}
