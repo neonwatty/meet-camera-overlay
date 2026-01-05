@@ -47,6 +47,11 @@ const confirmCancelBtn = document.getElementById('confirm-cancel');
 const confirmOkBtn = document.getElementById('confirm-ok');
 let confirmCallback = null;
 
+// Effect preview elements
+const effectPreview = document.getElementById('effect-preview');
+const effectPreviewImg = effectPreview?.querySelector('.effect-preview-img');
+const effectPreviewName = effectPreview?.querySelector('.effect-preview-name');
+
 // Initialize
 async function init() {
   await loadOverlays();
@@ -279,6 +284,72 @@ function getImageName(src, isEffect = false) {
   }
 }
 
+// ==================== EFFECT PREVIEW ====================
+
+let previewTimeout = null;
+
+/**
+ * Show effect preview at optimal position near thumbnail
+ */
+function showEffectPreview(thumbEl, overlay) {
+  if (!effectPreview || !effectPreviewImg || !effectPreviewName) return;
+
+  // Set preview content
+  effectPreviewImg.src = overlay.src;
+  effectPreviewName.textContent = overlay.name;
+
+  // Make visible for positioning calculation
+  effectPreview.classList.remove('hidden');
+
+  // Calculate position
+  const thumbRect = thumbEl.getBoundingClientRect();
+  const previewWidth = 216; // 200px img + 8px padding each side
+
+  // Default: position to the right of thumbnail
+  let left = thumbRect.right + 8;
+  let top = thumbRect.top - 20;
+
+  // Check right edge - if would overflow, position to the left
+  if (left + previewWidth > 400) {
+    left = thumbRect.left - previewWidth - 8;
+  }
+
+  // If still overflows left, center it
+  if (left < 0) {
+    left = 4;
+  }
+
+  // Check top edge
+  if (top < 0) {
+    top = 4;
+  }
+
+  effectPreview.style.left = left + 'px';
+  effectPreview.style.top = top + 'px';
+
+  // Trigger animation
+  requestAnimationFrame(() => {
+    effectPreview.classList.add('visible');
+  });
+}
+
+/**
+ * Hide effect preview with animation
+ */
+function hideEffectPreview() {
+  if (!effectPreview) return;
+
+  effectPreview.classList.remove('visible');
+
+  // Hide after animation completes
+  previewTimeout = setTimeout(() => {
+    effectPreview.classList.add('hidden');
+    if (effectPreviewImg) {
+      effectPreviewImg.src = ''; // Clear to stop GIF animation
+    }
+  }, 150);
+}
+
 // Create an overlay item element
 function createOverlayItem(overlay) {
   const index = overlays.findIndex(o => o.id === overlay.id);
@@ -337,6 +408,25 @@ function createOverlayItem(overlay) {
     <button class="duplicate-btn" data-id="${overlay.id}" title="Duplicate">⧉</button>
     <button class="delete-btn" data-index="${index}" title="Remove">×</button>
   `;
+
+  // Add hover preview for effects
+  if (isEffect) {
+    const thumbEl = item.querySelector('.thumb');
+    if (thumbEl) {
+      thumbEl.addEventListener('mouseenter', () => {
+        // Clear any pending hide
+        if (previewTimeout) {
+          clearTimeout(previewTimeout);
+          previewTimeout = null;
+        }
+        showEffectPreview(thumbEl, overlay);
+      });
+
+      thumbEl.addEventListener('mouseleave', () => {
+        hideEffectPreview();
+      });
+    }
+  }
 
   return item;
 }

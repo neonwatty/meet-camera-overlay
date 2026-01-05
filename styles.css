@@ -664,3 +664,69 @@ h2 {
 .overlay-list.dragging-active .overlay-item:not(.dragging) {
   opacity: 0.8;
 }
+
+/* ==================== Effect Preview Hover ==================== */
+
+.effect-preview {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  padding: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.effect-preview.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.effect-preview.hidden {
+  display: none;
+}
+
+.effect-preview-img {
+  width: 200px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.effect-preview-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 6px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.effect-preview-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: linear-gradient(135deg, #ff6b35 0%, #f7c531 100%);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Thumbnail hover effect for effects */
+.overlay-item.effect-item .thumb {
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.overlay-item.effect-item .thumb:hover {
+  box-shadow: 0 0 12px rgba(255, 107, 53, 0.5);
+  transform: scale(1.05);
+  cursor: zoom-in;
+}
