@@ -1,3 +1,4 @@
+/* global performance */
 (function() {
   'use strict';
 
@@ -15,7 +16,7 @@
   const LAYER_FOREGROUND = 'foreground';
 
   // Overlay type constants
-  const TYPE_STANDARD = 'standard';
+  const _TYPE_STANDARD = 'standard';  
   const TYPE_EFFECT = 'effect';
   const TYPE_TEXT_BANNER = 'textBanner';
   const TYPE_TIMER = 'timer';
@@ -243,7 +244,7 @@
     const boxHeight = scaledFontSize + scaledPadding * 2;
 
     let x = (timer.x / 100) * canvasWidth;
-    let y = (timer.y / 100) * canvasHeight;
+    const y = (timer.y / 100) * canvasHeight;
 
     if (timer.x > 50) {
       x = x - boxWidth;

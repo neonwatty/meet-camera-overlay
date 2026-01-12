@@ -14,9 +14,9 @@ const TYPE_TIMER = 'timer';
 
 // Text position constants
 const TEXT_POSITION_LOWER_THIRD = 'lower-third';
-const TEXT_POSITION_TOP = 'top';
-const TEXT_POSITION_CENTER = 'center';
-const TEXT_POSITION_CUSTOM = 'custom';
+const _TEXT_POSITION_TOP = 'top';  
+const _TEXT_POSITION_CENTER = 'center';  
+const _TEXT_POSITION_CUSTOM = 'custom';  
 
 let overlays = [];
 let dragState = null;
