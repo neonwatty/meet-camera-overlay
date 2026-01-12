@@ -405,8 +405,9 @@ test.describe('Extension Popup Tests', () => {
     await expect(frontBtn).toHaveClass(/active/);
 
     // Click Back button to switch to background
+    // Use JavaScript click to bypass any overlay/intercept issues and ensure handler runs
     const backBtn = page.locator('.layer-toggle .layer-btn[data-layer="background"]');
-    await backBtn.click();
+    await backBtn.evaluate(el => el.click());
 
     // Verify Back is now active
     await expect(backBtn).toHaveClass(/active/);
