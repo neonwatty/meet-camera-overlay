@@ -58,6 +58,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
   }
 
+  if (message.type === 'TOGGLE_TEXT_BANNER') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_TOGGLE_TEXT_BANNER',
+      id: message.id,
+      active: message.active
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'TOGGLE_TIMER') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_TOGGLE_TIMER',
+      id: message.id,
+      active: message.active
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'TIMER_CONTROL') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_TIMER_CONTROL',
+      id: message.id,
+      action: message.action
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'UPDATE_TEXT') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_UPDATE_TEXT',
+      id: message.id,
+      text: message.text
+    }, '*');
+    sendResponse({ success: true });
+  }
+
   if (message.type === 'GET_STATUS') {
     // Check if our injected script is running
     window.postMessage({ type: 'MEET_OVERLAY_PING' }, '*');

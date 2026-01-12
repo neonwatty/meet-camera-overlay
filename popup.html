@@ -25,12 +25,14 @@
       <div class="section-header">
         <h2>My Overlays</h2>
         <div class="add-buttons">
-          <button id="add-overlay" class="btn btn-primary">+ Add Image</button>
-          <button id="add-effect" class="btn btn-effect">+ Add Effect</button>
+          <button id="add-overlay" class="btn btn-primary">+ Image</button>
+          <button id="add-effect" class="btn btn-effect">+ Effect</button>
+          <button id="add-text-banner" class="btn btn-text">+ Text</button>
+          <button id="add-timer" class="btn btn-timer">+ Timer</button>
         </div>
       </div>
       <div id="user-overlay-list" class="overlay-list"></div>
-      <p id="user-empty-state" class="empty-state">No custom overlays yet. Add an image or effect to get started.</p>
+      <p id="user-empty-state" class="empty-state">No custom overlays yet. Add an image, effect, text banner, or timer to get started.</p>
     </div>
 
     <!-- Bundled Effects Section (hidden if empty) -->
@@ -69,6 +71,104 @@
         <div class="modal-actions">
           <button id="confirm-cancel" class="btn btn-secondary">Cancel</button>
           <button id="confirm-ok" class="btn btn-danger">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text Banner Modal -->
+    <div id="text-banner-modal" class="modal hidden">
+      <div class="modal-content modal-wide">
+        <h3 id="text-banner-modal-title">Add Text Banner</h3>
+        <div class="form-group">
+          <label>Text (use Enter for multiple lines)</label>
+          <textarea id="text-banner-input" rows="3" placeholder="Your text here..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group-half">
+            <label>Position</label>
+            <select id="text-banner-position">
+              <option value="lower-third">Lower Third</option>
+              <option value="top">Top</option>
+              <option value="center">Center</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="form-group form-group-half">
+            <label>Font Size</label>
+            <input type="number" id="text-banner-font-size" value="24" min="12" max="72">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group-half">
+            <label>Text Color</label>
+            <input type="color" id="text-banner-text-color" value="#ffffff">
+          </div>
+          <div class="form-group form-group-half">
+            <label>Background Color</label>
+            <input type="color" id="text-banner-bg-color" value="#000000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Background Opacity: <span id="text-banner-opacity-value">70%</span></label>
+          <input type="range" id="text-banner-bg-opacity" min="0" max="100" value="70">
+        </div>
+        <div class="modal-actions">
+          <button id="text-banner-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="text-banner-confirm" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timer Modal -->
+    <div id="timer-modal" class="modal hidden">
+      <div class="modal-content modal-wide">
+        <h3 id="timer-modal-title">Add Timer</h3>
+        <div class="form-group">
+          <label>Timer Mode</label>
+          <select id="timer-mode">
+            <option value="countdown">Countdown</option>
+            <option value="countup">Count Up</option>
+            <option value="clock">Clock (Current Time)</option>
+          </select>
+        </div>
+        <div id="timer-duration-group" class="form-group">
+          <label>Duration</label>
+          <div class="duration-inputs">
+            <input type="number" id="timer-minutes" value="5" min="0" max="999" placeholder="min">
+            <span>:</span>
+            <input type="number" id="timer-seconds" value="0" min="0" max="59" placeholder="sec">
+          </div>
+          <div class="duration-presets">
+            <button type="button" class="btn btn-small" data-duration="60">1 min</button>
+            <button type="button" class="btn btn-small" data-duration="300">5 min</button>
+            <button type="button" class="btn btn-small" data-duration="600">10 min</button>
+            <button type="button" class="btn btn-small" data-duration="900">15 min</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Position</label>
+          <div class="position-grid">
+            <button type="button" class="position-btn" data-position="top-left">↖</button>
+            <button type="button" class="position-btn" data-position="top-center">↑</button>
+            <button type="button" class="position-btn active" data-position="top-right">↗</button>
+            <button type="button" class="position-btn" data-position="bottom-left">↙</button>
+            <button type="button" class="position-btn" data-position="bottom-center">↓</button>
+            <button type="button" class="position-btn" data-position="bottom-right">↘</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group-half">
+            <label>Text Color</label>
+            <input type="color" id="timer-text-color" value="#ffffff">
+          </div>
+          <div class="form-group form-group-half">
+            <label>Background Color</label>
+            <input type="color" id="timer-bg-color" value="#000000">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="timer-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="timer-confirm" class="btn btn-primary">Add</button>
         </div>
       </div>
     </div>

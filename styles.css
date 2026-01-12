@@ -730,3 +730,299 @@ h2 {
   transform: scale(1.05);
   cursor: zoom-in;
 }
+
+/* ==================== Text Banner & Timer Buttons ==================== */
+
+.btn-text {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  color: #fff;
+}
+
+.btn-text:hover {
+  background: linear-gradient(135deg, #6d28d9 0%, #9333ea 100%);
+}
+
+.btn-timer {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  color: #fff;
+}
+
+.btn-timer:hover {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%);
+}
+
+/* Smaller add buttons to fit 4 */
+.add-buttons .btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* ==================== Text Banner Item Styles ==================== */
+
+.overlay-item.text-banner-item {
+  border-color: #7c3aed;
+  background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%);
+}
+
+.overlay-item.text-banner-item.active {
+  border-color: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+}
+
+/* Text banner icon */
+.text-banner-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+/* ==================== Timer Item Styles ==================== */
+
+.overlay-item.timer-item {
+  border-color: #059669;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+}
+
+.overlay-item.timer-item.active {
+  border-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+/* Timer icon */
+.timer-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+/* Timer controls in list item */
+.timer-controls {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.timer-controls .timer-ctrl-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #333;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.timer-controls .timer-ctrl-btn:hover {
+  background: #f0f0f0;
+}
+
+.timer-controls .timer-ctrl-btn.play {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+}
+
+.timer-controls .timer-ctrl-btn.play:hover {
+  background: #047857;
+}
+
+.timer-controls .timer-ctrl-btn.pause {
+  background: #f59e0b;
+  color: #fff;
+  border-color: #f59e0b;
+}
+
+.timer-controls .timer-ctrl-btn.pause:hover {
+  background: #d97706;
+}
+
+/* ==================== Modal Enhancements ==================== */
+
+.modal-wide {
+  max-width: 380px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group-half {
+  flex: 1;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.form-group input[type="number"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.form-group input[type="number"]:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.form-group input[type="color"] {
+  width: 100%;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.form-group input[type="range"] {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e0e0e0;
+  border-radius: 3px;
+  outline: none;
+}
+
+.form-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #1a73e8;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Duration inputs for timer */
+.duration-inputs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.duration-inputs input {
+  width: 70px;
+  text-align: center;
+}
+
+.duration-inputs span {
+  font-weight: bold;
+  color: #666;
+}
+
+.duration-presets {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.btn-small {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #e8eaed;
+  color: #333;
+}
+
+.btn-small:hover {
+  background: #dadce0;
+}
+
+/* Position grid for timer */
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-width: 150px;
+}
+
+.position-btn {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f5f5f5;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.position-btn:hover {
+  background: #e8e8e8;
+  border-color: #1a73e8;
+}
+
+.position-btn.active {
+  background: #1a73e8;
+  color: #fff;
+  border-color: #1a73e8;
+}
+
+/* Text banner preview in list */
+.text-preview {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+/* Edit text button */
+.edit-text-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #7c3aed;
+  background: #fff;
+  color: #7c3aed;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.edit-text-btn:hover {
+  background: #f5f3ff;
+}

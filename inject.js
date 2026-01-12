@@ -14,6 +14,17 @@
   const LAYER_BACKGROUND = 'background';
   const LAYER_FOREGROUND = 'foreground';
 
+  // Overlay type constants
+  const TYPE_STANDARD = 'standard';
+  const TYPE_EFFECT = 'effect';
+  const TYPE_TEXT_BANNER = 'textBanner';
+  const TYPE_TIMER = 'timer';
+
+  // Text position constants
+  const TEXT_POSITION_LOWER_THIRD = 'lower-third';
+  const TEXT_POSITION_TOP = 'top';
+  const TEXT_POSITION_CENTER = 'center';
+
   // Overlay state
   let overlays = [];
   const overlayImages = new Map(); // id -> HTMLImageElement or AnimatedImage
@@ -47,12 +58,216 @@
     if (!overlay) return overlay;
     const migrated = { ...overlay };
     if (!migrated.layer) {
-      migrated.layer = migrated.type === 'effect' ? LAYER_BACKGROUND : LAYER_FOREGROUND;
+      migrated.layer = migrated.type === TYPE_EFFECT ? LAYER_BACKGROUND : LAYER_FOREGROUND;
     }
     if (migrated.zIndex === undefined) {
-      migrated.zIndex = 0;
+      if (migrated.type === TYPE_TIMER) {
+        migrated.zIndex = 11;
+      } else if (migrated.type === TYPE_TEXT_BANNER) {
+        migrated.zIndex = 10;
+      } else {
+        migrated.zIndex = 0;
+      }
+    }
+    // Timer-specific migration
+    if (migrated.type === TYPE_TIMER && !migrated.timerState) {
+      migrated.timerState = { running: false, startTime: null, pausedAt: null, elapsed: 0 };
     }
     return migrated;
+  }
+
+  // Draw a rounded rectangle path
+  function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  }
+
+  // Format seconds into time string
+  function formatTime(totalSeconds, format = 'mm:ss') {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+
+    if (format === 'hh:mm:ss') {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    } else if (format === 'minimal') {
+      if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    } else {
+      if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+  }
+
+  // Render a text banner overlay
+  function renderTextBanner(ctx, banner, canvasWidth, canvasHeight) {
+    if (!banner || !banner.text) return;
+
+    const style = banner.style || {};
+    const {
+      fontFamily = 'Arial, sans-serif',
+      fontSize = 24,
+      textColor = '#ffffff',
+      backgroundColor = '#000000',
+      backgroundOpacity = 0.7,
+      padding = 12,
+      borderRadius = 8
+    } = style;
+
+    const displayText = Array.isArray(banner.text) ? banner.text[0] : banner.text;
+    if (!displayText) return;
+
+    const scaleFactor = canvasHeight / 720;
+    const scaledFontSize = Math.round(fontSize * scaleFactor);
+    const scaledPadding = Math.round(padding * scaleFactor);
+    const scaledBorderRadius = Math.round(borderRadius * scaleFactor);
+
+    ctx.save();
+    ctx.font = `${scaledFontSize}px ${fontFamily}`;
+    ctx.textBaseline = 'middle';
+
+    const lines = displayText.split('\n');
+    const lineHeight = scaledFontSize * 1.3;
+
+    let maxLineWidth = 0;
+    lines.forEach(line => {
+      const metrics = ctx.measureText(line);
+      maxLineWidth = Math.max(maxLineWidth, metrics.width);
+    });
+
+    const textHeight = lines.length * lineHeight;
+    const boxWidth = maxLineWidth + scaledPadding * 2;
+    const boxHeight = textHeight + scaledPadding * 2;
+
+    let x, y;
+    const position = banner.textPosition || TEXT_POSITION_LOWER_THIRD;
+
+    if (position === TEXT_POSITION_LOWER_THIRD) {
+      x = (canvasWidth - boxWidth) / 2;
+      y = canvasHeight * 0.7 - boxHeight / 2;
+    } else if (position === TEXT_POSITION_TOP) {
+      x = (canvasWidth - boxWidth) / 2;
+      y = canvasHeight * 0.1;
+    } else if (position === TEXT_POSITION_CENTER) {
+      x = (canvasWidth - boxWidth) / 2;
+      y = (canvasHeight - boxHeight) / 2;
+    } else {
+      x = (banner.x / 100) * canvasWidth - boxWidth / 2;
+      y = (banner.y / 100) * canvasHeight - boxHeight / 2;
+    }
+
+    // Mirror x position for Meet self-view
+    x = canvasWidth - x - boxWidth;
+
+    const opacity = banner.opacity !== undefined ? banner.opacity : 1;
+    ctx.globalAlpha = opacity;
+
+    ctx.fillStyle = backgroundColor;
+    ctx.globalAlpha = opacity * backgroundOpacity;
+    drawRoundedRect(ctx, x, y, boxWidth, boxHeight, scaledBorderRadius);
+    ctx.fill();
+
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+
+    const textX = x + boxWidth / 2;
+    const textStartY = y + scaledPadding + lineHeight / 2;
+
+    lines.forEach((line, index) => {
+      ctx.fillText(line, textX, textStartY + index * lineHeight);
+    });
+
+    ctx.restore();
+  }
+
+  // Render a timer overlay
+  function renderTimer(ctx, timer, canvasWidth, canvasHeight, timestamp) {
+    if (!timer) return;
+
+    const style = timer.style || {};
+    const {
+      fontSize = 32,
+      textColor = '#ffffff',
+      backgroundColor = '#000000',
+      backgroundOpacity = 0.7
+    } = style;
+
+    const timerState = timer.timerState || { running: false, elapsed: 0 };
+    const mode = timer.timerMode || 'countdown';
+    const duration = timer.duration || 300;
+    const format = timer.format || 'mm:ss';
+
+    // Update elapsed time if running
+    let currentElapsed = timerState.elapsed;
+    if (timerState.running && timerState.startTime) {
+      currentElapsed = (timestamp - timerState.startTime) / 1000;
+    }
+
+    let displaySeconds;
+    if (mode === 'clock') {
+      const now = new Date();
+      displaySeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    } else if (mode === 'countup') {
+      displaySeconds = currentElapsed;
+    } else {
+      displaySeconds = Math.max(0, duration - currentElapsed);
+    }
+
+    const timeString = formatTime(displaySeconds, format);
+
+    const scaleFactor = canvasHeight / 720;
+    const scaledFontSize = Math.round(fontSize * scaleFactor);
+    const scaledPadding = Math.round(10 * scaleFactor);
+    const scaledBorderRadius = Math.round(6 * scaleFactor);
+
+    ctx.save();
+    ctx.font = `bold ${scaledFontSize}px 'Courier New', monospace`;
+    ctx.textBaseline = 'middle';
+
+    const metrics = ctx.measureText(timeString);
+    const boxWidth = metrics.width + scaledPadding * 2;
+    const boxHeight = scaledFontSize + scaledPadding * 2;
+
+    let x = (timer.x / 100) * canvasWidth;
+    let y = (timer.y / 100) * canvasHeight;
+
+    if (timer.x > 50) {
+      x = x - boxWidth;
+    }
+
+    // Mirror x position for Meet self-view
+    x = canvasWidth - x - boxWidth;
+
+    const opacity = timer.opacity !== undefined ? timer.opacity : 1;
+    ctx.globalAlpha = opacity;
+
+    const isAlert = mode === 'countdown' && displaySeconds <= 10 && displaySeconds > 0;
+
+    ctx.fillStyle = isAlert ? '#cc0000' : backgroundColor;
+    ctx.globalAlpha = opacity * backgroundOpacity;
+    drawRoundedRect(ctx, x, y, boxWidth, boxHeight, scaledBorderRadius);
+    ctx.fill();
+
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.fillText(timeString, x + boxWidth / 2, y + boxHeight / 2);
+
+    ctx.restore();
   }
 
   // Load saved overlays from storage
@@ -192,9 +407,25 @@
         // Sort overlays by layer and zIndex, then draw
         const sortedOverlays = sortOverlaysByLayer(overlays);
         sortedOverlays.forEach(overlay => {
-          // Check if overlay should be rendered (effects only when active)
-          if (overlay.type === 'effect' && !overlay.active) return;
+          // Check if overlay should be rendered
+          // Effects, text banners, and timers only render when active
+          if ((overlay.type === TYPE_EFFECT || overlay.type === TYPE_TEXT_BANNER || overlay.type === TYPE_TIMER) && !overlay.active) {
+            return;
+          }
 
+          // Handle text banners
+          if (overlay.type === TYPE_TEXT_BANNER) {
+            renderTextBanner(this.ctx, overlay, this.canvas.width, this.canvas.height);
+            return;
+          }
+
+          // Handle timers
+          if (overlay.type === TYPE_TIMER) {
+            renderTimer(this.ctx, overlay, this.canvas.width, this.canvas.height, timestamp);
+            return;
+          }
+
+          // Handle image-based overlays (standard and effect)
           const imgOrAnim = overlayImages.get(overlay.id);
           if (!imgOrAnim) return;
 
@@ -327,7 +558,7 @@
       console.log('[Meet Overlay] Toggling effect:', id, 'active:', active);
 
       const overlay = overlays.find(o => o.id === id);
-      if (overlay && overlay.type === 'effect') {
+      if (overlay && overlay.type === TYPE_EFFECT) {
         overlay.active = active;
 
         // Reset animation when activating
@@ -340,6 +571,79 @@
         // Note: Don't call saveOverlays() here - popup.js already saved to storage
         // and sent UPDATE_OVERLAYS to all tabs. Calling save here causes race conditions
         // between multiple Meet tabs.
+      }
+    }
+
+    // Toggle text banner visibility
+    if (event.data.type === 'MEET_OVERLAY_TOGGLE_TEXT_BANNER') {
+      const { id, active } = event.data;
+      console.log('[Meet Overlay] Toggling text banner:', id, 'active:', active);
+
+      const overlay = overlays.find(o => o.id === id);
+      if (overlay && overlay.type === TYPE_TEXT_BANNER) {
+        overlay.active = active;
+      }
+    }
+
+    // Update text banner text
+    if (event.data.type === 'MEET_OVERLAY_UPDATE_TEXT') {
+      const { id, text } = event.data;
+      console.log('[Meet Overlay] Updating text banner text:', id);
+
+      const overlay = overlays.find(o => o.id === id);
+      if (overlay && overlay.type === TYPE_TEXT_BANNER) {
+        overlay.text = text;
+      }
+    }
+
+    // Toggle timer visibility
+    if (event.data.type === 'MEET_OVERLAY_TOGGLE_TIMER') {
+      const { id, active } = event.data;
+      console.log('[Meet Overlay] Toggling timer:', id, 'active:', active);
+
+      const overlay = overlays.find(o => o.id === id);
+      if (overlay && overlay.type === TYPE_TIMER) {
+        overlay.active = active;
+      }
+    }
+
+    // Timer control (start, pause, reset)
+    if (event.data.type === 'MEET_OVERLAY_TIMER_CONTROL') {
+      const { id, action } = event.data;
+      console.log('[Meet Overlay] Timer control:', id, 'action:', action);
+
+      const overlay = overlays.find(o => o.id === id);
+      if (overlay && overlay.type === TYPE_TIMER) {
+        if (!overlay.timerState) {
+          overlay.timerState = { running: false, startTime: null, pausedAt: null, elapsed: 0 };
+        }
+
+        const now = performance.now();
+
+        if (action === 'start') {
+          if (!overlay.timerState.running) {
+            // Resume from paused state or start fresh
+            if (overlay.timerState.pausedAt) {
+              // Calculate how much time had elapsed before pause
+              overlay.timerState.startTime = now - (overlay.timerState.elapsed * 1000);
+            } else {
+              overlay.timerState.startTime = now;
+            }
+            overlay.timerState.running = true;
+            overlay.timerState.pausedAt = null;
+            console.log('[Meet Overlay] Timer started');
+          }
+        } else if (action === 'pause') {
+          if (overlay.timerState.running) {
+            overlay.timerState.elapsed = (now - overlay.timerState.startTime) / 1000;
+            overlay.timerState.running = false;
+            overlay.timerState.pausedAt = now;
+            console.log('[Meet Overlay] Timer paused at', overlay.timerState.elapsed, 'seconds');
+          }
+        } else if (action === 'reset') {
+          overlay.timerState = { running: false, startTime: null, pausedAt: null, elapsed: 0 };
+          console.log('[Meet Overlay] Timer reset');
+        }
       }
     }
   });

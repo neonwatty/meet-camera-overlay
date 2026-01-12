@@ -6,9 +6,21 @@ const CATEGORY_BUNDLED = 'bundled';
 const LAYER_FOREGROUND = 'foreground';
 const LAYER_BACKGROUND = 'background';
 
+// Overlay type constants
+const TYPE_STANDARD = 'standard';
+const TYPE_EFFECT = 'effect';
+const TYPE_TEXT_BANNER = 'textBanner';
+const TYPE_TIMER = 'timer';
+
+// Text position constants
+const TEXT_POSITION_LOWER_THIRD = 'lower-third';
+const TEXT_POSITION_TOP = 'top';
+const TEXT_POSITION_CENTER = 'center';
+const TEXT_POSITION_CUSTOM = 'custom';
+
 let overlays = [];
 let dragState = null;
-let addingType = 'standard'; // 'standard' or 'effect'
+let addingType = 'standard'; // 'standard', 'effect', 'textBanner', or 'timer'
 
 // Undo/redo state
 let previousState = null;      // Snapshot before last action
@@ -51,6 +63,36 @@ let confirmCallback = null;
 const effectPreview = document.getElementById('effect-preview');
 const effectPreviewImg = effectPreview?.querySelector('.effect-preview-img');
 const effectPreviewName = effectPreview?.querySelector('.effect-preview-name');
+
+// Text banner modal elements
+const addTextBannerBtn = document.getElementById('add-text-banner');
+const textBannerModal = document.getElementById('text-banner-modal');
+const textBannerModalTitle = document.getElementById('text-banner-modal-title');
+const textBannerInput = document.getElementById('text-banner-input');
+const textBannerPosition = document.getElementById('text-banner-position');
+const textBannerFontSize = document.getElementById('text-banner-font-size');
+const textBannerTextColor = document.getElementById('text-banner-text-color');
+const textBannerBgColor = document.getElementById('text-banner-bg-color');
+const textBannerBgOpacity = document.getElementById('text-banner-bg-opacity');
+const textBannerOpacityValue = document.getElementById('text-banner-opacity-value');
+const textBannerCancelBtn = document.getElementById('text-banner-cancel');
+const textBannerConfirmBtn = document.getElementById('text-banner-confirm');
+
+// Timer modal elements
+const addTimerBtn = document.getElementById('add-timer');
+const timerModal = document.getElementById('timer-modal');
+const timerModalTitle = document.getElementById('timer-modal-title');
+const timerModeSelect = document.getElementById('timer-mode');
+const timerDurationGroup = document.getElementById('timer-duration-group');
+const timerMinutesInput = document.getElementById('timer-minutes');
+const timerSecondsInput = document.getElementById('timer-seconds');
+const timerTextColor = document.getElementById('timer-text-color');
+const timerBgColor = document.getElementById('timer-bg-color');
+const timerCancelBtn = document.getElementById('timer-cancel');
+const timerConfirmBtn = document.getElementById('timer-confirm');
+
+// Track which overlay is being edited (for edit mode)
+let editingOverlayId = null;
 
 // Initialize
 async function init() {
@@ -101,17 +143,67 @@ function migrateOverlay(overlay) {
 
   // Add layer if missing
   if (!migrated.layer) {
-    migrated.layer = migrated.type === 'effect' ? LAYER_BACKGROUND : LAYER_FOREGROUND;
+    migrated.layer = migrated.type === TYPE_EFFECT ? LAYER_BACKGROUND : LAYER_FOREGROUND;
   }
 
   // Add zIndex if missing
   if (migrated.zIndex === undefined) {
-    migrated.zIndex = 0;
+    if (migrated.type === TYPE_TIMER) {
+      migrated.zIndex = 11;
+    } else if (migrated.type === TYPE_TEXT_BANNER) {
+      migrated.zIndex = 10;
+    } else {
+      migrated.zIndex = 0;
+    }
   }
 
   // Add createdAt if missing
   if (!migrated.createdAt) {
     migrated.createdAt = Date.now();
+  }
+
+  // Text banner specific migrations
+  if (migrated.type === TYPE_TEXT_BANNER) {
+    if (!migrated.style) {
+      migrated.style = {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 24,
+        textColor: '#ffffff',
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.7,
+        padding: 12,
+        borderRadius: 8
+      };
+    }
+    if (!migrated.textPosition) {
+      migrated.textPosition = TEXT_POSITION_LOWER_THIRD;
+    }
+  }
+
+  // Timer specific migrations
+  if (migrated.type === TYPE_TIMER) {
+    if (!migrated.style) {
+      migrated.style = {
+        fontSize: 32,
+        textColor: '#ffffff',
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.7
+      };
+    }
+    if (!migrated.timerState) {
+      migrated.timerState = {
+        running: false,
+        startTime: null,
+        pausedAt: null,
+        elapsed: 0
+      };
+    }
+    if (!migrated.timerMode) {
+      migrated.timerMode = 'countdown';
+    }
+    if (!migrated.format) {
+      migrated.format = 'mm:ss';
+    }
   }
 
   return migrated;
@@ -164,6 +256,244 @@ addEffectBtn.addEventListener('click', () => {
   imageFileInput.value = '';
   addModal.classList.remove('hidden');
 });
+
+// Add text banner modal
+if (addTextBannerBtn) {
+  addTextBannerBtn.addEventListener('click', () => {
+    editingOverlayId = null;
+    textBannerModalTitle.textContent = 'Add Text Banner';
+    textBannerInput.value = '';
+    textBannerPosition.value = TEXT_POSITION_LOWER_THIRD;
+    textBannerFontSize.value = 24;
+    textBannerTextColor.value = '#ffffff';
+    textBannerBgColor.value = '#000000';
+    textBannerBgOpacity.value = 70;
+    textBannerOpacityValue.textContent = '70%';
+    textBannerConfirmBtn.textContent = 'Add';
+    textBannerModal.classList.remove('hidden');
+  });
+}
+
+// Text banner modal cancel
+if (textBannerCancelBtn) {
+  textBannerCancelBtn.addEventListener('click', () => {
+    textBannerModal.classList.add('hidden');
+    editingOverlayId = null;
+  });
+}
+
+// Text banner opacity slider
+if (textBannerBgOpacity) {
+  textBannerBgOpacity.addEventListener('input', (e) => {
+    textBannerOpacityValue.textContent = e.target.value + '%';
+  });
+}
+
+// Text banner confirm
+if (textBannerConfirmBtn) {
+  textBannerConfirmBtn.addEventListener('click', async () => {
+    const text = textBannerInput.value.trim();
+    if (!text) {
+      showStatus('Please enter some text', 'error');
+      return;
+    }
+
+    const sameLayerOverlays = overlays.filter(o => o.layer === LAYER_FOREGROUND);
+    const nextZIndex = sameLayerOverlays.length > 0
+      ? Math.max(...sameLayerOverlays.map(o => o.zIndex || 0)) + 1
+      : 10;
+
+    if (editingOverlayId) {
+      // Editing existing text banner
+      const overlay = overlays.find(o => o.id === editingOverlayId);
+      if (overlay) {
+        captureStateForUndo('edit');
+        overlay.text = text;
+        overlay.textPosition = textBannerPosition.value;
+        overlay.style = {
+          ...overlay.style,
+          fontSize: parseInt(textBannerFontSize.value) || 24,
+          textColor: textBannerTextColor.value,
+          backgroundColor: textBannerBgColor.value,
+          backgroundOpacity: parseInt(textBannerBgOpacity.value) / 100
+        };
+        await saveOverlays();
+        renderOverlayList();
+        renderPreviewOverlays();
+        showStatus('Text banner updated!', 'success');
+      }
+    } else {
+      // Creating new text banner
+      const overlay = {
+        id: generateId(),
+        type: TYPE_TEXT_BANNER,
+        text: text,
+        name: text.substring(0, 20) + (text.length > 20 ? '...' : ''),
+        textPosition: textBannerPosition.value,
+        style: {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: parseInt(textBannerFontSize.value) || 24,
+          textColor: textBannerTextColor.value,
+          backgroundColor: textBannerBgColor.value,
+          backgroundOpacity: parseInt(textBannerBgOpacity.value) / 100,
+          padding: 12,
+          borderRadius: 8
+        },
+        x: 50,
+        y: 75,
+        width: 80,
+        height: 20,
+        opacity: 1,
+        active: true,
+        layer: LAYER_FOREGROUND,
+        zIndex: nextZIndex,
+        category: CATEGORY_USER,
+        createdAt: Date.now()
+      };
+
+      captureStateForUndo('add');
+      overlays.push(overlay);
+      await saveOverlays();
+      renderOverlayList();
+      renderPreviewOverlays();
+      showStatus('Text banner added!', 'success');
+    }
+
+    textBannerModal.classList.add('hidden');
+    editingOverlayId = null;
+  });
+}
+
+// Add timer modal
+if (addTimerBtn) {
+  addTimerBtn.addEventListener('click', () => {
+    editingOverlayId = null;
+    timerModalTitle.textContent = 'Add Timer';
+    timerModeSelect.value = 'countdown';
+    timerMinutesInput.value = 5;
+    timerSecondsInput.value = 0;
+    timerDurationGroup.style.display = 'block';
+    timerTextColor.value = '#ffffff';
+    timerBgColor.value = '#000000';
+    // Reset position buttons
+    document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector('.position-btn[data-position="top-right"]')?.classList.add('active');
+    timerConfirmBtn.textContent = 'Add';
+    timerModal.classList.remove('hidden');
+  });
+}
+
+// Timer mode change - hide duration for clock mode
+if (timerModeSelect) {
+  timerModeSelect.addEventListener('change', (e) => {
+    if (e.target.value === 'clock') {
+      timerDurationGroup.style.display = 'none';
+    } else {
+      timerDurationGroup.style.display = 'block';
+    }
+  });
+}
+
+// Timer duration preset buttons
+document.querySelectorAll('.duration-presets .btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const duration = parseInt(e.target.dataset.duration);
+    timerMinutesInput.value = Math.floor(duration / 60);
+    timerSecondsInput.value = duration % 60;
+  });
+});
+
+// Timer position buttons
+document.querySelectorAll('.position-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.position-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+  });
+});
+
+// Timer modal cancel
+if (timerCancelBtn) {
+  timerCancelBtn.addEventListener('click', () => {
+    timerModal.classList.add('hidden');
+    editingOverlayId = null;
+  });
+}
+
+// Timer confirm
+if (timerConfirmBtn) {
+  timerConfirmBtn.addEventListener('click', async () => {
+    const minutes = parseInt(timerMinutesInput.value) || 0;
+    const seconds = parseInt(timerSecondsInput.value) || 0;
+    const duration = minutes * 60 + seconds;
+    const mode = timerModeSelect.value;
+
+    if (mode !== 'clock' && duration === 0) {
+      showStatus('Please set a duration', 'error');
+      return;
+    }
+
+    // Get selected position
+    const activePositionBtn = document.querySelector('.position-btn.active');
+    const position = activePositionBtn?.dataset.position || 'top-right';
+
+    // Map position to x/y coordinates
+    const positionMap = {
+      'top-left': { x: 5, y: 5 },
+      'top-center': { x: 50, y: 5 },
+      'top-right': { x: 95, y: 5 },
+      'bottom-left': { x: 5, y: 90 },
+      'bottom-center': { x: 50, y: 90 },
+      'bottom-right': { x: 95, y: 90 }
+    };
+    const pos = positionMap[position] || positionMap['top-right'];
+
+    const sameLayerOverlays = overlays.filter(o => o.layer === LAYER_FOREGROUND);
+    const nextZIndex = sameLayerOverlays.length > 0
+      ? Math.max(...sameLayerOverlays.map(o => o.zIndex || 0)) + 1
+      : 11;
+
+    const modeNames = { countdown: 'Countdown', countup: 'Count Up', clock: 'Clock' };
+    const overlay = {
+      id: generateId(),
+      type: TYPE_TIMER,
+      name: modeNames[mode] + (mode !== 'clock' ? ` (${minutes}:${seconds.toString().padStart(2, '0')})` : ''),
+      duration: duration,
+      timerMode: mode,
+      format: 'mm:ss',
+      style: {
+        fontSize: 32,
+        textColor: timerTextColor.value,
+        backgroundColor: timerBgColor.value,
+        backgroundOpacity: 0.7
+      },
+      timerState: {
+        running: false,
+        startTime: null,
+        pausedAt: null,
+        elapsed: 0
+      },
+      x: pos.x,
+      y: pos.y,
+      width: 15,
+      height: 10,
+      opacity: 1,
+      active: true,
+      layer: LAYER_FOREGROUND,
+      zIndex: nextZIndex,
+      category: CATEGORY_USER,
+      createdAt: Date.now()
+    };
+
+    captureStateForUndo('add');
+    overlays.push(overlay);
+    await saveOverlays();
+    renderOverlayList();
+    renderPreviewOverlays();
+    timerModal.classList.add('hidden');
+    editingOverlayId = null;
+    showStatus('Timer added! Use the controls to start it.', 'success');
+  });
+}
 
 cancelAddBtn.addEventListener('click', () => {
   addModal.classList.add('hidden');
@@ -354,28 +684,55 @@ function hideEffectPreview() {
 function createOverlayItem(overlay) {
   const index = overlays.findIndex(o => o.id === overlay.id);
   const opacity = overlay.opacity !== undefined ? overlay.opacity : 1;
-  const isEffect = overlay.type === 'effect';
+  const isEffect = overlay.type === TYPE_EFFECT;
+  const isTextBanner = overlay.type === TYPE_TEXT_BANNER;
+  const isTimer = overlay.type === TYPE_TIMER;
   const isActive = overlay.active === true;
   const layer = overlay.layer || LAYER_FOREGROUND;
   const category = overlay.category || CATEGORY_USER;
 
   const item = document.createElement('div');
-  item.className = 'overlay-item' + (isEffect ? ' effect-item' : '') + (isActive ? ' active' : '');
+  let className = 'overlay-item';
+  if (isEffect) className += ' effect-item';
+  if (isTextBanner) className += ' text-banner-item';
+  if (isTimer) className += ' timer-item';
+  if (isActive) className += ' active';
+  item.className = className;
   item.dataset.id = overlay.id;
   item.dataset.layer = layer;
   item.dataset.category = category;
+  item.dataset.type = overlay.type || TYPE_STANDARD;
   item.draggable = true;
 
   // Build trigger button HTML for effects
-  const triggerBtn = isEffect ?
-    `<button class="trigger-btn ${isActive ? 'active' : ''}" data-index="${index}" data-id="${overlay.id}" title="${isActive ? 'Deactivate' : 'Activate'}">
+  let triggerBtn = '';
+  if (isEffect) {
+    triggerBtn = `<button class="trigger-btn ${isActive ? 'active' : ''}" data-index="${index}" data-id="${overlay.id}" title="${isActive ? 'Deactivate' : 'Activate'}">
       ${isActive ? '⚡ ON' : '⚡ OFF'}
-    </button>` : '';
+    </button>`;
+  }
 
-  // Build position info - only show for standard overlays (effects are full-screen)
-  const positionInfo = isEffect ?
-    '<div class="position">Full screen effect</div>' :
-    `<div class="position">Position: ${Math.round(overlay.x)}%, ${Math.round(overlay.y)}%</div>`;
+  // Build toggle button for text banners
+  if (isTextBanner) {
+    triggerBtn = `<button class="trigger-btn text-trigger ${isActive ? 'active' : ''}" data-index="${index}" data-id="${overlay.id}" title="${isActive ? 'Hide' : 'Show'}">
+      ${isActive ? '👁 ON' : '👁 OFF'}
+    </button>`;
+  }
+
+  // Build position info
+  let positionInfo = '';
+  if (isEffect) {
+    positionInfo = '<div class="position">Full screen effect</div>';
+  } else if (isTextBanner) {
+    const posNames = { 'lower-third': 'Lower Third', 'top': 'Top', 'center': 'Center', 'custom': 'Custom' };
+    positionInfo = `<div class="position">${posNames[overlay.textPosition] || 'Lower Third'}</div>
+                    <div class="text-preview">"${overlay.text?.substring(0, 30) || ''}${(overlay.text?.length || 0) > 30 ? '...' : ''}"</div>`;
+  } else if (isTimer) {
+    const modeNames = { countdown: 'Countdown', countup: 'Count Up', clock: 'Clock' };
+    positionInfo = `<div class="position">${modeNames[overlay.timerMode] || 'Timer'}</div>`;
+  } else {
+    positionInfo = `<div class="position">Position: ${Math.round(overlay.x)}%, ${Math.round(overlay.y)}%</div>`;
+  }
 
   // Layer toggle buttons
   const layerToggle = `
@@ -385,16 +742,55 @@ function createOverlayItem(overlay) {
     </div>
   `;
 
+  // Build thumbnail area
+  let thumbHtml = '';
+  if (isTextBanner) {
+    thumbHtml = `<div class="text-banner-icon">Aa</div>`;
+  } else if (isTimer) {
+    thumbHtml = `<div class="timer-icon">00:00</div>`;
+  } else {
+    thumbHtml = `<img class="thumb" src="${overlay.src}" alt="">`;
+  }
+
+  // Build name with icon
+  let nameIcon = '';
+  if (isEffect) nameIcon = '⚡ ';
+  if (isTextBanner) nameIcon = '📝 ';
+  if (isTimer) nameIcon = '⏱ ';
+
+  // Extra controls for text banners (edit button)
+  let extraControls = '';
+  if (isTextBanner) {
+    extraControls = `<button class="edit-text-btn" data-id="${overlay.id}" title="Edit Text">Edit</button>`;
+  }
+
+  // Timer controls
+  let timerControls = '';
+  if (isTimer) {
+    timerControls = `
+      <div class="timer-controls">
+        <button class="timer-ctrl-btn play" data-id="${overlay.id}" data-action="start" title="Start">▶</button>
+        <button class="timer-ctrl-btn pause" data-id="${overlay.id}" data-action="pause" title="Pause">⏸</button>
+        <button class="timer-ctrl-btn" data-id="${overlay.id}" data-action="reset" title="Reset">↺</button>
+      </div>
+    `;
+    // Timer toggle button
+    triggerBtn = `<button class="trigger-btn timer-trigger ${isActive ? 'active' : ''}" data-index="${index}" data-id="${overlay.id}" title="${isActive ? 'Hide' : 'Show'}">
+      ${isActive ? '👁 ON' : '👁 OFF'}
+    </button>`;
+  }
+
   item.innerHTML = `
     <div class="drag-handle" title="Drag to reorder">
       <span></span>
       <span></span>
       <span></span>
     </div>
-    <img class="thumb" src="${overlay.src}" alt="">
+    ${thumbHtml}
     <div class="info">
-      <div class="name">${isEffect ? '⚡ ' : ''}${overlay.name}</div>
+      <div class="name">${nameIcon}${overlay.name}</div>
       ${positionInfo}
+      ${timerControls}
       <div class="controls-row">
         <div class="opacity-control">
           <label>Opacity:</label>
@@ -404,6 +800,7 @@ function createOverlayItem(overlay) {
         ${layerToggle}
       </div>
     </div>
+    ${extraControls}
     ${triggerBtn}
     <button class="duplicate-btn" data-id="${overlay.id}" title="Duplicate">⧉</button>
     <button class="delete-btn" data-index="${index}" title="Remove">×</button>
@@ -538,34 +935,93 @@ function setupOverlayItemHandlers(listElement) {
     });
   });
 
-  // Trigger button handlers for effects
+  // Trigger button handlers for effects, text banners, and timers
   listElement.querySelectorAll('.trigger-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const index = parseInt(e.target.dataset.index);
       const id = e.target.dataset.id;
       const overlay = overlays[index];
+      if (!overlay) return;
 
-      if (overlay && overlay.type === 'effect') {
-        const newActive = !overlay.active;
-        overlay.active = newActive;
+      const newActive = !overlay.active;
+      overlay.active = newActive;
 
-        // Update local state
-        await saveOverlays();
-        renderOverlayList();
-        renderPreviewOverlays();
+      // Update local state
+      await saveOverlays();
+      renderOverlayList();
+      renderPreviewOverlays();
 
-        // Send toggle message to content script
-        const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-        for (const tab of tabs) {
-          chrome.tabs.sendMessage(tab.id, {
-            type: 'TOGGLE_EFFECT',
-            id: id,
-            active: newActive
-          }).catch(() => {});
-        }
-
-        showStatus(newActive ? 'Effect activated!' : 'Effect deactivated', 'success');
+      // Send toggle message to content script based on type
+      const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+      let messageType = 'TOGGLE_EFFECT';
+      if (overlay.type === TYPE_TEXT_BANNER) {
+        messageType = 'TOGGLE_TEXT_BANNER';
+      } else if (overlay.type === TYPE_TIMER) {
+        messageType = 'TOGGLE_TIMER';
       }
+
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: messageType,
+          id: id,
+          active: newActive
+        }).catch(() => {});
+      }
+
+      // Show appropriate status message
+      if (overlay.type === TYPE_EFFECT) {
+        showStatus(newActive ? 'Effect activated!' : 'Effect deactivated', 'success');
+      } else if (overlay.type === TYPE_TEXT_BANNER) {
+        showStatus(newActive ? 'Text banner shown!' : 'Text banner hidden', 'success');
+      } else if (overlay.type === TYPE_TIMER) {
+        showStatus(newActive ? 'Timer shown!' : 'Timer hidden', 'success');
+      }
+    });
+  });
+
+  // Edit text button handlers for text banners
+  listElement.querySelectorAll('.edit-text-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.dataset.id;
+      const overlay = overlays.find(o => o.id === id);
+      if (!overlay || overlay.type !== TYPE_TEXT_BANNER) return;
+
+      // Open modal in edit mode
+      editingOverlayId = id;
+      textBannerModalTitle.textContent = 'Edit Text Banner';
+      textBannerInput.value = overlay.text || '';
+      textBannerPosition.value = overlay.textPosition || TEXT_POSITION_LOWER_THIRD;
+      textBannerFontSize.value = overlay.style?.fontSize || 24;
+      textBannerTextColor.value = overlay.style?.textColor || '#ffffff';
+      textBannerBgColor.value = overlay.style?.backgroundColor || '#000000';
+      textBannerBgOpacity.value = Math.round((overlay.style?.backgroundOpacity || 0.7) * 100);
+      textBannerOpacityValue.textContent = textBannerBgOpacity.value + '%';
+      textBannerConfirmBtn.textContent = 'Save';
+      textBannerModal.classList.remove('hidden');
+    });
+  });
+
+  // Timer control button handlers
+  listElement.querySelectorAll('.timer-ctrl-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.dataset.id;
+      const action = e.target.dataset.action;
+      const overlay = overlays.find(o => o.id === id);
+      if (!overlay || overlay.type !== TYPE_TIMER) return;
+
+      // Send timer control message to content script
+      const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'TIMER_CONTROL',
+          id: id,
+          action: action
+        }).catch(() => {});
+      }
+
+      // Show status
+      const actionNames = { start: 'started', pause: 'paused', reset: 'reset' };
+      showStatus(`Timer ${actionNames[action]}!`, 'success');
     });
   });
 
