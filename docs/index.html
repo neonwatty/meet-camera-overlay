@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meet Camera Overlay - Timers & Text Overlays for Churches and Classrooms</title>
+  <meta name="description" content="Display worship lyrics, countdown timers, and announcements on your Google Meet camera. Free Chrome extension for churches, teachers, and educators.">
+  <meta name="keywords" content="church lyrics overlay, worship lyrics display, classroom timer, lesson timer, google meet timer, text overlay for video calls, church live stream overlay, teacher webcam overlay">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Meet Camera Overlay - For Churches & Classrooms">
+  <meta property="og:description" content="Display lyrics, timers, and announcements directly on your Google Meet camera feed.">
+  <meta property="og:type" content="website">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
+      color: white;
+      padding: 60px 0 80px;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    header p {
+      font-size: 1.25rem;
+      opacity: 0.95;
+      max-width: 650px;
+      margin: 0 auto 32px;
+    }
+
+    .cta-button {
+      display: inline-block;
+      background: white;
+      color: #1a73e8;
+      padding: 16px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    }
+
+    .platform-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.15);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin-top: 24px;
+    }
+
+    /* Audience Tabs */
+    .audience-section {
+      padding: 80px 0;
+    }
+
+    .audience-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .audience-tab {
+      padding: 12px 32px;
+      border: 2px solid #1a73e8;
+      border-radius: 30px;
+      background: white;
+      color: #1a73e8;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .audience-tab:hover,
+    .audience-tab.active {
+      background: #1a73e8;
+      color: white;
+    }
+
+    .audience-content {
+      display: none;
+    }
+
+    .audience-content.active {
+      display: block;
+    }
+
+    /* Feature Cards */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 32px;
+    }
+
+    .feature-card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 32px;
+      border-left: 4px solid #1a73e8;
+    }
+
+    .feature-card.church {
+      border-left-color: #7c3aed;
+    }
+
+    .feature-card.education {
+      border-left-color: #059669;
+    }
+
+    .feature-icon {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+      color: #333;
+    }
+
+    .feature-card p {
+      color: #666;
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+    }
+
+    .feature-card ul {
+      color: #555;
+      font-size: 0.9rem;
+      padding-left: 20px;
+    }
+
+    .feature-card li {
+      margin-bottom: 6px;
+    }
+
+    /* Testimonial/Use Case Section */
+    .use-case-section {
+      padding: 80px 0;
+      background: #f8f9fa;
+    }
+
+    .use-case-section h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 48px;
+    }
+
+    .use-case-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 32px;
+    }
+
+    .use-case-card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .use-case-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: #333;
+    }
+
+    .use-case-card p {
+      color: #666;
+      font-size: 0.95rem;
+    }
+
+    .use-case-icon {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+
+    /* How it works */
+    .how-it-works {
+      padding: 80px 0;
+    }
+
+    .how-it-works h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 48px;
+    }
+
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+
+    .step {
+      text-align: center;
+      max-width: 250px;
+    }
+
+    .step-number {
+      width: 48px;
+      height: 48px;
+      background: #1a73e8;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.25rem;
+      margin: 0 auto 16px;
+    }
+
+    .step h3 {
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      padding: 80px 0;
+      text-align: center;
+      background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
+      color: white;
+    }
+
+    .cta-section h2 {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+
+    .cta-section p {
+      opacity: 0.95;
+      margin-bottom: 32px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      text-align: center;
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 1.75rem;
+      }
+
+      header p {
+        font-size: 1rem;
+      }
+
+      .audience-tabs {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .steps {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="container">
+      <h1>Timers & Text Overlays for Churches and Classrooms</h1>
+      <p>Display worship lyrics, countdown timers, and announcements directly on your Google Meet camera feed. Perfect for virtual services and online classes.</p>
+      <a href="https://chrome.google.com/webstore" class="cta-button">Add to Chrome - Free</a>
+      <div class="platform-badge">
+        Works with Google Meet
+      </div>
+    </div>
+  </header>
+
+  <!-- Audience-Specific Features -->
+  <section class="audience-section">
+    <div class="container">
+      <div class="audience-tabs">
+        <button class="audience-tab active" onclick="showAudience('church')">For Churches</button>
+        <button class="audience-tab" onclick="showAudience('education')">For Educators</button>
+      </div>
+
+      <!-- Church Content -->
+      <div id="church-content" class="audience-content active">
+        <div class="feature-grid">
+          <div class="feature-card church">
+            <div class="feature-icon">&#128220;</div>
+            <h3>Worship Lyrics Display</h3>
+            <p>Show song lyrics, scripture verses, and responsive readings directly on your camera feed during virtual services.</p>
+            <ul>
+              <li>Multi-line text support</li>
+              <li>Easy-to-read lower third position</li>
+              <li>Quick edit between songs</li>
+              <li>Show/hide with one click</li>
+            </ul>
+          </div>
+
+          <div class="feature-card church">
+            <div class="feature-icon">&#128227;</div>
+            <h3>Announcements & Info</h3>
+            <p>Display service times, giving links, event announcements, and welcome messages to virtual attendees.</p>
+            <ul>
+              <li>Customizable colors and fonts</li>
+              <li>Position anywhere on screen</li>
+              <li>Toggle on/off during service</li>
+              <li>Perfect for live streams</li>
+            </ul>
+          </div>
+
+          <div class="feature-card church">
+            <div class="feature-icon">&#9201;</div>
+            <h3>Sermon Timer</h3>
+            <p>Keep your message on track with a countdown timer visible only to you. Perfect for managing service segments.</p>
+            <ul>
+              <li>Countdown or count-up modes</li>
+              <li>Visual alert at 10 seconds</li>
+              <li>Pause/resume capability</li>
+              <li>Corner placement options</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Education Content -->
+      <div id="education-content" class="audience-content">
+        <div class="feature-grid">
+          <div class="feature-card education">
+            <div class="feature-icon">&#9201;</div>
+            <h3>Class & Activity Timers</h3>
+            <p>Show countdown timers for tests, group work, transitions, and break times. Students can see the remaining time clearly.</p>
+            <ul>
+              <li>Preset durations (5, 10, 15 min)</li>
+              <li>Visual countdown display</li>
+              <li>Alert when time is almost up</li>
+              <li>Start, pause, reset controls</li>
+            </ul>
+          </div>
+
+          <div class="feature-card education">
+            <div class="feature-icon">&#128218;</div>
+            <h3>Lesson Information</h3>
+            <p>Display today's topic, learning objectives, homework assignments, or instructions without sharing your screen.</p>
+            <ul>
+              <li>Multi-line text support</li>
+              <li>Easy to update between lessons</li>
+              <li>Stays visible while teaching</li>
+              <li>Professional lower third style</li>
+            </ul>
+          </div>
+
+          <div class="feature-card education">
+            <div class="feature-icon">&#127919;</div>
+            <h3>Student Engagement</h3>
+            <p>Add visual elements to make virtual classes more engaging. Show class schedules, daily agendas, or motivational messages.</p>
+            <ul>
+              <li>Customizable text and colors</li>
+              <li>Position options for any setup</li>
+              <li>Works alongside screen sharing</li>
+              <li>No extra software needed</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Use Cases -->
+  <section class="use-case-section">
+    <div class="container">
+      <h2>How Others Are Using It</h2>
+      <div class="use-case-grid">
+        <div class="use-case-card">
+          <div class="use-case-icon">&#9962;</div>
+          <h3>Sunday Virtual Services</h3>
+          <p>Churches display worship lyrics and scripture on the pastor's camera feed so remote attendees can follow along during live-streamed services.</p>
+        </div>
+
+        <div class="use-case-card">
+          <div class="use-case-icon">&#128209;</div>
+          <h3>Timed Exams</h3>
+          <p>Teachers show a countdown timer during virtual tests so students know exactly how much time remains without constantly asking.</p>
+        </div>
+
+        <div class="use-case-card">
+          <div class="use-case-icon">&#127932;</div>
+          <h3>Music Ministry</h3>
+          <p>Worship leaders display song lyrics during virtual choir rehearsals and online music ministry sessions.</p>
+        </div>
+
+        <div class="use-case-card">
+          <div class="use-case-icon">&#128587;</div>
+          <h3>Small Group Studies</h3>
+          <p>Bible study leaders show discussion questions and scripture references on screen during virtual small group meetings.</p>
+        </div>
+
+        <div class="use-case-card">
+          <div class="use-case-icon">&#128214;</div>
+          <h3>Reading Time</h3>
+          <p>Elementary teachers use the timer for silent reading periods, giving students a clear visual of time remaining.</p>
+        </div>
+
+        <div class="use-case-card">
+          <div class="use-case-icon">&#128483;</div>
+          <h3>Morning Announcements</h3>
+          <p>Schools display daily schedules, lunch menus, and announcements during virtual homeroom sessions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how-it-works">
+    <div class="container">
+      <h2>Simple Setup in 3 Steps</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h3>Install Extension</h3>
+          <p>Add the free Chrome extension with one click. No account needed.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <h3>Create Your Overlays</h3>
+          <p>Add text banners with your lyrics or info, and set up your timers.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <h3>Join Google Meet</h3>
+          <p>Your overlays appear on your camera. Toggle them on/off as needed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Ready to Enhance Your Virtual Services and Classes?</h2>
+      <p>Join churches and educators who have made their Google Meet sessions more engaging and organized.</p>
+      <a href="https://chrome.google.com/webstore" class="cta-button">Add to Chrome - Free</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>Meet Camera Overlay - Open source extension for Google Meet</p>
+      <p style="margin-top: 12px;">
+        <a href="https://github.com/neonwatty/meet-camera-overlay">View on GitHub</a>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    function showAudience(audience) {
+      // Update tabs
+      document.querySelectorAll('.audience-tab').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // Update content
+      document.querySelectorAll('.audience-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(audience + '-content').classList.add('active');
+    }
+  </script>
+</body>
+</html>
