@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How to Display Lyrics and Timers on Google Meet | Meet Camera Overlay Guide</title>
+  <meta name="description" content="Step-by-step guide on how to display worship lyrics, countdown timers, and text overlays on your Google Meet camera. Perfect for churches and teachers.">
+  <meta name="keywords" content="how to display lyrics on google meet, google meet timer overlay, webcam text overlay, church live stream lyrics, virtual classroom timer">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="How to Display Lyrics and Timers on Google Meet">
+  <meta property="og:description" content="Complete guide to adding text overlays and timers to your Google Meet video calls.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://meet-camera-overlay.vercel.app/guide.html">
+  <meta property="og:image" content="https://meet-camera-overlay.vercel.app/og-image.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How to Display Lyrics and Timers on Google Meet">
+  <meta name="twitter:description" content="Complete guide to adding text overlays and timers to your Google Meet video calls.">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://meet-camera-overlay.vercel.app/guide.html">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Structured Data - Article -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Display Lyrics and Timers on Google Meet",
+    "description": "Learn how to add text overlays, countdown timers, and worship lyrics to your Google Meet camera feed using the free Meet Camera Overlay Chrome extension.",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Install the Chrome Extension",
+        "text": "Add Meet Camera Overlay from the Chrome Web Store. Click 'Add to Chrome' and confirm the installation."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Open the Extension Popup",
+        "text": "Click the extension icon in your Chrome toolbar to open the overlay settings panel."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Create a Text Overlay",
+        "text": "Click 'Add Text Banner' and enter your lyrics, announcement, or message. Customize the font, color, and position."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Set Up a Timer",
+        "text": "Click 'Add Timer' and choose countdown or count-up mode. Set your duration and position on screen."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Join Google Meet",
+        "text": "Start or join a Google Meet call. Your overlays will automatically appear on your camera feed."
+      }
+    ],
+    "totalTime": "PT5M"
+  }
+  </script>
+
+  <style>
+    :root {
+      --color-bg-dark: #0f0d1a;
+      --color-bg-light: #f8f7fc;
+      --color-primary: #6366f1;
+      --color-primary-light: #818cf8;
+      --color-accent: #f59e0b;
+      --color-church: #8b5cf6;
+      --color-education: #10b981;
+      --color-text-dark: #1e1b2e;
+      --color-text-medium: #4b5563;
+      --color-text-light: #9ca3af;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'DM Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      line-height: 1.8;
+      color: var(--color-text-dark);
+      background: var(--color-bg-light);
+    }
+
+    /* Header */
+    header {
+      background: var(--color-bg-dark);
+      padding: 1rem 0;
+    }
+
+    .nav-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: white;
+      text-decoration: none;
+      font-size: 1.1rem;
+    }
+
+    .nav-links a {
+      color: var(--color-text-light);
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-left: 1.5rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: white; }
+
+    /* Article */
+    article {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+
+    .breadcrumb {
+      font-size: 0.85rem;
+      color: var(--color-text-light);
+      margin-bottom: 2rem;
+    }
+
+    .breadcrumb a {
+      color: var(--color-primary);
+      text-decoration: none;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      color: var(--color-text-dark);
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--color-text-medium);
+      margin-bottom: 2rem;
+    }
+
+    .meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+      color: var(--color-text-light);
+      margin-bottom: 2rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 2.5rem 0 1rem;
+      color: var(--color-text-dark);
+    }
+
+    h3 {
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      color: var(--color-text-dark);
+    }
+
+    p { margin-bottom: 1.25rem; }
+
+    ul, ol {
+      margin-bottom: 1.25rem;
+      padding-left: 1.5rem;
+    }
+
+    li { margin-bottom: 0.5rem; }
+
+    /* Step boxes */
+    .step-box {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border-left: 4px solid var(--color-primary);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .step-box h3 {
+      margin: 0 0 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: var(--color-primary);
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .step-box p { margin-bottom: 0; }
+
+    /* Tips */
+    .tip {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin: 1.5rem 0;
+      border-left: 4px solid var(--color-accent);
+    }
+
+    .tip strong {
+      color: var(--color-accent);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Use case sections */
+    .use-case {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .use-case.church { border-left: 4px solid var(--color-church); }
+    .use-case.education { border-left: 4px solid var(--color-education); }
+
+    .use-case h4 {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .use-case p { margin-bottom: 0; color: var(--color-text-medium); }
+
+    /* CTA */
+    .cta-box {
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-church) 100%);
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+      margin: 3rem 0;
+    }
+
+    .cta-box h3 {
+      color: white;
+      margin: 0 0 0.5rem;
+    }
+
+    .cta-box p {
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 1.5rem;
+    }
+
+    .btn {
+      display: inline-block;
+      background: white;
+      color: var(--color-primary);
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      font-family: var(--font-display);
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.2s;
+    }
+
+    .btn:hover { transform: translateY(-2px); }
+
+    /* Footer */
+    footer {
+      background: var(--color-bg-dark);
+      padding: 2rem 0;
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--color-text-light);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--color-primary-light);
+      text-decoration: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      article { padding: 2rem 1rem; }
+      .step-box, .use-case, .tip { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="nav-container">
+      <a href="/" class="logo">Meet Camera Overlay</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="https://github.com/neonwatty/meet-camera-overlay">GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <article>
+    <nav class="breadcrumb">
+      <a href="/">Home</a> / Guide
+    </nav>
+
+    <h1>How to Display Lyrics and Timers on Google Meet</h1>
+    <p class="subtitle">A complete guide to adding text overlays, countdown timers, and worship lyrics to your Google Meet video calls.</p>
+
+    <div class="meta">
+      <span>5 min read</span>
+      <span>Last updated: January 2026</span>
+    </div>
+
+    <p>Whether you're leading a virtual worship service, teaching an online class, or running a remote meeting, displaying text overlays and timers directly on your camera feed can make your video calls more engaging and professional.</p>
+
+    <p>This guide shows you how to use <strong>Meet Camera Overlay</strong>, a free Chrome extension, to add lyrics, announcements, countdown timers, and custom text to your Google Meet camera.</p>
+
+    <h2>What You Can Do</h2>
+
+    <p>With Meet Camera Overlay, you can:</p>
+    <ul>
+      <li><strong>Display worship lyrics</strong> during virtual church services</li>
+      <li><strong>Show countdown timers</strong> for tests, activities, or sermon segments</li>
+      <li><strong>Add announcements</strong> like service times, giving links, or daily agendas</li>
+      <li><strong>Show custom text</strong> for any purpose - lesson objectives, scripture verses, instructions</li>
+      <li><strong>Add image and GIF overlays</strong> for branding or visual effects</li>
+    </ul>
+
+    <h2>Step-by-Step Setup</h2>
+
+    <div class="step-box">
+      <h3><span class="step-number">1</span> Install the Extension</h3>
+      <p>Visit the Chrome Web Store and search for "Meet Camera Overlay" or click the install button on our homepage. Click "Add to Chrome" and confirm the installation. The extension icon will appear in your Chrome toolbar.</p>
+    </div>
+
+    <div class="step-box">
+      <h3><span class="step-number">2</span> Open the Settings Panel</h3>
+      <p>Click the Meet Camera Overlay icon in your Chrome toolbar. This opens the settings panel where you can create and manage your overlays.</p>
+    </div>
+
+    <div class="step-box">
+      <h3><span class="step-number">3</span> Create a Text Overlay</h3>
+      <p>Click "Add Text Banner" to create a new text overlay. Enter your text (lyrics, announcement, or message), then customize the font size, color, background, and position. The "lower third" position works well for lyrics and announcements.</p>
+    </div>
+
+    <div class="step-box">
+      <h3><span class="step-number">4</span> Set Up a Timer (Optional)</h3>
+      <p>Click "Add Timer" to create a countdown or count-up timer. Choose your duration, select a corner position, and customize the appearance. Timers are perfect for timed activities, sermon segments, or test periods.</p>
+    </div>
+
+    <div class="step-box">
+      <h3><span class="step-number">5</span> Join Google Meet</h3>
+      <p>Start or join a Google Meet call. Your overlays will automatically appear on your camera feed. Use the extension popup to toggle overlays on/off, edit text, or start/stop timers during the call.</p>
+    </div>
+
+    <div class="tip">
+      <strong>Pro Tip</strong>
+      You can prepare multiple text overlays in advance and quickly switch between them during your call. This is especially useful for worship services where you need to display different song lyrics.
+    </div>
+
+    <h2>Use Cases</h2>
+
+    <h3>For Churches</h3>
+
+    <div class="use-case church">
+      <h4>Worship Lyrics Display</h4>
+      <p>Show song lyrics on the worship leader's or pastor's camera feed during virtual services. Remote attendees can follow along without needing a separate screen share.</p>
+    </div>
+
+    <div class="use-case church">
+      <h4>Scripture and Responsive Readings</h4>
+      <p>Display Bible verses during sermons or responsive readings. Participants can read along directly from the video feed.</p>
+    </div>
+
+    <div class="use-case church">
+      <h4>Service Information</h4>
+      <p>Show giving links, service times, event announcements, or welcome messages to virtual attendees.</p>
+    </div>
+
+    <h3>For Educators</h3>
+
+    <div class="use-case education">
+      <h4>Activity Timers</h4>
+      <p>Display countdown timers during tests, group work, reading time, or transitions. Students always know exactly how much time remains.</p>
+    </div>
+
+    <div class="use-case education">
+      <h4>Lesson Information</h4>
+      <p>Show today's topic, learning objectives, homework assignments, or instructions without sharing your entire screen.</p>
+    </div>
+
+    <div class="use-case education">
+      <h4>Daily Schedules</h4>
+      <p>Display the day's schedule, lunch menu, or announcements during virtual homeroom sessions.</p>
+    </div>
+
+    <h2>Tips for Best Results</h2>
+
+    <ul>
+      <li><strong>Keep text concise</strong> - Shorter text is easier to read on video. Break long content into multiple overlays.</li>
+      <li><strong>Use high contrast colors</strong> - Light text on dark backgrounds (or vice versa) is most readable.</li>
+      <li><strong>Position thoughtfully</strong> - Lower third overlays don't block faces. Corner timers stay out of the way.</li>
+      <li><strong>Test before going live</strong> - Preview your overlays before important calls to ensure they look right.</li>
+      <li><strong>Prepare in advance</strong> - Set up all your overlays before the call so you can focus on presenting.</li>
+    </ul>
+
+    <h2>Frequently Asked Questions</h2>
+
+    <h3>Does this work with Zoom or Microsoft Teams?</h3>
+    <p>Currently, Meet Camera Overlay is designed specifically for Google Meet. Support for other platforms may be added in future updates.</p>
+
+    <h3>Can attendees see my overlays?</h3>
+    <p>Yes! The overlays are added directly to your camera feed, so everyone in the meeting sees them on your video.</p>
+
+    <h3>Does it work with virtual backgrounds?</h3>
+    <p>Yes, Meet Camera Overlay works alongside Google Meet's virtual backgrounds and other camera effects.</p>
+
+    <h3>Is there a cost?</h3>
+    <p>No, Meet Camera Overlay is completely free and open source.</p>
+
+    <div class="cta-box">
+      <h3>Ready to Get Started?</h3>
+      <p>Add professional overlays to your Google Meet calls in minutes.</p>
+      <a href="https://chrome.google.com/webstore" class="btn">Add to Chrome - Free</a>
+    </div>
+  </article>
+
+  <footer>
+    <p>Meet Camera Overlay - <a href="https://github.com/neonwatty/meet-camera-overlay">Open source</a> Chrome extension for Google Meet</p>
+  </footer>
+</body>
+</html>
