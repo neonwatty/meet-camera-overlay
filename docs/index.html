@@ -11,102 +11,322 @@
   <meta property="og:title" content="Meet Camera Overlay - For Churches & Classrooms">
   <meta property="og:description" content="Display lyrics, timers, and announcements directly on your Google Meet camera feed.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://meet-camera-overlay.vercel.app">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Meet Camera Overlay - For Churches & Classrooms">
+  <meta name="twitter:description" content="Display lyrics, timers, and announcements directly on your Google Meet camera feed.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet">
+
+  <!-- Canonical URL -->
+  <link rel="canonical" href="https://meet-camera-overlay.vercel.app">
 
   <style>
+    :root {
+      /* Color palette - warm and inviting for church/education */
+      --color-bg-dark: #0f0d1a;
+      --color-bg-medium: #1a1625;
+      --color-bg-light: #f8f7fc;
+      --color-bg-card: #ffffff;
+
+      --color-primary: #6366f1;
+      --color-primary-light: #818cf8;
+      --color-accent: #f59e0b;
+      --color-accent-light: #fbbf24;
+
+      --color-church: #8b5cf6;
+      --color-church-light: #a78bfa;
+      --color-education: #10b981;
+      --color-education-light: #34d399;
+
+      --color-text-dark: #1e1b2e;
+      --color-text-medium: #4b5563;
+      --color-text-light: #9ca3af;
+      --color-text-inverse: #f3f4f6;
+
+      /* Typography */
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'DM Sans', sans-serif;
+
+      /* Spacing */
+      --space-xs: 0.5rem;
+      --space-sm: 1rem;
+      --space-md: 1.5rem;
+      --space-lg: 2.5rem;
+      --space-xl: 4rem;
+      --space-2xl: 6rem;
+
+      /* Animation */
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.6;
-      color: #333;
+      font-family: var(--font-body);
+      font-weight: 400;
+      line-height: 1.7;
+      color: var(--color-text-dark);
+      background: var(--color-bg-light);
+      overflow-x: hidden;
     }
 
+    /* Animation utilities */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: fadeInUp 0.8s var(--ease-out-expo) forwards;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .stagger-1 { animation-delay: 0.1s; }
+    .stagger-2 { animation-delay: 0.2s; }
+    .stagger-3 { animation-delay: 0.3s; }
+    .stagger-4 { animation-delay: 0.4s; }
+    .stagger-5 { animation-delay: 0.5s; }
+    .stagger-6 { animation-delay: 0.6s; }
+
+    /* Container */
     .container {
-      max-width: 1100px;
+      max-width: 1140px;
       margin: 0 auto;
-      padding: 0 20px;
+      padding: 0 var(--space-md);
     }
 
-    /* Header */
-    header {
-      background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
-      color: white;
-      padding: 60px 0 80px;
+    /* ============ HERO ============ */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-xl) 0;
+      background: var(--color-bg-dark);
+      overflow: hidden;
+    }
+
+    /* Atmospheric background */
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.3), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(139, 92, 246, 0.2), transparent),
+        radial-gradient(ellipse 50% 30% at 20% 80%, rgba(245, 158, 11, 0.15), transparent);
+    }
+
+    /* Subtle grid pattern */
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
       text-align: center;
+      max-width: 800px;
     }
 
-    header h1 {
-      font-size: 2.5rem;
-      margin-bottom: 16px;
-      font-weight: 700;
-    }
-
-    header p {
-      font-size: 1.25rem;
-      opacity: 0.95;
-      max-width: 650px;
-      margin: 0 auto 32px;
-    }
-
-    .cta-button {
-      display: inline-block;
-      background: white;
-      color: #1a73e8;
-      padding: 16px 32px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 1.1rem;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-
-    .cta-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0,0,0,0.2);
-    }
-
-    .platform-badge {
+    .hero-badge {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.15);
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 0.9rem;
-      margin-top: 24px;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      color: var(--color-text-light);
+      margin-bottom: var(--space-md);
+      backdrop-filter: blur(8px);
     }
 
-    /* Audience Tabs */
+    .hero-badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--color-text-inverse);
+      margin-bottom: var(--space-md);
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-description {
+      font-size: clamp(1.1rem, 2vw, 1.35rem);
+      color: var(--color-text-light);
+      max-width: 600px;
+      margin: 0 auto var(--space-lg);
+      font-weight: 300;
+    }
+
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: var(--space-sm);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: 12px;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: all 0.3s var(--ease-out-expo);
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+      color: white;
+      box-shadow: 0 4px 24px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.08);
+      color: var(--color-text-inverse);
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.25);
+    }
+
+    /* ============ AUDIENCE SECTION ============ */
     .audience-section {
-      padding: 80px 0;
+      padding: var(--space-2xl) 0;
+      background: var(--color-bg-light);
+      position: relative;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: var(--space-xl);
+    }
+
+    .section-label {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-primary);
+      margin-bottom: var(--space-xs);
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 4vw, 2.75rem);
+      font-weight: 700;
+      color: var(--color-text-dark);
+      letter-spacing: -0.02em;
     }
 
     .audience-tabs {
       display: flex;
       justify-content: center;
-      gap: 16px;
-      margin-bottom: 48px;
+      gap: var(--space-xs);
+      margin-bottom: var(--space-xl);
+      background: var(--color-bg-card);
+      padding: 6px;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .audience-tab {
-      padding: 12px 32px;
-      border: 2px solid #1a73e8;
-      border-radius: 30px;
-      background: white;
-      color: #1a73e8;
+      padding: var(--space-sm) var(--space-md);
+      border: none;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--color-text-medium);
+      font-family: var(--font-display);
       font-weight: 600;
+      font-size: 0.95rem;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s var(--ease-out-expo);
     }
 
-    .audience-tab:hover,
+    .audience-tab:hover {
+      color: var(--color-text-dark);
+    }
+
     .audience-tab.active {
-      background: #1a73e8;
+      background: var(--color-primary);
       color: white;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+    }
+
+    .audience-tab.active[data-audience="church"] {
+      background: var(--color-church);
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+    }
+
+    .audience-tab.active[data-audience="education"] {
+      background: var(--color-education);
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
     }
 
     .audience-content {
@@ -115,357 +335,530 @@
 
     .audience-content.active {
       display: block;
+      animation: fadeInUp 0.5s var(--ease-out-expo);
     }
 
     /* Feature Cards */
     .feature-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: var(--space-md);
     }
 
     .feature-card {
-      background: #f8f9fa;
-      border-radius: 12px;
-      padding: 32px;
-      border-left: 4px solid #1a73e8;
+      background: var(--color-bg-card);
+      border-radius: 20px;
+      padding: var(--space-lg);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      border: 1px solid rgba(0,0,0,0.04);
+      transition: all 0.4s var(--ease-out-expo);
+      position: relative;
+      overflow: hidden;
     }
 
-    .feature-card.church {
-      border-left-color: #7c3aed;
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--color-church), var(--color-church-light));
+      opacity: 0;
+      transition: opacity 0.3s;
     }
 
-    .feature-card.education {
-      border-left-color: #059669;
+    .feature-card.education::before {
+      background: linear-gradient(90deg, var(--color-education), var(--color-education-light));
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
     }
 
     .feature-icon {
-      font-size: 2.5rem;
-      margin-bottom: 16px;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.05));
+      border-radius: 14px;
+      font-size: 1.75rem;
+      margin-bottom: var(--space-md);
+    }
+
+    .feature-card.education .feature-icon {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
     }
 
     .feature-card h3 {
-      font-size: 1.25rem;
-      margin-bottom: 12px;
-      color: #333;
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--color-text-dark);
+      margin-bottom: var(--space-sm);
     }
 
     .feature-card p {
-      color: #666;
+      color: var(--color-text-medium);
+      margin-bottom: var(--space-md);
       font-size: 0.95rem;
-      margin-bottom: 16px;
     }
 
-    .feature-card ul {
-      color: #555;
+    .feature-list {
+      list-style: none;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      color: var(--color-text-medium);
       font-size: 0.9rem;
-      padding-left: 20px;
+      margin-bottom: var(--space-xs);
     }
 
-    .feature-card li {
-      margin-bottom: 6px;
+    .feature-list li::before {
+      content: '✓';
+      color: var(--color-church);
+      font-weight: 700;
     }
 
-    /* Testimonial/Use Case Section */
-    .use-case-section {
-      padding: 80px 0;
-      background: #f8f9fa;
+    .feature-card.education .feature-list li::before {
+      color: var(--color-education);
     }
 
-    .use-case-section h2 {
-      text-align: center;
-      font-size: 2rem;
-      margin-bottom: 48px;
+    /* ============ USE CASES ============ */
+    .use-cases {
+      padding: var(--space-2xl) 0;
+      background: var(--color-bg-dark);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .use-cases::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 20%, rgba(139, 92, 246, 0.15), transparent),
+        radial-gradient(ellipse 50% 30% at 80% 80%, rgba(245, 158, 11, 0.1), transparent);
+    }
+
+    .use-cases .section-label {
+      color: var(--color-accent);
+    }
+
+    .use-cases .section-title {
+      color: var(--color-text-inverse);
     }
 
     .use-case-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-md);
+      position: relative;
+      z-index: 1;
     }
 
     .use-case-card {
-      background: white;
-      border-radius: 12px;
-      padding: 32px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: var(--space-lg);
+      backdrop-filter: blur(8px);
+      transition: all 0.3s var(--ease-out-expo);
     }
 
-    .use-case-card h3 {
-      font-size: 1.1rem;
-      margin-bottom: 12px;
-      color: #333;
-    }
-
-    .use-case-card p {
-      color: #666;
-      font-size: 0.95rem;
+    .use-case-card:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.15);
+      transform: translateY(-2px);
     }
 
     .use-case-icon {
       font-size: 2rem;
-      margin-bottom: 16px;
+      margin-bottom: var(--space-sm);
     }
 
-    /* How it works */
+    .use-case-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--color-text-inverse);
+      margin-bottom: var(--space-xs);
+    }
+
+    .use-case-card p {
+      color: var(--color-text-light);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* ============ HOW IT WORKS ============ */
     .how-it-works {
-      padding: 80px 0;
-    }
-
-    .how-it-works h2 {
-      text-align: center;
-      font-size: 2rem;
-      margin-bottom: 48px;
+      padding: var(--space-2xl) 0;
+      background: var(--color-bg-light);
     }
 
     .steps {
-      display: flex;
-      justify-content: center;
-      gap: 48px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
     }
 
     .step {
       text-align: center;
-      max-width: 250px;
+      position: relative;
     }
 
     .step-number {
-      width: 48px;
-      height: 48px;
-      background: #1a73e8;
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
       color: white;
-      border-radius: 50%;
+      border-radius: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-family: var(--font-display);
       font-weight: 700;
-      font-size: 1.25rem;
-      margin: 0 auto 16px;
+      font-size: 1.5rem;
+      margin: 0 auto var(--space-md);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
     }
 
     .step h3 {
-      margin-bottom: 8px;
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--color-text-dark);
+      margin-bottom: var(--space-xs);
     }
 
     .step p {
-      color: #666;
-      font-size: 0.9rem;
+      color: var(--color-text-medium);
+      font-size: 0.95rem;
+      max-width: 280px;
+      margin: 0 auto;
     }
 
-    /* CTA Section */
+    /* ============ CTA SECTION ============ */
     .cta-section {
-      padding: 80px 0;
+      padding: var(--space-2xl) 0;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-church) 100%);
       text-align: center;
-      background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
-      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 120%, rgba(255,255,255,0.15), transparent);
+    }
+
+    .cta-section .container {
+      position: relative;
+      z-index: 1;
     }
 
     .cta-section h2 {
-      font-size: 2rem;
-      margin-bottom: 16px;
+      font-family: var(--font-display);
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 700;
+      color: white;
+      margin-bottom: var(--space-sm);
     }
 
     .cta-section p {
-      opacity: 0.95;
-      margin-bottom: 32px;
+      color: rgba(255,255,255,0.85);
+      font-size: 1.1rem;
       max-width: 500px;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 0 auto var(--space-lg);
     }
 
-    /* Footer */
+    .cta-section .btn-primary {
+      background: white;
+      color: var(--color-primary);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+
+    .cta-section .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    }
+
+    /* ============ FOOTER ============ */
     footer {
-      padding: 40px 0;
+      padding: var(--space-xl) 0;
+      background: var(--color-bg-dark);
       text-align: center;
-      color: #666;
+    }
+
+    footer p {
+      color: var(--color-text-light);
       font-size: 0.9rem;
     }
 
     footer a {
-      color: #1a73e8;
+      color: var(--color-primary-light);
       text-decoration: none;
+      transition: color 0.2s;
     }
 
     footer a:hover {
-      text-decoration: underline;
+      color: var(--color-accent);
     }
 
-    /* Responsive */
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-md);
+      margin-top: var(--space-sm);
+    }
+
+    /* ============ RESPONSIVE ============ */
     @media (max-width: 768px) {
-      header h1 {
-        font-size: 1.75rem;
+      .hero {
+        min-height: auto;
+        padding: var(--space-xl) 0 var(--space-2xl);
       }
 
-      header p {
-        font-size: 1rem;
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .hero-cta {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .btn {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
       }
 
       .audience-tabs {
         flex-direction: column;
-        align-items: center;
+        width: 100%;
+        max-width: 300px;
       }
 
+      .feature-grid,
+      .use-case-grid,
       .steps {
-        flex-direction: column;
-        align-items: center;
+        grid-template-columns: 1fr;
+      }
+
+      .section-header {
+        margin-bottom: var(--space-lg);
+      }
+    }
+
+    @media (max-width: 480px) {
+      :root {
+        --space-lg: 2rem;
+        --space-xl: 3rem;
+        --space-2xl: 4rem;
+      }
+
+      .feature-card,
+      .use-case-card {
+        padding: var(--space-md);
       }
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header>
+  <!-- Hero -->
+  <section class="hero">
     <div class="container">
-      <h1>Timers & Text Overlays for Churches and Classrooms</h1>
-      <p>Display worship lyrics, countdown timers, and announcements directly on your Google Meet camera feed. Perfect for virtual services and online classes.</p>
-      <a href="https://chrome.google.com/webstore" class="cta-button">Add to Chrome - Free</a>
-      <div class="platform-badge">
-        Works with Google Meet
+      <div class="hero-content">
+        <div class="hero-badge fade-in">
+          <span>Free Chrome Extension</span>
+        </div>
+        <h1 class="fade-in stagger-1">
+          Timers & Text Overlays for <span>Churches</span> and <span>Classrooms</span>
+        </h1>
+        <p class="hero-description fade-in stagger-2">
+          Display worship lyrics, countdown timers, and announcements directly on your Google Meet camera feed. Perfect for virtual services and online classes.
+        </p>
+        <div class="hero-cta fade-in stagger-3">
+          <a href="https://chrome.google.com/webstore" class="btn btn-primary">
+            Add to Chrome — Free
+          </a>
+          <a href="#features" class="btn btn-secondary">
+            See Features
+          </a>
+        </div>
       </div>
     </div>
-  </header>
+  </section>
 
-  <!-- Audience-Specific Features -->
-  <section class="audience-section">
+  <!-- Audience Features -->
+  <section id="features" class="audience-section">
     <div class="container">
+      <div class="section-header">
+        <p class="section-label">Features</p>
+        <h2 class="section-title">Built for Your Needs</h2>
+      </div>
+
       <div class="audience-tabs">
-        <button class="audience-tab active" onclick="showAudience('church')">For Churches</button>
-        <button class="audience-tab" onclick="showAudience('education')">For Educators</button>
+        <button class="audience-tab active" data-audience="church" onclick="showAudience('church')">For Churches</button>
+        <button class="audience-tab" data-audience="education" onclick="showAudience('education')">For Educators</button>
       </div>
 
       <!-- Church Content -->
       <div id="church-content" class="audience-content active">
         <div class="feature-grid">
-          <div class="feature-card church">
-            <div class="feature-icon">&#128220;</div>
+          <article class="feature-card">
+            <div class="feature-icon">📜</div>
             <h3>Worship Lyrics Display</h3>
             <p>Show song lyrics, scripture verses, and responsive readings directly on your camera feed during virtual services.</p>
-            <ul>
+            <ul class="feature-list">
               <li>Multi-line text support</li>
               <li>Easy-to-read lower third position</li>
               <li>Quick edit between songs</li>
               <li>Show/hide with one click</li>
             </ul>
-          </div>
+          </article>
 
-          <div class="feature-card church">
-            <div class="feature-icon">&#128227;</div>
+          <article class="feature-card">
+            <div class="feature-icon">📢</div>
             <h3>Announcements & Info</h3>
             <p>Display service times, giving links, event announcements, and welcome messages to virtual attendees.</p>
-            <ul>
+            <ul class="feature-list">
               <li>Customizable colors and fonts</li>
               <li>Position anywhere on screen</li>
               <li>Toggle on/off during service</li>
               <li>Perfect for live streams</li>
             </ul>
-          </div>
+          </article>
 
-          <div class="feature-card church">
-            <div class="feature-icon">&#9201;</div>
+          <article class="feature-card">
+            <div class="feature-icon">⏱</div>
             <h3>Sermon Timer</h3>
             <p>Keep your message on track with a countdown timer visible only to you. Perfect for managing service segments.</p>
-            <ul>
+            <ul class="feature-list">
               <li>Countdown or count-up modes</li>
               <li>Visual alert at 10 seconds</li>
               <li>Pause/resume capability</li>
               <li>Corner placement options</li>
             </ul>
-          </div>
+          </article>
         </div>
       </div>
 
       <!-- Education Content -->
       <div id="education-content" class="audience-content">
         <div class="feature-grid">
-          <div class="feature-card education">
-            <div class="feature-icon">&#9201;</div>
+          <article class="feature-card education">
+            <div class="feature-icon">⏱</div>
             <h3>Class & Activity Timers</h3>
-            <p>Show countdown timers for tests, group work, transitions, and break times. Students can see the remaining time clearly.</p>
-            <ul>
+            <p>Show countdown timers for tests, group work, transitions, and break times. Students see remaining time clearly.</p>
+            <ul class="feature-list">
               <li>Preset durations (5, 10, 15 min)</li>
               <li>Visual countdown display</li>
               <li>Alert when time is almost up</li>
               <li>Start, pause, reset controls</li>
             </ul>
-          </div>
+          </article>
 
-          <div class="feature-card education">
-            <div class="feature-icon">&#128218;</div>
+          <article class="feature-card education">
+            <div class="feature-icon">📚</div>
             <h3>Lesson Information</h3>
             <p>Display today's topic, learning objectives, homework assignments, or instructions without sharing your screen.</p>
-            <ul>
+            <ul class="feature-list">
               <li>Multi-line text support</li>
               <li>Easy to update between lessons</li>
               <li>Stays visible while teaching</li>
               <li>Professional lower third style</li>
             </ul>
-          </div>
+          </article>
 
-          <div class="feature-card education">
-            <div class="feature-icon">&#127919;</div>
+          <article class="feature-card education">
+            <div class="feature-icon">🎯</div>
             <h3>Student Engagement</h3>
-            <p>Add visual elements to make virtual classes more engaging. Show class schedules, daily agendas, or motivational messages.</p>
-            <ul>
+            <p>Add visual elements to make virtual classes more engaging. Show schedules, daily agendas, or motivational messages.</p>
+            <ul class="feature-list">
               <li>Customizable text and colors</li>
               <li>Position options for any setup</li>
               <li>Works alongside screen sharing</li>
               <li>No extra software needed</li>
             </ul>
-          </div>
+          </article>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Use Cases -->
-  <section class="use-case-section">
+  <section class="use-cases">
     <div class="container">
-      <h2>How Others Are Using It</h2>
+      <div class="section-header">
+        <p class="section-label">Use Cases</p>
+        <h2 class="section-title">How Others Are Using It</h2>
+      </div>
+
       <div class="use-case-grid">
-        <div class="use-case-card">
-          <div class="use-case-icon">&#9962;</div>
+        <article class="use-case-card">
+          <div class="use-case-icon">⛪</div>
           <h3>Sunday Virtual Services</h3>
-          <p>Churches display worship lyrics and scripture on the pastor's camera feed so remote attendees can follow along during live-streamed services.</p>
-        </div>
+          <p>Churches display worship lyrics and scripture on the pastor's camera feed so remote attendees can follow along.</p>
+        </article>
 
-        <div class="use-case-card">
-          <div class="use-case-icon">&#128209;</div>
+        <article class="use-case-card">
+          <div class="use-case-icon">📝</div>
           <h3>Timed Exams</h3>
-          <p>Teachers show a countdown timer during virtual tests so students know exactly how much time remains without constantly asking.</p>
-        </div>
+          <p>Teachers show countdown timers during virtual tests so students know exactly how much time remains.</p>
+        </article>
 
-        <div class="use-case-card">
-          <div class="use-case-icon">&#127932;</div>
+        <article class="use-case-card">
+          <div class="use-case-icon">🎵</div>
           <h3>Music Ministry</h3>
           <p>Worship leaders display song lyrics during virtual choir rehearsals and online music ministry sessions.</p>
-        </div>
+        </article>
 
-        <div class="use-case-card">
-          <div class="use-case-icon">&#128587;</div>
+        <article class="use-case-card">
+          <div class="use-case-icon">📖</div>
           <h3>Small Group Studies</h3>
-          <p>Bible study leaders show discussion questions and scripture references on screen during virtual small group meetings.</p>
-        </div>
+          <p>Bible study leaders show discussion questions and scripture references during virtual small group meetings.</p>
+        </article>
 
-        <div class="use-case-card">
-          <div class="use-case-icon">&#128214;</div>
+        <article class="use-case-card">
+          <div class="use-case-icon">📚</div>
           <h3>Reading Time</h3>
           <p>Elementary teachers use the timer for silent reading periods, giving students a clear visual of time remaining.</p>
-        </div>
+        </article>
 
-        <div class="use-case-card">
-          <div class="use-case-icon">&#128483;</div>
+        <article class="use-case-card">
+          <div class="use-case-icon">📣</div>
           <h3>Morning Announcements</h3>
           <p>Schools display daily schedules, lunch menus, and announcements during virtual homeroom sessions.</p>
-        </div>
+        </article>
       </div>
     </div>
   </section>
 
-  <!-- How it works -->
+  <!-- How it Works -->
   <section class="how-it-works">
     <div class="container">
-      <h2>Simple Setup in 3 Steps</h2>
+      <div class="section-header">
+        <p class="section-label">Getting Started</p>
+        <h2 class="section-title">Simple Setup in 3 Steps</h2>
+      </div>
+
       <div class="steps">
         <div class="step">
           <div class="step-number">1</div>
@@ -486,35 +879,65 @@
     </div>
   </section>
 
-  <!-- CTA Section -->
+  <!-- CTA -->
   <section class="cta-section">
     <div class="container">
-      <h2>Ready to Enhance Your Virtual Services and Classes?</h2>
+      <h2>Ready to Enhance Your Virtual Sessions?</h2>
       <p>Join churches and educators who have made their Google Meet sessions more engaging and organized.</p>
-      <a href="https://chrome.google.com/webstore" class="cta-button">Add to Chrome - Free</a>
+      <a href="https://chrome.google.com/webstore" class="btn btn-primary">
+        Add to Chrome — Free
+      </a>
     </div>
   </section>
 
   <!-- Footer -->
   <footer>
     <div class="container">
-      <p>Meet Camera Overlay - Open source extension for Google Meet</p>
-      <p style="margin-top: 12px;">
-        <a href="https://github.com/neonwatty/meet-camera-overlay">View on GitHub</a>
-      </p>
+      <p>Meet Camera Overlay — Open source extension for Google Meet</p>
+      <div class="footer-links">
+        <a href="https://github.com/neonwatty/meet-camera-overlay">GitHub</a>
+        <a href="https://github.com/neonwatty/meet-camera-overlay/issues">Support</a>
+      </div>
     </div>
   </footer>
 
   <script>
     function showAudience(audience) {
       // Update tabs
-      document.querySelectorAll('.audience-tab').forEach(tab => tab.classList.remove('active'));
-      event.target.classList.add('active');
+      document.querySelectorAll('.audience-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelector(`[data-audience="${audience}"]`).classList.add('active');
 
       // Update content
-      document.querySelectorAll('.audience-content').forEach(content => content.classList.remove('active'));
+      document.querySelectorAll('.audience-content').forEach(content => {
+        content.classList.remove('active');
+      });
       document.getElementById(audience + '-content').classList.add('active');
     }
+
+    // Intersection Observer for scroll animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, observerOptions);
+
+    // Observe elements for scroll animations
+    document.querySelectorAll('.feature-card, .use-case-card, .step').forEach((el, index) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(24px)';
+      el.style.transition = `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.1}s, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.1}s`;
+      observer.observe(el);
+    });
   </script>
 </body>
 </html>
