@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 1200px;
+      height: 630px;
+      font-family: 'Space Grotesk', sans-serif;
+      background: #0f0d1a;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Atmospheric gradients */
+    .bg-gradient {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.4), transparent),
+        radial-gradient(ellipse 60% 40% at 85% 70%, rgba(139, 92, 246, 0.3), transparent),
+        radial-gradient(ellipse 50% 30% at 15% 80%, rgba(245, 158, 11, 0.2), transparent);
+    }
+
+    /* Grid pattern */
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 50px;
+      font-size: 18px;
+      color: #9ca3af;
+      margin-bottom: 30px;
+    }
+
+    .badge::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: #f59e0b;
+      border-radius: 50%;
+    }
+
+    h1 {
+      font-size: 72px;
+      font-weight: 700;
+      color: white;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      letter-spacing: -0.02em;
+    }
+
+    .church { color: #8b5cf6; }
+    .edu { color: #10b981; }
+
+    p {
+      font-size: 28px;
+      color: #9ca3af;
+      max-width: 800px;
+      line-height: 1.4;
+    }
+
+    /* Feature icons */
+    .features {
+      display: flex;
+      gap: 40px;
+      margin-top: 50px;
+    }
+
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #e5e7eb;
+      font-size: 22px;
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      background: rgba(99, 102, 241, 0.2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-gradient"></div>
+  <div class="grid"></div>
+
+  <div class="content">
+    <div class="badge">Free Chrome Extension</div>
+    <h1>Timers & Text Overlays for<br><span class="church">Churches</span> and <span class="edu">Classrooms</span></h1>
+    <p>Display lyrics, countdown timers, and announcements directly on your Google Meet camera feed</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">📜</div>
+        <span>Text Overlays</span>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⏱</div>
+        <span>Timers</span>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎨</div>
+        <span>Custom Effects</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Robots.txt for Meet Camera Overlay
+# https://meet-camera-overlay.vercel.app
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://meet-camera-overlay.vercel.app/sitemap.xml

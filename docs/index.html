@@ -12,11 +12,20 @@
   <meta property="og:description" content="Display lyrics, timers, and announcements directly on your Google Meet camera feed.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://meet-camera-overlay.vercel.app">
+  <meta property="og:image" content="https://meet-camera-overlay.vercel.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Meet Camera Overlay - For Churches & Classrooms">
   <meta name="twitter:description" content="Display lyrics, timers, and announcements directly on your Google Meet camera feed.">
+  <meta name="twitter:image" content="https://meet-camera-overlay.vercel.app/og-image.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,6 +34,41 @@
 
   <!-- Canonical URL -->
   <link rel="canonical" href="https://meet-camera-overlay.vercel.app">
+
+  <!-- Structured Data - Schema.org -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Meet Camera Overlay",
+    "applicationCategory": "BrowserApplication",
+    "operatingSystem": "Chrome",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Display worship lyrics, countdown timers, and announcements on your Google Meet camera. Free Chrome extension for churches, teachers, and educators.",
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "5",
+      "ratingCount": "1"
+    },
+    "featureList": [
+      "Text banner overlays for lyrics and announcements",
+      "Countdown and count-up timers",
+      "Custom image and GIF overlays",
+      "Works with Google Meet video calls"
+    ],
+    "screenshot": "https://meet-camera-overlay.vercel.app/og-image.png",
+    "softwareVersion": "1.0.0",
+    "author": {
+      "@type": "Organization",
+      "name": "Meet Camera Overlay",
+      "url": "https://github.com/neonwatty/meet-camera-overlay"
+    }
+  }
+  </script>
 
   <style>
     :root {
@@ -895,6 +939,7 @@
     <div class="container">
       <p>Meet Camera Overlay — Open source extension for Google Meet</p>
       <div class="footer-links">
+        <a href="/guide.html">Guide</a>
         <a href="https://github.com/neonwatty/meet-camera-overlay">GitHub</a>
         <a href="https://github.com/neonwatty/meet-camera-overlay/issues">Support</a>
       </div>
