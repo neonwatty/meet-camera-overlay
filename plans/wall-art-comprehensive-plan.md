@@ -16,6 +16,19 @@ The feature will be fully free to drive adoption and will target remote workers 
 
 ### Must Have (Phase 1 MVP)
 
+**Setup Phase (Pre-Meeting):**
+- [ ] Step-by-step setup wizard before meeting
+- [ ] "Step away" countdown (5 seconds) to capture empty background
+- [ ] Reference frame capture (5 seconds of video, build median frame)
+- [ ] Pre-compute wall colors from reference frame (instant eyedropper)
+- [ ] Identify and lock tracking points for jiggle compensation
+- [ ] Silent benchmark during setup, warn if device is underpowered
+- [ ] Pre-render wall art at correct perspective for fast blitting
+- [ ] Build average person mask for frame-skip interpolation
+- [ ] Persist all setup data to IndexedDB until manual invalidation
+- [ ] Manual "Recalibrate" button to redo setup
+- [ ] Performance presets: Quality / Balanced / Performance
+
 **Region & Selection:**
 - [ ] Manual region selection with 4-corner quadrilateral handles
 - [ ] Edge snapping to help align with picture frames and wall features
@@ -40,6 +53,8 @@ The feature will be fully free to drive adoption and will target remote workers 
 **Person Occlusion:**
 - [ ] Person segmentation for natural occlusion (MediaPipe Selfie Segmentation)
 - [ ] Support for ALL people in frame (multi-person occlusion)
+- [ ] Adjustable segmentation frequency (every Nth frame) as user setting
+- [ ] Use cached average mask for interpolation when skipping frames
 
 **Platform Integration:**
 - [ ] Detect Google Meet virtual background active → disable wall art with explanation
@@ -77,7 +92,61 @@ The feature will be fully free to drive adoption and will target remote workers 
 
 ## Technical Design
 
-### Architecture
+### Setup Phase Architecture
+
+**Philosophy:** Front-load expensive computation to setup (5-10 sec), keep render loop lean (<5ms/frame)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     SETUP WIZARD FLOW                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Step 1: STEP AWAY (5 sec countdown)                            │
+│     └─ "Please step away from camera..."                        │
+│     └─ Countdown: 5...4...3...2...1                             │
+│     └─ Capture 5 seconds of empty background video              │
+│                                                                  │
+│  Step 2: PROCESSING (3-5 sec)                                   │
+│     └─ Build reference frame (median of captured frames)        │
+│     └─ Pre-compute wall colors (dominant colors in regions)     │
+│     └─ Identify tracking points for jiggle compensation         │
+│     └─ Run silent benchmark, warn if device is slow             │
+│                                                                  │
+│  Step 3: RETURN & DRAW REGIONS                                  │
+│     └─ User returns to frame                                    │
+│     └─ Draw wall art regions with edge snapping                 │
+│     └─ Optional: Add wall paint layer                           │
+│     └─ Optional: Place art                                      │
+│                                                                  │
+│  Step 4: CONFIRM & CACHE                                        │
+│     └─ Pre-render art at correct perspective                    │
+│     └─ Build average person mask (for frame-skip interpolation) │
+│     └─ Save all setup data to IndexedDB                         │
+│     └─ Show performance preset recommendation                   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Pre-Computed Data (Setup → Runtime)
+
+| Data | Purpose | When Invalidated |
+|------|---------|------------------|
+| Reference frame | Clean background without person | Manual recalibrate |
+| Wall colors | Instant eyedropper values | Manual recalibrate |
+| Tracking points | Jiggle compensation anchors | Refresh if quality degrades |
+| Pre-rendered art | Blit instead of transform each frame | Region moves significantly |
+| Average person mask | Interpolate when skipping segmentation | Manual recalibrate |
+| Benchmark results | Inform performance preset | Manual recalibrate |
+
+### Performance Presets
+
+| Preset | Segmentation Frequency | Art Rendering | Target FPS |
+|--------|------------------------|---------------|------------|
+| **Quality** | Every frame | Transform live | 24+ |
+| **Balanced** | Every 3rd frame | Cached + invalidate | 28+ |
+| **Performance** | Every 5th frame | Fully cached | 30+ |
+
+### Runtime Pipeline Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -153,9 +222,16 @@ The feature will be fully free to drive adoption and will target remote workers 
 
 | Component | File | Responsibility |
 |-----------|------|----------------|
+| `SetupWizard` | `popup/components/SetupWizard.tsx` | Step-by-step setup flow, countdown UI |
+| `ReferenceFrameCapture` | `lib/reference-frame.js` | Capture empty background, build median frame |
+| `SetupBenchmark` | `lib/setup-benchmark.js` | Performance test, preset recommendation |
+| `SetupStorage` | `lib/setup-storage.js` | Persist/load setup data (reference, tracking points, etc.) |
+| `PerformancePresets` | `lib/performance-presets.js` | Quality/Balanced/Performance configurations |
 | `WallArtSegmenter` | `lib/wall-segmentation.js` | MediaPipe wrapper, mask caching, multi-person support |
+| `MaskInterpolator` | `lib/mask-interpolator.js` | Average mask computation, frame-skip interpolation |
 | `WallPaintRenderer` | `lib/wall-paint-renderer.js` | Solid color fill with opacity, perspective transform |
 | `WallArtRenderer` | `lib/wall-art-renderer.js` | Image/GIF/video compositing, perspective transform, occlusion |
+| `ArtCache` | `lib/art-cache.js` | Pre-render art at perspective, invalidate on region change |
 | `ColorSampler` | `lib/color-sampler.js` | Eyedropper (10x10 avg), AI color detection |
 | `EdgeDetector` | `lib/edge-detector.js` | Edge snapping for region alignment |
 | `JiggleCompensator` | `lib/jiggle-compensator.js` | Feature tracking, drift correction (Phase 2) |
@@ -378,6 +454,12 @@ class WallArtStorage {
 | Paint-only region (no art) | Valid use case, renders solid color in region |
 | Very dark/light sampled color | Show preview before applying, user confirms |
 | Edge snapping finds no edges | Fall back to free-form drawing, no snapping |
+| User doesn't step away during countdown | Detect person still in frame, prompt to retry |
+| Setup interrupted mid-process | Save partial progress, resume from last step |
+| Device too slow in benchmark | Recommend Performance preset, warn user |
+| Reference frame has person partially visible | Detect and prompt to redo capture |
+| Setup data corrupted in IndexedDB | Detect on load, prompt to recalibrate |
+| User switches cameras after setup | Detect camera change, prompt to recalibrate |
 
 ## Testing Strategy
 
@@ -390,6 +472,10 @@ class WallArtStorage {
 - Color sampling (10x10 average calculation)
 - Edge detection for snapping
 - Paint + art layer compositing order
+- Reference frame median calculation
+- Average mask computation
+- Art cache invalidation logic
+- Benchmark timing accuracy
 
 ### Integration Tests
 - Wall art renders in correct position
@@ -404,6 +490,13 @@ class WallArtStorage {
 - Presets persist across sessions
 - Eyedropper excludes person from sampling
 - Edge snapping aligns to detected edges
+- Setup wizard completes all steps successfully
+- Reference frame captured when user steps away
+- Setup data persists across browser sessions
+- Recalibrate button triggers full setup redo
+- Performance preset affects segmentation frequency
+- Frame-skip interpolation uses cached mask correctly
+- Art cache invalidates when region moves
 
 ### Performance Tests
 - FPS with 1 region, 1 person
@@ -449,6 +542,18 @@ class WallArtStorage {
 | Edge snapping | Helps align to picture frames, easier UX | Manual only (more work for user) |
 | Adjustable paint opacity | Enables subtle color correction use case | Fixed 100% opacity |
 | No color harmony suggestions | Keep focused, avoid scope creep | Suggest complementary colors for art |
+| 5-10 sec setup acceptable | Users value smooth calls over quick setup | Faster setup, slower runtime |
+| Require empty reference frame | Enables powerful pre-computation optimizations | Work only with live frames |
+| 5 second capture duration | Balanced accuracy vs wait time | 3 sec (faster), 10 sec (more accurate) |
+| Countdown timer for step-away | Clear, predictable, user knows when to move | Auto-detect empty frame |
+| Step-by-step wizard | Novel feature needs guidance | Single-screen with all options |
+| Simple performance presets | Most users don't want to tune settings | Expose all individual sliders |
+| Silent benchmark with warning | Only surface problems, don't overwhelm | Show all benchmark data |
+| Manual-only invalidation | User controls when to redo, no surprise prompts | Auto-detect scene changes |
+| Segment every Nth frame (adjustable) | Balance quality vs performance per user | Fixed frequency |
+| Pre-render art cache | Blit is faster than transform every frame | Always transform live |
+| Average mask for interpolation | Smooth transitions when skipping segmentation | Reuse last mask directly |
+| Optional calibration jiggle | Power users can optimize, not required | Mandatory calibration |
 
 ## Marketing Plan
 
