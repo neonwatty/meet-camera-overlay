@@ -6,6 +6,8 @@
 
 Wall Art is a differentiating feature that allows Google Meet users to replace portions of their background with custom images, GIFs, or video loops—without replacing the entire background. Unlike full virtual backgrounds, users keep their real environment while enhancing specific areas (e.g., swapping a picture frame for company branding, or covering a messy bookshelf with abstract art).
 
+The feature includes **Wall Paint** - a prep layer that lets users cover existing wall elements (old picture frames, messy shelves) with a solid color before placing art on top. Wall Paint can also be used standalone to simply hide unwanted areas with color-matched fill.
+
 The feature uses MediaPipe Selfie Segmentation to ensure people in the frame naturally occlude the wall art. This creates a seamless, realistic effect that competitors don't offer. No other Google Meet extension provides partial/selective background replacement.
 
 The feature will be fully free to drive adoption and will target remote workers as the primary audience, with secondary messaging for teachers, streamers, and churches.
@@ -14,21 +16,40 @@ The feature will be fully free to drive adoption and will target remote workers 
 
 ### Must Have (Phase 1 MVP)
 
+**Region & Selection:**
 - [ ] Manual region selection with 4-corner quadrilateral handles
-- [ ] Person segmentation for natural occlusion (MediaPipe Selfie Segmentation)
-- [ ] Support for ALL people in frame (multi-person occlusion)
+- [ ] Edge snapping to help align with picture frames and wall features
 - [ ] Multiple wall art regions active simultaneously
+
+**Wall Paint (Prep Layer):**
+- [ ] Optional solid color fill before placing art (Region → Paint → Art flow)
+- [ ] Standalone paint mode (cover areas without placing art on top)
+- [ ] Color selection via eyedropper (averages 10x10 pixel area for stability)
+- [ ] Color selection via color picker (any color)
+- [ ] AI-suggested wall color (detect dominant wall color, user confirms)
+- [ ] Adjustable paint opacity (0-100% slider)
+- [ ] Solid color fill only (no texture replication)
+
+**Wall Art Content:**
 - [ ] Static image support (PNG, JPG, WebP)
 - [ ] Animated GIF support (leverage existing GIF decoder)
 - [ ] Video loop support (MP4, WebM)
 - [ ] User-controlled aspect ratio: stretch, fit (letterbox), or crop
-- [ ] Detect Google Meet virtual background active → disable wall art with explanation
 - [ ] Curated gallery of 20-30 default images (abstract, nature, patterns, solid colors)
+
+**Person Occlusion:**
+- [ ] Person segmentation for natural occlusion (MediaPipe Selfie Segmentation)
+- [ ] Support for ALL people in frame (multi-person occlusion)
+
+**Platform Integration:**
+- [ ] Detect Google Meet virtual background active → disable wall art with explanation
 - [ ] IndexedDB storage for uploaded images (bypass Chrome storage limits)
+- [ ] Integration with existing overlay system (wall art + text banners + timers work together)
+
+**UX & Feedback:**
 - [ ] Guided tutorial on first use
 - [ ] Warning badge when segmentation quality is low
 - [ ] Warning when FPS drops below threshold (user decides whether to continue)
-- [ ] Integration with existing overlay system (wall art + text banners + timers work together)
 
 ### Should Have (Phase 2)
 
@@ -51,6 +72,8 @@ The feature will be fully free to drive adoption and will target remote workers 
 - Auto-disable wall art when user moves to different room
 - Perspective matching (adjusting art angle to match wall angle)
 - Lighting matching (adjusting art brightness to match room)
+- Texture replication for wall paint (brick, wood grain, etc.)
+- Color harmony suggestions (complementary colors for art)
 
 ## Technical Design
 
@@ -76,16 +99,52 @@ The feature will be fully free to drive adoption and will target remote workers 
 │     └─ Compute frame-to-frame transform                         │
 │     └─ Apply compensation to wall regions                       │
 │                                                                  │
-│  5. WALL ART RENDERING (for each active wall art region)        │
+│  5. WALL PAINT RENDERING (for each region with paint)           │
+│     └─ Fill region with solid color at specified opacity        │
+│     └─ Apply perspective transform for quadrilateral            │
+│     └─ Cut out person mask (destination-out composite)          │
+│     └─ Composite onto main canvas                               │
+│                                                                  │
+│  6. WALL ART RENDERING (for each active wall art region)        │
 │     └─ Draw art image into defined region                       │
 │     └─ Apply perspective transform for quadrilateral            │
 │     └─ Cut out person mask (destination-out composite)          │
 │     └─ Composite onto main canvas                               │
 │                                                                  │
-│  6. EXISTING OVERLAYS (text banners, timers, effects)           │
+│  7. EXISTING OVERLAYS (text banners, timers, effects)           │
 │     └─ Render on top of wall art as usual                       │
 │                                                                  │
-│  7. OUTPUT to virtual stream for Meet                           │
+│  8. OUTPUT to virtual stream for Meet                           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### User Flow: Region → Paint → Art
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│  1. USER DRAWS REGION                                           │
+│     └─ 4-corner quadrilateral handles                           │
+│     └─ Edge snapping assists alignment                          │
+│                                                                  │
+│  2. OPTIONAL: WALL PAINT                                        │
+│     └─ Eyedropper: click to sample wall color (10x10 avg)       │
+│     └─ Color picker: choose any color                           │
+│     └─ AI suggest: auto-detect dominant wall color              │
+│     └─ Opacity slider: 0-100%                                   │
+│     └─ Can skip this step entirely                              │
+│     └─ Can use paint alone (no art)                             │
+│                                                                  │
+│  3. OPTIONAL: PLACE ART                                         │
+│     └─ Browse curated gallery                                   │
+│     └─ Upload custom image/GIF/video                            │
+│     └─ Choose aspect ratio mode                                 │
+│     └─ Art renders ON TOP of paint layer                        │
+│                                                                  │
+│  4. SAVE & ACTIVATE                                             │
+│     └─ Region saved to IndexedDB                                │
+│     └─ Can save as part of named preset                         │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -95,37 +154,56 @@ The feature will be fully free to drive adoption and will target remote workers 
 | Component | File | Responsibility |
 |-----------|------|----------------|
 | `WallArtSegmenter` | `lib/wall-segmentation.js` | MediaPipe wrapper, mask caching, multi-person support |
-| `WallArtRenderer` | `lib/wall-art-renderer.js` | Compositing, perspective transform, occlusion |
+| `WallPaintRenderer` | `lib/wall-paint-renderer.js` | Solid color fill with opacity, perspective transform |
+| `WallArtRenderer` | `lib/wall-art-renderer.js` | Image/GIF/video compositing, perspective transform, occlusion |
+| `ColorSampler` | `lib/color-sampler.js` | Eyedropper (10x10 avg), AI color detection |
+| `EdgeDetector` | `lib/edge-detector.js` | Edge snapping for region alignment |
 | `JiggleCompensator` | `lib/jiggle-compensator.js` | Feature tracking, drift correction (Phase 2) |
 | `WallDetector` | `lib/wall-detector.js` | Depth estimation, flat region detection (Phase 3) |
 | `WallArtStorage` | `lib/wall-art-storage.js` | IndexedDB operations, preset management |
-| `WallArtEditor` | `popup/components/WallArtEditor.tsx` | Region selection UI, aspect ratio controls |
+| `WallArtEditor` | `popup/components/WallArtEditor.tsx` | Region selection UI, edge snapping toggle |
+| `WallPaintEditor` | `popup/components/WallPaintEditor.tsx` | Color picker, eyedropper, opacity slider |
 | `ArtGallery` | `popup/components/ArtGallery.tsx` | Default art browser, upload interface |
 | `WallArtTutorial` | `popup/components/WallArtTutorial.tsx` | First-use guided walkthrough |
 
 ### Data Model
 
 ```typescript
-// Wall Art Overlay
+// Wall Region (shared by paint and art)
+interface WallRegion {
+  // 4 corners as percentages (0-100)
+  topLeft: { x: number; y: number };
+  topRight: { x: number; y: number };
+  bottomLeft: { x: number; y: number };
+  bottomRight: { x: number; y: number };
+}
+
+// Wall Paint Layer (optional prep layer)
+interface WallPaint {
+  enabled: boolean;
+  color: string;                 // Hex color, e.g., '#FFFFFF'
+  opacity: number;               // 0-1
+  colorSource: 'eyedropper' | 'picker' | 'ai-detected';
+}
+
+// Wall Art Overlay (complete region with optional paint + optional art)
 interface WallArtOverlay {
   id: string;
   type: 'wallArt';
 
-  // Content
-  src: string;                    // IndexedDB key or data URL
-  contentType: 'image' | 'gif' | 'video';
+  // Region (shared by paint and art layers)
+  region: WallRegion;
 
-  // Region (4 corners as percentages 0-100)
-  region: {
-    topLeft: { x: number; y: number };
-    topRight: { x: number; y: number };
-    bottomLeft: { x: number; y: number };
-    bottomRight: { x: number; y: number };
+  // Paint layer (optional, renders first)
+  paint?: WallPaint;
+
+  // Art layer (optional, renders on top of paint)
+  art?: {
+    src: string;                 // IndexedDB key or data URL
+    contentType: 'image' | 'gif' | 'video';
+    aspectRatioMode: 'stretch' | 'fit' | 'crop';
+    opacity: number;             // 0-1
   };
-
-  // Display options
-  aspectRatioMode: 'stretch' | 'fit' | 'crop';
-  opacity: number;               // 0-1
 
   // State
   active: boolean;
@@ -135,6 +213,11 @@ interface WallArtOverlay {
   createdAt: number;
   updatedAt: number;
 }
+
+// Note: A WallArtOverlay can have:
+// - Paint only (cover area with color, no art)
+// - Art only (place art directly on real background)
+// - Paint + Art (cover area, then place art on top)
 
 // Named Preset
 interface WallArtPreset {
@@ -201,37 +284,49 @@ class WallArtStorage {
 **1.2 Region Selection UI**
 1. Create `WallArtEditor` component with video preview
 2. Implement 4-corner draggable handles
-3. Add aspect ratio mode selector (stretch/fit/crop)
-4. Create region persistence to storage
+3. Implement edge snapping via `EdgeDetector` (Canny edge detection)
+4. Add aspect ratio mode selector (stretch/fit/crop)
+5. Create region persistence to storage
 
-**1.3 Wall Art Rendering**
+**1.3 Wall Paint System**
+1. Create `ColorSampler` class with eyedropper (10x10 pixel average)
+2. Implement AI color detection (dominant color in region)
+3. Create `WallPaintEditor` component with:
+   - Eyedropper mode (click to sample)
+   - Color picker (any color)
+   - "Detect wall color" button
+   - Opacity slider (0-100%)
+4. Create `WallPaintRenderer` for solid color fill with perspective
+5. Integrate paint layer into render pipeline (before art layer)
+
+**1.4 Wall Art Rendering**
 1. Create `WallArtRenderer` with perspective transform
 2. Implement occlusion compositing (destination-out)
 3. Support multiple simultaneous regions
 4. Integrate animated GIF rendering (reuse existing decoder)
 5. Add video loop support (HTMLVideoElement)
 
-**1.4 Virtual Background Detection**
+**1.5 Virtual Background Detection**
 1. Detect when Meet's virtual background is enabled
 2. Show explanation and disable wall art gracefully
 3. Auto-re-enable when virtual background is turned off
 
-**1.5 Content & Storage**
+**1.6 Content & Storage**
 1. Implement IndexedDB storage wrapper
 2. Bundle curated gallery (20-30 images, ~2MB total)
 3. Create upload interface with drag-and-drop
 4. Add content type detection (image/gif/video)
 
-**1.6 Quality & Performance**
+**1.7 Quality & Performance**
 1. Implement FPS monitoring
 2. Add segmentation quality detection
 3. Create warning badge component
 4. Show performance warning (non-blocking)
 
-**1.7 Onboarding**
+**1.8 Onboarding**
 1. Create guided tutorial component
 2. Detect first-time use
-3. Walk through: add region → choose art → preview → save
+3. Walk through: draw region → optional paint → choose art → preview → save
 
 ### Phase 2: Stability & Presets
 
@@ -278,6 +373,11 @@ class WallArtStorage {
 | Storage quota exceeded | Prompt to delete old images, use IndexedDB |
 | Model fails to load | Graceful fallback, show error, disable feature |
 | Browser doesn't support WebGL | Show incompatibility message |
+| Eyedropper samples person instead of wall | Use person mask to exclude, sample only background |
+| Textured wall (brick, wood) | Solid color fill only, won't match texture |
+| Paint-only region (no art) | Valid use case, renders solid color in region |
+| Very dark/light sampled color | Show preview before applying, user confirms |
+| Edge snapping finds no edges | Fall back to free-form drawing, no snapping |
 
 ## Testing Strategy
 
@@ -287,15 +387,23 @@ class WallArtStorage {
 - Aspect ratio mode calculations
 - IndexedDB storage operations
 - Preset save/load/delete
+- Color sampling (10x10 average calculation)
+- Edge detection for snapping
+- Paint + art layer compositing order
 
 ### Integration Tests
 - Wall art renders in correct position
 - Person correctly occludes wall art
+- Person correctly occludes wall paint
+- Paint layer renders before art layer
+- Paint-only regions work without art
 - Multiple regions render correctly
 - GIF animation plays correctly
 - Video loops correctly
 - Virtual background detection works
 - Presets persist across sessions
+- Eyedropper excludes person from sampling
+- Edge snapping aligns to detected edges
 
 ### Performance Tests
 - FPS with 1 region, 1 person
@@ -334,6 +442,13 @@ class WallArtStorage {
 | Named presets | Users have different setups (home/office) | Single auto-save, no presets |
 | No enterprise admin | Focus on individual user first | Build admin controls for v1 |
 | No logo optimizations | KISS principle, logos work as images | Logo-specific templates |
+| Combined Region → Paint → Art flow | Single cohesive experience, less mode switching | Separate paint and art features |
+| Standalone paint mode | Cover messy areas is valid use case alone | Paint only as art prep step |
+| 10x10 pixel average for eyedropper | Stability over precision, reduces noise | Single pixel (noisy), larger area (too averaged) |
+| Solid color fill only | Texture replication is complex, KISS | AI texture cloning (expensive, unreliable) |
+| Edge snapping | Helps align to picture frames, easier UX | Manual only (more work for user) |
+| Adjustable paint opacity | Enables subtle color correction use case | Fixed 100% opacity |
+| No color harmony suggestions | Keep focused, avoid scope creep | Suggest complementary colors for art |
 
 ## Marketing Plan
 
@@ -341,6 +456,8 @@ class WallArtStorage {
 **Hook:** "Your background, upgraded"
 **Pain point:** Messy home office, boring walls, unprofessional appearance
 **Message:** Replace that ugly poster with your company logo. Cover the laundry pile with abstract art. Keep your real space while hiding what you don't want seen.
+
+**Wall Paint angle:** "Match your wall color perfectly with our eyedropper tool. Cover up old picture frames or messy shelves with a clean, solid color—then add your own art on top."
 
 ### Secondary Audiences
 
