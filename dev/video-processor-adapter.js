@@ -6,6 +6,7 @@
 import { sortOverlaysByLayer, TYPE_EFFECT, TYPE_TEXT_BANNER, TYPE_TIMER } from '../lib/overlay-utils.js';
 import { drawOverlay, renderTextBanner, renderTimer } from '../lib/canvas-renderer.js';
 import { WallArtSegmenter, SEGMENTATION_PRESETS, checkSegmentationSupport } from '../lib/wall-segmentation.js';
+import { renderAllWallPaint } from '../lib/wall-paint-renderer.js';
 
 export class DevVideoProcessor {
   constructor() {
@@ -16,6 +17,7 @@ export class DevVideoProcessor {
     this.outputStream = null;
     this.overlays = [];
     this.overlayImages = new Map();
+    this.wallArtRegions = [];
 
     // Debug options
     this.debugOptions = {
@@ -81,6 +83,22 @@ export class DevVideoProcessor {
    */
   setOverlays(overlays) {
     this.overlays = overlays || [];
+  }
+
+  /**
+   * Update wall art regions.
+   * @param {Array} regions - Array of wall art overlay objects
+   */
+  setWallArtRegions(regions) {
+    this.wallArtRegions = regions || [];
+  }
+
+  /**
+   * Get current wall art regions.
+   * @returns {Array} Array of wall art overlay objects
+   */
+  getWallArtRegions() {
+    return this.wallArtRegions;
   }
 
   /**
@@ -250,6 +268,13 @@ export class DevVideoProcessor {
         if (!fromCache) {
           this.lastSegmentTime = performance.now() - segStartTime;
         }
+      }
+
+      // Render wall paint layers (before overlays, behind person)
+      if (this.wallArtRegions.length > 0) {
+        renderAllWallPaint(this.ctx, this.wallArtRegions, {
+          personMask: this.currentMask
+        });
       }
 
       // Sort overlays by layer (background first, then foreground)
