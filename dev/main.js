@@ -13,6 +13,7 @@ import { initMockPopup } from './components/MockPopup.js';
 import { initVideoControls } from './components/VideoControls.js';
 import { initWallArtEditor } from './components/WallArtEditor.js';
 import { initWallPaintEditor, updateRegionSelect } from './components/WallPaintEditor.js';
+import { initWallArtContentEditor, updateArtRegionSelect } from './components/WallArtContentEditor.js';
 
 // Global state
 let processor = null;
@@ -89,14 +90,16 @@ async function init() {
       wallArtRegions = newRegions;
       processor.setWallArtRegions(wallArtRegions);
       await window.chrome.storage.local.set({ wallArtRegions });
-      // Notify paint editor of region changes
+      // Notify paint editor and content editor of region changes
       updateRegionSelect();
+      updateArtRegionSelect();
     }
   };
   // Set initial wall art regions on processor
   processor.setWallArtRegions(wallArtRegions);
   initWallArtEditor(processor, wallArtApi);
   initWallPaintEditor(processor, wallArtApi);
+  initWallArtContentEditor(processor, wallArtApi);
   initVideoControls(video, processor);
 
   // Set up drag and drop for video files
@@ -409,7 +412,7 @@ async function resetState() {
     }
   });
 
-  // Reinitialize wall art editor and paint editor
+  // Reinitialize wall art editor, paint editor, and content editor
   const wallArtApi = {
     getWallArtRegions: () => wallArtRegions,
     setWallArtRegions: async (newRegions) => {
@@ -417,11 +420,13 @@ async function resetState() {
       processor.setWallArtRegions(wallArtRegions);
       await window.chrome.storage.local.set({ wallArtRegions });
       updateRegionSelect();
+      updateArtRegionSelect();
     }
   };
   processor.setWallArtRegions(wallArtRegions);
   initWallArtEditor(processor, wallArtApi);
   initWallPaintEditor(processor, wallArtApi);
+  initWallArtContentEditor(processor, wallArtApi);
 }
 
 // Initialize when DOM is ready

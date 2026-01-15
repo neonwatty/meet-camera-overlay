@@ -1,3 +1,4 @@
+/* global HTMLVideoElement */
 /**
  * Development VideoProcessor adapter.
  * Uses the same lib/ modules as production inject.js.
@@ -7,6 +8,7 @@ import { sortOverlaysByLayer, TYPE_EFFECT, TYPE_TEXT_BANNER, TYPE_TIMER } from '
 import { drawOverlay, renderTextBanner, renderTimer } from '../lib/canvas-renderer.js';
 import { WallArtSegmenter, SEGMENTATION_PRESETS, checkSegmentationSupport } from '../lib/wall-segmentation.js';
 import { renderAllWallPaint } from '../lib/wall-paint-renderer.js';
+import { renderAllWallArt } from '../lib/wall-art-renderer.js';
 
 export class DevVideoProcessor {
   constructor() {
@@ -18,6 +20,7 @@ export class DevVideoProcessor {
     this.overlays = [];
     this.overlayImages = new Map();
     this.wallArtRegions = [];
+    this.wallArtSources = new Map(); // Map of overlay ID to art source (image/AnimatedImage/video)
 
     // Debug options
     this.debugOptions = {
@@ -99,6 +102,38 @@ export class DevVideoProcessor {
    */
   getWallArtRegions() {
     return this.wallArtRegions;
+  }
+
+  /**
+   * Register an art source for a wall art overlay.
+   * @param {string} id - Wall art overlay ID
+   * @param {HTMLImageElement|HTMLCanvasElement|HTMLVideoElement|Object} source - Art source (image, AnimatedImage, or video)
+   */
+  setWallArtSource(id, source) {
+    this.wallArtSources.set(id, source);
+  }
+
+  /**
+   * Remove an art source.
+   * @param {string} id - Wall art overlay ID
+   */
+  removeWallArtSource(id) {
+    const source = this.wallArtSources.get(id);
+    // Stop video if it's a video element
+    if (source && typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) {
+      source.pause();
+      source.src = '';
+    }
+    this.wallArtSources.delete(id);
+  }
+
+  /**
+   * Get an art source by ID.
+   * @param {string} id - Wall art overlay ID
+   * @returns {HTMLImageElement|HTMLCanvasElement|HTMLVideoElement|Object|undefined}
+   */
+  getWallArtSource(id) {
+    return this.wallArtSources.get(id);
   }
 
   /**
@@ -274,6 +309,14 @@ export class DevVideoProcessor {
       if (this.wallArtRegions.length > 0) {
         renderAllWallPaint(this.ctx, this.wallArtRegions, {
           personMask: this.currentMask
+        });
+      }
+
+      // Render wall art layers (after paint, behind person)
+      if (this.wallArtRegions.length > 0 && this.wallArtSources.size > 0) {
+        renderAllWallArt(this.ctx, this.wallArtRegions, this.wallArtSources, {
+          personMask: this.currentMask,
+          timestamp
         });
       }
 
