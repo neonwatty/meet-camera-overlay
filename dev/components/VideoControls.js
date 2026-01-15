@@ -4,7 +4,7 @@
  */
 
 let video = null;
-let processor = null;
+let _processor = null; // Reserved for future use
 let seekBar = null;
 let timeDisplay = null;
 let playPauseBtn = null;
@@ -16,7 +16,7 @@ let playPauseBtn = null;
  */
 export function initVideoControls(videoElement, videoProcessor) {
   video = videoElement;
-  processor = videoProcessor;
+  _processor = videoProcessor;
 
   seekBar = document.getElementById('seek-bar');
   timeDisplay = document.getElementById('time-display');

@@ -11,13 +11,12 @@ import { TEST_SCENARIOS, getScenario } from './scenarios.js';
 import { initDebugPanel } from './components/DebugPanel.js';
 import { initMockPopup } from './components/MockPopup.js';
 import { initVideoControls } from './components/VideoControls.js';
-import { generateId } from '../lib/overlay-utils.js';
 
 // Global state
 let processor = null;
-let currentScenario = null;
+let _currentScenario = null; // Reserved for scenario state tracking
 let overlays = [];
-let overlayImages = new Map();
+const overlayImages = new Map();
 let initialized = false;
 
 /**
@@ -118,7 +117,7 @@ async function loadScenario(scenarioId) {
   }
 
   console.log('[Dev] Loading scenario:', scenario.name);
-  currentScenario = scenario;
+  _currentScenario = scenario;
 
   const video = document.getElementById('demo-video');
   const placeholder = document.getElementById('video-placeholder');
