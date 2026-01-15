@@ -73,6 +73,19 @@ The feature will be fully free to drive adoption and will target remote workers 
 - [ ] Auto-reset on large camera motion with notification
 - [ ] Manual recalibrate button
 
+**Lighting Compensation:**
+- [ ] Detect lighting changes during meeting (brightness, color temp, contrast)
+- [ ] Piggyback detection on existing Nth-frame segmentation (no extra overhead)
+- [ ] 20% brightness threshold to trigger adjustment
+- [ ] 5-10 second cooldown between adjustments
+- [ ] Auto re-sample wall paint color from current frame when lighting changes
+- [ ] Auto-adjust art brightness/contrast to match room lighting
+- [ ] Increase edge feathering when lighting affects segmentation quality
+- [ ] Auto-update reference frame when significant lighting change detected
+- [ ] Silent adjustment (no notifications, seamless)
+- [ ] Setup wizard asks if user wants lighting compensation enabled
+- [ ] Manual override to disable or trigger refresh
+
 ### Could Have (Phase 3)
 
 - [ ] Automatic wall detection via depth estimation (MiDaS)
@@ -145,6 +158,56 @@ The feature will be fully free to drive adoption and will target remote workers 
 | **Quality** | Every frame | Transform live | 24+ |
 | **Balanced** | Every 3rd frame | Cached + invalidate | 28+ |
 | **Performance** | Every 5th frame | Fully cached | 30+ |
+
+### Lighting Compensation Architecture
+
+**Philosophy:** Detect lighting changes during meetings and silently adjust to maintain visual consistency.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 LIGHTING COMPENSATION FLOW                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  DETECTION (piggybacks on Nth-frame segmentation)               │
+│     └─ Measure wall region: brightness, color temp, contrast    │
+│     └─ Compare to reference frame values                        │
+│     └─ If change > 20% AND cooldown expired → trigger adjust    │
+│                                                                  │
+│  COMPENSATION (when triggered)                                  │
+│     └─ Re-sample wall color from current frame (eyedropper)     │
+│     └─ Adjust art brightness/contrast to match room             │
+│     └─ Increase edge feathering if segmentation degraded        │
+│     └─ Update reference frame to new lighting baseline          │
+│     └─ Start 7.5 second cooldown timer                          │
+│                                                                  │
+│  OUTPUT                                                          │
+│     └─ Silent - no notifications or visual feedback             │
+│     └─ Seamless transition to new colors/brightness             │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Lighting Detection Signals
+
+| Signal | Measurement | Weight | Purpose |
+|--------|-------------|--------|---------|
+| Brightness | Avg luminance of wall region (excl. person) | Primary | Detect sun/lights change |
+| Color temp | Warm/cool shift (orange vs blue) | Secondary | Detect natural vs artificial light |
+| Contrast | Dynamic range in wall region | Tertiary | Detect harsh shadows appearing |
+
+### Lighting Compensation Configuration
+
+```typescript
+interface LightingCompensation {
+  enabled: boolean;                    // User choice from setup wizard
+  checkFrequency: 'with-segmentation'; // Piggyback, no extra overhead
+  brightnessThreshold: 0.20;           // 20% change triggers adjustment
+  cooldownMs: 7500;                    // 7.5 sec between adjustments
+  autoUpdateReference: true;           // Update baseline after adjustment
+  adjustArtBrightness: true;           // Match art to room lighting
+  increaseFeatheringOnChange: true;    // Softer edges when unstable
+}
+```
 
 ### Runtime Pipeline Architecture
 
@@ -235,6 +298,7 @@ The feature will be fully free to drive adoption and will target remote workers 
 | `ColorSampler` | `lib/color-sampler.js` | Eyedropper (10x10 avg), AI color detection |
 | `EdgeDetector` | `lib/edge-detector.js` | Edge snapping for region alignment |
 | `JiggleCompensator` | `lib/jiggle-compensator.js` | Feature tracking, drift correction (Phase 2) |
+| `LightingDetector` | `lib/lighting-detector.js` | Brightness/color temp monitoring, trigger compensation (Phase 2) |
 | `WallDetector` | `lib/wall-detector.js` | Depth estimation, flat region detection (Phase 3) |
 | `WallArtStorage` | `lib/wall-art-storage.js` | IndexedDB operations, preset management |
 | `WallArtEditor` | `popup/components/WallArtEditor.tsx` | Region selection UI, edge snapping toggle |
@@ -460,6 +524,12 @@ class WallArtStorage {
 | Reference frame has person partially visible | Detect and prompt to redo capture |
 | Setup data corrupted in IndexedDB | Detect on load, prompt to recalibrate |
 | User switches cameras after setup | Detect camera change, prompt to recalibrate |
+| Sudden lighting change (light switch) | Detect immediately, apply compensation after cooldown |
+| Gradual lighting change (sunset) | Detect when cumulative change exceeds threshold |
+| Flickering light source | Cooldown prevents constant re-adjustment |
+| Window with changing clouds | Threshold prevents small fluctuations from triggering |
+| Lighting change affects segmentation quality | Increase edge feathering, update reference frame |
+| User manually adjusts paint color during meeting | Manual change overrides auto-compensation for that region |
 
 ## Testing Strategy
 
@@ -476,6 +546,9 @@ class WallArtStorage {
 - Average mask computation
 - Art cache invalidation logic
 - Benchmark timing accuracy
+- Lighting change detection (brightness threshold calculation)
+- Cooldown timer logic (prevents repeated triggers)
+- Reference frame update after lighting compensation
 
 ### Integration Tests
 - Wall art renders in correct position
@@ -497,6 +570,12 @@ class WallArtStorage {
 - Performance preset affects segmentation frequency
 - Frame-skip interpolation uses cached mask correctly
 - Art cache invalidates when region moves
+- Lighting compensation triggers at 20% brightness change
+- Wall paint color updates when lighting changes
+- Art brightness adjusts to match room lighting
+- Edge feathering increases when segmentation quality degrades
+- Cooldown prevents rapid consecutive adjustments
+- Manual paint color override persists through lighting changes
 
 ### Performance Tests
 - FPS with 1 region, 1 person
@@ -513,6 +592,10 @@ class WallArtStorage {
 - Different image sizes and aspect ratios
 - First-use tutorial flow
 - Low-end hardware (Chromebook, older laptops)
+- Lighting changes during long meeting (sunset simulation)
+- Turn lights on/off during meeting (sudden change)
+- Window with varying natural light
+- Verify adjustments are silent (no notifications)
 
 ## Open Questions
 
@@ -554,6 +637,14 @@ class WallArtStorage {
 | Pre-render art cache | Blit is faster than transform every frame | Always transform live |
 | Average mask for interpolation | Smooth transitions when skipping segmentation | Reuse last mask directly |
 | Optional calibration jiggle | Power users can optimize, not required | Mandatory calibration |
+| Piggyback lighting detection on segmentation | Zero additional overhead, already processing frames | Separate detection loop (more CPU) |
+| 20% brightness threshold | Balance sensitivity vs. false positives | 10% (too sensitive), 30% (too insensitive) |
+| 7.5 second cooldown | Prevent oscillation, allow settling | Shorter (flicker), longer (slow response) |
+| Silent lighting adjustments | Non-intrusive, no distraction during calls | Notification on each adjustment |
+| Auto-update reference frame on lighting change | Prevents drift, keeps baseline current | Keep original reference (accumulates error) |
+| Setup wizard lighting preference | User control, some may prefer no auto-adjust | Always enabled, no choice |
+| Art brightness adjustment | Seamless visual consistency | Keep art at original brightness |
+| Increase feathering on quality degradation | Hides segmentation artifacts gracefully | Keep sharp edges (visible artifacts) |
 
 ## Marketing Plan
 
