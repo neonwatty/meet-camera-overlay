@@ -14,6 +14,7 @@ import { initVideoControls } from './components/VideoControls.js';
 import { initWallArtEditor } from './components/WallArtEditor.js';
 import { initWallPaintEditor, updateRegionSelect } from './components/WallPaintEditor.js';
 import { initWallArtContentEditor, updateArtRegionSelect } from './components/WallArtContentEditor.js';
+import { initVirtualBackgroundStatus } from './components/VirtualBackgroundStatus.js';
 
 // Global state
 let processor = null;
@@ -100,6 +101,11 @@ async function init() {
   initWallArtEditor(processor, wallArtApi);
   initWallPaintEditor(processor, wallArtApi);
   initWallArtContentEditor(processor, wallArtApi);
+  initVirtualBackgroundStatus(processor, wallArtApi, {
+    onStatusChange: (status) => {
+      console.log('[Dev] Virtual background status changed:', status);
+    }
+  });
   initVideoControls(video, processor);
 
   // Set up drag and drop for video files
