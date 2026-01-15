@@ -279,6 +279,7 @@ function setupEventHandlers() {
 
 /**
  * Update the region select dropdown.
+ * Preserves the current selection if the region still exists.
  */
 export function updateRegionSelect() {
   const select = document.getElementById('paint-region-select');
@@ -286,13 +287,22 @@ export function updateRegionSelect() {
 
   const regions = api.getWallArtRegions() || [];
 
+  // Store previous selection before rebuilding
+  const previousSelection = selectedRegionIndex;
+
   select.innerHTML = '<option value="-1">Select region...</option>' +
     regions.map((region, index) =>
       `<option value="${index}">${region.name || `Region ${index + 1}`}</option>`
     ).join('');
 
-  // Reset selection
-  selectedRegionIndex = -1;
+  // Restore selection if the region still exists, otherwise reset
+  if (previousSelection >= 0 && previousSelection < regions.length) {
+    selectedRegionIndex = previousSelection;
+    select.value = previousSelection.toString();
+  } else {
+    selectedRegionIndex = -1;
+  }
+
   updatePaintControls();
 }
 
