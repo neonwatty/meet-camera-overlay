@@ -11,11 +11,13 @@ import { TEST_SCENARIOS, getScenario } from './scenarios.js';
 import { initDebugPanel } from './components/DebugPanel.js';
 import { initMockPopup } from './components/MockPopup.js';
 import { initVideoControls } from './components/VideoControls.js';
+import { initWallArtEditor } from './components/WallArtEditor.js';
 
 // Global state
 let processor = null;
 let _currentScenario = null; // Reserved for scenario state tracking
 let overlays = [];
+let wallArtRegions = [];
 const overlayImages = new Map();
 let initialized = false;
 
@@ -52,9 +54,10 @@ async function init() {
     scenarioSelect.appendChild(option);
   });
 
-  // Load overlays from mock storage
-  const stored = await window.chrome.storage.local.get(['overlays']);
+  // Load overlays and wall art regions from mock storage
+  const stored = await window.chrome.storage.local.get(['overlays', 'wallArtRegions']);
   overlays = stored.overlays || [];
+  wallArtRegions = stored.wallArtRegions || [];
 
   // Set up scenario switching
   scenarioSelect.addEventListener('change', async (e) => {
@@ -77,6 +80,13 @@ async function init() {
     removeImage: (id) => {
       overlayImages.delete(id);
       processor.removeOverlayImage(id);
+    }
+  });
+  initWallArtEditor(processor, {
+    getWallArtRegions: () => wallArtRegions,
+    setWallArtRegions: async (newRegions) => {
+      wallArtRegions = newRegions;
+      await window.chrome.storage.local.set({ wallArtRegions });
     }
   });
   initVideoControls(video, processor);
@@ -369,9 +379,10 @@ async function resetState() {
   console.log('[Dev] Resetting state');
 
   overlays = [];
+  wallArtRegions = [];
   overlayImages.clear();
 
-  await window.chrome.storage.local.set({ overlays: [] });
+  await window.chrome.storage.local.set({ overlays: [], wallArtRegions: [] });
 
   processor.setOverlays([]);
 
@@ -387,6 +398,15 @@ async function resetState() {
     removeImage: (id) => {
       overlayImages.delete(id);
       processor.removeOverlayImage(id);
+    }
+  });
+
+  // Reinitialize wall art editor
+  initWallArtEditor(processor, {
+    getWallArtRegions: () => wallArtRegions,
+    setWallArtRegions: async (newRegions) => {
+      wallArtRegions = newRegions;
+      await window.chrome.storage.local.set({ wallArtRegions });
     }
   });
 }
