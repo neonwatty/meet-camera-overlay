@@ -1,0 +1,2 @@
+# This file ensures the dev-assets directory is tracked by git
+# Video files (*.mp4, *.webm) are gitignored
