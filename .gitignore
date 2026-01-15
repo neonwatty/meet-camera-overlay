@@ -6,3 +6,7 @@ playwright-report/
 test-results/
 test.html
 .vercel
+
+# Dev environment video files (large, recorded locally)
+dev-assets/*.mp4
+dev-assets/*.webm

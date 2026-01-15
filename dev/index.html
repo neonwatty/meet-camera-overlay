@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wall Art Dev Environment</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Wall Art Dev Environment</h1>
+      <div class="header-controls">
+        <select id="scenario-select">
+          <option value="">Select Scenario...</option>
+        </select>
+        <button id="reset-btn" class="btn btn-secondary">Reset State</button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="video-section">
+        <div class="video-container">
+          <video id="demo-video" muted loop playsinline></video>
+          <canvas id="output-canvas"></canvas>
+          <div id="video-placeholder" class="video-placeholder">
+            <div class="placeholder-content">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                <line x1="7" y1="2" x2="7" y2="22"></line>
+                <line x1="17" y1="2" x2="17" y2="22"></line>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <line x1="2" y1="7" x2="7" y2="7"></line>
+                <line x1="2" y1="17" x2="7" y2="17"></line>
+                <line x1="17" y1="7" x2="22" y2="7"></line>
+                <line x1="17" y1="17" x2="22" y2="17"></line>
+              </svg>
+              <p>Select a scenario or drop a video file</p>
+              <p class="hint">Record videos at 720p @ 30fps</p>
+            </div>
+          </div>
+        </div>
+        <div class="video-controls">
+          <button id="play-pause-btn" class="btn btn-primary">Play</button>
+          <input type="range" id="seek-bar" min="0" max="100" value="0" step="0.1">
+          <span id="time-display">0:00 / 0:00</span>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div id="debug-panel" class="panel">
+          <h3>Debug Tools</h3>
+          <div class="debug-content"></div>
+        </div>
+
+        <div id="mock-popup" class="panel">
+          <h3>Overlay Controls</h3>
+          <div class="popup-content"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Load mocks first, then main module -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>

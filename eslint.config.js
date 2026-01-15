@@ -28,6 +28,12 @@ export default [
         // Canvas globals
         OffscreenCanvas: 'readonly',
         ImageData: 'readonly',
+        // Additional browser globals
+        CustomEvent: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        performance: 'readonly',
+        HTMLCanvasElement: 'readonly',
       },
     },
     rules: {

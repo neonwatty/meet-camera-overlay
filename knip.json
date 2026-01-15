@@ -13,6 +13,8 @@
   ],
   "ignore": [
     "tests/**",
-    "node_modules/**"
+    "node_modules/**",
+    "dev/**",
+    "dev-assets/**"
   ]
 }
