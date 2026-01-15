@@ -5,6 +5,7 @@
 
 import { sortOverlaysByLayer, TYPE_EFFECT, TYPE_TEXT_BANNER, TYPE_TIMER } from '../lib/overlay-utils.js';
 import { drawOverlay, renderTextBanner, renderTimer } from '../lib/canvas-renderer.js';
+import { WallArtSegmenter, SEGMENTATION_PRESETS, checkSegmentationSupport } from '../lib/wall-segmentation.js';
 
 export class DevVideoProcessor {
   constructor() {
@@ -30,10 +31,18 @@ export class DevVideoProcessor {
 
     // Timing metrics
     this.lastRenderTime = 0;
+    this.lastSegmentTime = 0;
+
+    // Segmentation
+    this.segmenter = null;
+    this.segmentationEnabled = false;
+    this.currentMask = null;
+    this.segmentationSupported = null;
 
     // Callbacks
     this.onDebugUpdate = null;
     this.onFrameRendered = null;
+    this.onSegmentationReady = null;
   }
 
   /**
@@ -100,10 +109,113 @@ export class DevVideoProcessor {
   }
 
   /**
+   * Check if segmentation is supported in this browser.
+   * @returns {Object} { supported: boolean, reason: string|null }
+   */
+  checkSegmentationSupport() {
+    if (this.segmentationSupported === null) {
+      this.segmentationSupported = checkSegmentationSupport();
+    }
+    return this.segmentationSupported;
+  }
+
+  /**
+   * Enable person segmentation.
+   * @param {string} preset - Performance preset: 'quality', 'balanced', or 'performance'
+   * @returns {Promise<boolean>} True if successfully enabled
+   */
+  async enableSegmentation(preset = 'balanced') {
+    const support = this.checkSegmentationSupport();
+    if (!support.supported) {
+      console.warn('[DevVideoProcessor] Segmentation not supported:', support.reason);
+      return false;
+    }
+
+    if (this.segmenter) {
+      this.segmenter.setPreset(preset);
+      this.segmentationEnabled = true;
+      return true;
+    }
+
+    console.log('[DevVideoProcessor] Enabling segmentation with preset:', preset);
+
+    this.segmenter = new WallArtSegmenter({
+      preset,
+      onInitialized: () => {
+        console.log('[DevVideoProcessor] Segmenter initialized');
+        if (this.onSegmentationReady) {
+          this.onSegmentationReady();
+        }
+      },
+      onError: (error) => {
+        console.error('[DevVideoProcessor] Segmenter error:', error);
+        this.segmentationEnabled = false;
+      }
+    });
+
+    // Start initialization (will complete asynchronously)
+    const success = await this.segmenter.initialize();
+    if (success) {
+      this.segmentationEnabled = true;
+    }
+    return success;
+  }
+
+  /**
+   * Disable person segmentation.
+   */
+  disableSegmentation() {
+    this.segmentationEnabled = false;
+    this.currentMask = null;
+  }
+
+  /**
+   * Set segmentation preset.
+   * @param {string} preset - 'quality', 'balanced', or 'performance'
+   */
+  setSegmentationPreset(preset) {
+    if (this.segmenter) {
+      this.segmenter.setPreset(preset);
+    }
+  }
+
+  /**
+   * Get available segmentation presets.
+   * @returns {Object} Preset configurations
+   */
+  getSegmentationPresets() {
+    return SEGMENTATION_PRESETS;
+  }
+
+  /**
+   * Check if segmentation is currently active.
+   * @returns {boolean}
+   */
+  isSegmentationActive() {
+    return this.segmentationEnabled && this.segmenter && this.segmenter.isReady;
+  }
+
+  /**
+   * Get segmentation status info.
+   * @returns {Object} Status information
+   */
+  getSegmentationStatus() {
+    return {
+      enabled: this.segmentationEnabled,
+      initialized: this.segmenter?.isReady || false,
+      initializing: this.segmenter?.isInitializing || false,
+      preset: this.segmenter?.preset || null,
+      avgTime: this.segmenter?.avgSegmentationTime || 0,
+      lastTime: this.lastSegmentTime,
+      hasMask: this.currentMask !== null
+    };
+  }
+
+  /**
    * Main render loop - called every frame.
    * @param {number} timestamp - Current timestamp from requestAnimationFrame
    */
-  render(timestamp) {
+  async render(timestamp) {
     if (!this.running) return;
 
     const startTime = performance.now();
@@ -118,7 +230,9 @@ export class DevVideoProcessor {
       if (this.onDebugUpdate) {
         this.onDebugUpdate({
           fps: this.currentFps,
-          renderTime: this.lastRenderTime
+          renderTime: this.lastRenderTime,
+          segmentTime: this.lastSegmentTime,
+          segmentationStatus: this.getSegmentationStatus()
         });
       }
     }
@@ -127,6 +241,16 @@ export class DevVideoProcessor {
     if (this.video && this.video.readyState >= 2) {
       // Draw original video frame
       this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+
+      // Run segmentation if enabled
+      if (this.segmentationEnabled && this.segmenter && this.segmenter.isReady) {
+        const segStartTime = performance.now();
+        const { mask, fromCache } = await this.segmenter.segment(this.video);
+        this.currentMask = mask;
+        if (!fromCache) {
+          this.lastSegmentTime = performance.now() - segStartTime;
+        }
+      }
 
       // Sort overlays by layer (background first, then foreground)
       const sortedOverlays = sortOverlaysByLayer(this.overlays);
@@ -166,7 +290,9 @@ export class DevVideoProcessor {
         this.drawFpsCounter();
       }
 
-      if (this.debugOptions.showMask) {
+      if (this.debugOptions.showMask && this.currentMask) {
+        this.drawMaskVisualization();
+      } else if (this.debugOptions.showMask) {
         this.drawMaskPlaceholder();
       }
     }
@@ -188,27 +314,109 @@ export class DevVideoProcessor {
    */
   drawFpsCounter() {
     this.ctx.save();
+
+    // Determine panel height based on whether segmentation is active
+    const showSegmentInfo = this.segmentationEnabled || this.segmenter;
+    const panelHeight = showSegmentInfo ? 85 : 50;
+
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    this.ctx.fillRect(10, 10, 120, 50);
+    this.ctx.fillRect(10, 10, 140, panelHeight);
+
+    // FPS line
     this.ctx.fillStyle = '#00ff00';
     this.ctx.font = 'bold 16px monospace';
     this.ctx.fillText(`FPS: ${this.currentFps}`, 20, 32);
+
+    // Render time line
     this.ctx.fillStyle = '#ffff00';
     this.ctx.font = '12px monospace';
     this.ctx.fillText(`Render: ${this.lastRenderTime.toFixed(1)}ms`, 20, 50);
+
+    // Segmentation info
+    if (showSegmentInfo) {
+      const status = this.getSegmentationStatus();
+      if (status.initializing) {
+        this.ctx.fillStyle = '#ff9900';
+        this.ctx.fillText('Seg: Loading...', 20, 68);
+      } else if (status.initialized) {
+        this.ctx.fillStyle = '#00ffff';
+        this.ctx.fillText(`Seg: ${this.lastSegmentTime.toFixed(1)}ms`, 20, 68);
+        this.ctx.fillStyle = '#888888';
+        this.ctx.fillText(`(${status.preset})`, 20, 84);
+      } else if (this.segmentationEnabled) {
+        this.ctx.fillStyle = '#ff0000';
+        this.ctx.fillText('Seg: Error', 20, 68);
+      } else {
+        this.ctx.fillStyle = '#666666';
+        this.ctx.fillText('Seg: Off', 20, 68);
+      }
+    }
+
     this.ctx.restore();
   }
 
   /**
-   * Draw mask placeholder (for future segmentation).
+   * Draw mask placeholder (when no mask available).
    */
   drawMaskPlaceholder() {
     this.ctx.save();
     this.ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
-    this.ctx.fillRect(10, 70, 120, 25);
+    this.ctx.fillRect(10, 100, 140, 25);
     this.ctx.fillStyle = '#ff00ff';
     this.ctx.font = '12px monospace';
-    this.ctx.fillText('Mask: N/A', 20, 87);
+    this.ctx.fillText('Mask: None', 20, 117);
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw mask visualization overlay.
+   * Shows the person mask as a colored overlay for debugging.
+   */
+  drawMaskVisualization() {
+    if (!this.currentMask) return;
+
+    this.ctx.save();
+
+    // Create a temporary canvas for the mask visualization
+    const maskCanvas = new OffscreenCanvas(this.currentMask.width, this.currentMask.height);
+    const maskCtx = maskCanvas.getContext('2d');
+
+    // Draw the mask data
+    const maskImageData = new ImageData(
+      new Uint8ClampedArray(this.currentMask.data),
+      this.currentMask.width,
+      this.currentMask.height
+    );
+
+    // Convert grayscale mask to colored overlay
+    // Person pixels become magenta, background stays transparent
+    const coloredData = maskImageData.data;
+    for (let i = 0; i < coloredData.length; i += 4) {
+      const alpha = coloredData[i + 3]; // Use alpha channel
+      if (alpha > 128) {
+        // Person pixel - make it magenta semi-transparent
+        coloredData[i] = 255;     // R
+        coloredData[i + 1] = 0;   // G
+        coloredData[i + 2] = 255; // B
+        coloredData[i + 3] = 100; // A (semi-transparent)
+      } else {
+        // Background - fully transparent
+        coloredData[i + 3] = 0;
+      }
+    }
+
+    maskCtx.putImageData(new ImageData(coloredData, maskImageData.width, maskImageData.height), 0, 0);
+
+    // Draw the colored mask overlay onto the main canvas
+    this.ctx.drawImage(maskCanvas, 0, 0, this.canvas.width, this.canvas.height);
+
+    // Draw mask info box
+    this.ctx.fillStyle = 'rgba(255, 0, 255, 0.7)';
+    this.ctx.fillRect(10, 100, 140, 25);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '12px monospace';
+    this.ctx.fillText(`Mask: ${this.currentMask.width}x${this.currentMask.height}`, 20, 117);
+
     this.ctx.restore();
   }
 
@@ -220,6 +428,13 @@ export class DevVideoProcessor {
     if (this.outputStream) {
       this.outputStream.getTracks().forEach(track => track.stop());
     }
+    // Dispose segmenter resources
+    if (this.segmenter) {
+      this.segmenter.dispose();
+      this.segmenter = null;
+    }
+    this.segmentationEnabled = false;
+    this.currentMask = null;
   }
 
   /**
