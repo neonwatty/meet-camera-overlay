@@ -708,3 +708,516 @@ body {
   color: #888;
   font-style: italic;
 }
+
+/* Setup Wizard Trigger */
+.setup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setup-status {
+  font-size: 12px;
+  color: #888;
+  padding: 8px;
+  background: #0a0a14;
+  border-radius: 4px;
+}
+
+.setup-status.configured {
+  color: #00ff66;
+}
+
+.setup-status .recalibrate-link {
+  color: #e94560;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 8px;
+}
+
+.setup-status .recalibrate-link:hover {
+  color: #ff6b8a;
+}
+
+/* Setup Wizard Modal */
+.wizard-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wizard-modal.hidden {
+  display: none;
+}
+
+.wizard-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.wizard-container {
+  position: relative;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: #16213e;
+  border-radius: 12px;
+  border: 1px solid #0f3460;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #0f3460;
+}
+
+.wizard-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e94560;
+  margin-bottom: 16px;
+}
+
+/* Wizard Progress Steps */
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #0a0a14;
+  border: 2px solid #0f3460;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.progress-step.active .step-number {
+  background: #e94560;
+  border-color: #e94560;
+  color: white;
+}
+
+.progress-step.completed .step-number {
+  background: #00ff66;
+  border-color: #00ff66;
+  color: #0a0a14;
+}
+
+.step-label {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.progress-step.active .step-label,
+.progress-step.completed .step-label {
+  color: #e0e0e0;
+}
+
+.progress-connector {
+  flex: 1;
+  height: 2px;
+  background: #0f3460;
+  margin: 0 8px;
+  margin-bottom: 20px;
+}
+
+.progress-connector.active {
+  background: #00ff66;
+}
+
+/* Wizard Content */
+.wizard-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  min-height: 300px;
+}
+
+/* Step 1: Capture */
+.capture-step {
+  text-align: center;
+}
+
+.capture-instructions {
+  margin-bottom: 24px;
+}
+
+.capture-instructions h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #e0e0e0;
+}
+
+.capture-instructions p {
+  font-size: 14px;
+  color: #888;
+  line-height: 1.5;
+}
+
+.countdown-display {
+  font-size: 72px;
+  font-weight: 700;
+  color: #e94560;
+  margin: 32px 0;
+  font-family: monospace;
+}
+
+.capture-progress {
+  margin: 24px 0;
+}
+
+.progress-bar-container {
+  height: 8px;
+  background: #0a0a14;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e94560, #ff6b8a);
+  border-radius: 4px;
+  transition: width 0.1s;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #888;
+  margin-top: 8px;
+}
+
+.person-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(255, 170, 0, 0.15);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.person-warning .warning-icon {
+  font-size: 24px;
+}
+
+.person-warning .warning-text {
+  font-size: 13px;
+  color: #ffaa00;
+}
+
+/* Step 2: Processing */
+.processing-step {
+  text-align: center;
+}
+
+.processing-step h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #e0e0e0;
+}
+
+.processing-step > p {
+  font-size: 14px;
+  color: #888;
+  margin-bottom: 24px;
+}
+
+.task-list {
+  text-align: left;
+  max-width: 350px;
+  margin: 0 auto;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #0a0a14;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.task-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.task-icon.pending {
+  color: #666;
+}
+
+.task-icon.in-progress {
+  color: #e94560;
+  animation: spin 1s linear infinite;
+}
+
+.task-icon.completed {
+  color: #00ff66;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.task-label {
+  font-size: 13px;
+  color: #e0e0e0;
+}
+
+/* Step 3: Draw Regions */
+.regions-step {
+  text-align: center;
+}
+
+.regions-step h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #e0e0e0;
+}
+
+.regions-step > p {
+  font-size: 14px;
+  color: #888;
+  margin-bottom: 24px;
+}
+
+.region-instructions {
+  text-align: left;
+  padding: 16px;
+  background: #0a0a14;
+  border-radius: 8px;
+}
+
+.region-instructions ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.region-instructions li {
+  font-size: 13px;
+  color: #e0e0e0;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.region-count {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(0, 255, 102, 0.1);
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #00ff66;
+}
+
+.region-count.none {
+  background: rgba(255, 170, 0, 0.1);
+  border-color: rgba(255, 170, 0, 0.2);
+  color: #ffaa00;
+}
+
+/* Step 4: Confirm */
+.confirm-step h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #e0e0e0;
+  text-align: center;
+}
+
+.benchmark-results {
+  background: #0a0a14;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.benchmark-results h4 {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.benchmark-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.benchmark-metric {
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #00ff66;
+  font-family: monospace;
+}
+
+.metric-value.warning {
+  color: #ffaa00;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.preset-selection {
+  margin-bottom: 20px;
+}
+
+.preset-selection h4 {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.preset-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preset-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #0a0a14;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-option:hover {
+  border-color: #0f3460;
+}
+
+.preset-option.selected {
+  border-color: #e94560;
+  background: rgba(233, 69, 96, 0.1);
+}
+
+.preset-option.recommended {
+  position: relative;
+}
+
+.preset-option.recommended::after {
+  content: 'Recommended';
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  font-size: 10px;
+  padding: 2px 8px;
+  background: #00ff66;
+  color: #0a0a14;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.preset-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #e94560;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.preset-info {
+  flex: 1;
+}
+
+.preset-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 4px;
+}
+
+.preset-description {
+  font-size: 12px;
+  color: #888;
+}
+
+.performance-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 170, 0, 0.15);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.performance-warning .warning-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.performance-warning .warning-text {
+  font-size: 12px;
+  color: #ffaa00;
+  line-height: 1.5;
+}
+
+/* Wizard Navigation */
+.wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #0f3460;
+}
+
+.wizard-nav .btn {
+  min-width: 100px;
+}
+
+.wizard-nav .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

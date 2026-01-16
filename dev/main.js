@@ -15,6 +15,8 @@ import { initWallArtEditor } from './components/WallArtEditor.js';
 import { initWallPaintEditor, updateRegionSelect } from './components/WallPaintEditor.js';
 import { initWallArtContentEditor, updateArtRegionSelect } from './components/WallArtContentEditor.js';
 import { initVirtualBackgroundStatus } from './components/VirtualBackgroundStatus.js';
+import { initSetupWizard } from './components/SetupWizard.js';
+import { loadSetupData } from '../lib/setup-storage.js';
 
 // Global state
 let processor = null;
@@ -107,6 +109,30 @@ async function init() {
     }
   });
   initVideoControls(video, processor);
+
+  // Initialize setup wizard
+  initSetupWizard(processor, wallArtApi, {
+    onSetupComplete: (setupData) => {
+      console.log('[Dev] Setup complete, applying preset:', setupData.selectedPreset);
+      // Apply the selected preset to the processor
+      if (processor.setSegmentationPreset) {
+        processor.setSegmentationPreset(setupData.selectedPreset);
+      }
+    }
+  });
+
+  // Load existing setup data and apply preset
+  try {
+    const existingSetup = await loadSetupData();
+    if (existingSetup) {
+      console.log('[Dev] Loaded existing setup, preset:', existingSetup.selectedPreset);
+      if (processor.setSegmentationPreset) {
+        processor.setSegmentationPreset(existingSetup.selectedPreset);
+      }
+    }
+  } catch (err) {
+    console.warn('[Dev] Failed to load setup data:', err);
+  }
 
   // Set up drag and drop for video files
   setupDragDrop(video, canvas, placeholder);
