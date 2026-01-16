@@ -48,6 +48,11 @@
       </section>
 
       <aside class="sidebar">
+        <div id="setup-wizard-trigger" class="panel">
+          <h3>Setup</h3>
+          <div class="setup-content"></div>
+        </div>
+
         <div id="virtual-background-status" class="panel">
           <h3>Virtual Background</h3>
           <div class="vb-status-content"></div>
@@ -79,6 +84,44 @@
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- Setup Wizard Modal -->
+  <div id="setup-wizard-modal" class="wizard-modal hidden">
+    <div class="wizard-backdrop"></div>
+    <div class="wizard-container">
+      <div class="wizard-header">
+        <h2>Setup Wizard</h2>
+        <div class="wizard-progress">
+          <div class="progress-step" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">Capture</div>
+          </div>
+          <div class="progress-connector"></div>
+          <div class="progress-step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">Process</div>
+          </div>
+          <div class="progress-connector"></div>
+          <div class="progress-step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">Regions</div>
+          </div>
+          <div class="progress-connector"></div>
+          <div class="progress-step" data-step="4">
+            <div class="step-number">4</div>
+            <div class="step-label">Confirm</div>
+          </div>
+        </div>
+      </div>
+      <div class="wizard-content" id="wizard-content">
+        <!-- Dynamic content rendered by SetupWizard.js -->
+      </div>
+      <div class="wizard-nav">
+        <button id="wizard-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button id="wizard-next-btn" class="btn btn-primary">Next</button>
+      </div>
+    </div>
   </div>
 
   <!-- Load mocks first, then main module -->
