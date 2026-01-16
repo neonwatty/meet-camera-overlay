@@ -232,6 +232,48 @@ function addPaintEditorStyles() {
     #output-canvas.eyedropper-mode {
       cursor: crosshair !important;
     }
+
+    .eyedropper-sample-flash {
+      position: fixed;
+      pointer-events: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      animation: eyedropper-flash 0.4s ease-out forwards;
+      z-index: 10000;
+    }
+
+    .eyedropper-sample-flash::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 3px solid currentColor;
+      animation: eyedropper-ring 0.4s ease-out forwards;
+    }
+
+    .eyedropper-sample-flash::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      transform: translate(-50%, -50%);
+    }
+
+    @keyframes eyedropper-flash {
+      0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+    }
+
+    @keyframes eyedropper-ring {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -428,6 +470,9 @@ function handleCanvasClick(e) {
   const rgb = sampleColor(ctx, x, y, 10);
   const hex = rgbToHex(rgb);
 
+  // Show visual feedback at click location
+  showSampleFlash(e.clientX, e.clientY, hex);
+
   // Update color
   updatePaintProperty('color', hex);
   updatePaintProperty('colorSource', 'eyedropper');
@@ -436,6 +481,27 @@ function handleCanvasClick(e) {
 
   // Deactivate eyedropper
   toggleEyedropper();
+}
+
+/**
+ * Show a visual flash animation at the sample point.
+ * @param {number} x - Screen X coordinate
+ * @param {number} y - Screen Y coordinate
+ * @param {string} color - The sampled color (hex)
+ */
+function showSampleFlash(x, y, color) {
+  const flash = document.createElement('div');
+  flash.className = 'eyedropper-sample-flash';
+  flash.style.left = `${x}px`;
+  flash.style.top = `${y}px`;
+  flash.style.color = color;
+
+  document.body.appendChild(flash);
+
+  // Remove after animation completes
+  setTimeout(() => {
+    flash.remove();
+  }, 400);
 }
 
 /**
