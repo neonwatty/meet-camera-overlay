@@ -645,9 +645,19 @@ function setupWallArtEventHandlers() {
       // Check if file was uploaded
       if (wallArtImageFile?.files?.length > 0) {
         const file = wallArtImageFile.files[0];
-        artSrc = await readFileAsDataUrl(file);
+
+        // Detect content type from MIME type
         if (file.type === 'image/gif') {
           contentType = 'gif';
+        } else if (file.type.startsWith('video/')) {
+          contentType = 'video';
+        }
+
+        // Use Blob URL for large files (>2MB) or videos to avoid data URL limits
+        if (file.size > 2 * 1024 * 1024 || contentType === 'video') {
+          artSrc = URL.createObjectURL(file);
+        } else {
+          artSrc = await readFileAsDataUrl(file);
         }
       }
 

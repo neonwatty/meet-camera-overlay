@@ -456,6 +456,28 @@ test.describe('Wall Art Popup Tests', () => {
     await page.close();
   });
 
+  test('wall art file input accepts video files', async () => {
+    test.skip(!extensionId, 'Could not get extension ID');
+
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Open wall art modal
+    await page.click('#add-wall-art');
+    await expect(page.locator('#wall-art-modal')).toBeVisible();
+
+    // Switch to art tab
+    await page.click('.wall-art-tab[data-tab="art"]');
+
+    // Verify file input accepts video types
+    const fileInput = page.locator('#wall-art-image-file');
+    const acceptAttr = await fileInput.getAttribute('accept');
+    expect(acceptAttr).toContain('video/mp4');
+    expect(acceptAttr).toContain('video/webm');
+
+    await page.close();
+  });
+
   test('can delete wall art region', async () => {
     test.skip(!extensionId, 'Could not get extension ID');
 
