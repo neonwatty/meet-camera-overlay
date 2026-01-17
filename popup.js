@@ -11,6 +11,7 @@ const TYPE_STANDARD = 'standard';
 const TYPE_EFFECT = 'effect';
 const TYPE_TEXT_BANNER = 'textBanner';
 const TYPE_TIMER = 'timer';
+const TYPE_WALL_ART = 'wallArt';
 
 // Text position constants
 const TEXT_POSITION_LOWER_THIRD = 'lower-third';
@@ -21,6 +22,15 @@ const _TEXT_POSITION_CUSTOM = 'custom';
 let overlays = [];
 let dragState = null;
 let addingType = 'standard'; // 'standard', 'effect', 'textBanner', or 'timer'
+
+// Wall Art state
+let wallArtOverlays = [];
+let wallArtSettings = {
+  segmentationEnabled: false,
+  segmentationPreset: 'balanced',
+  featherRadius: 2
+};
+let editingWallArtId = null;  // Track which wall art is being edited
 
 // Undo/redo state
 let previousState = null;      // Snapshot before last action
@@ -94,11 +104,42 @@ const timerConfirmBtn = document.getElementById('timer-confirm');
 // Track which overlay is being edited (for edit mode)
 let editingOverlayId = null;
 
+// Wall Art DOM elements
+const addWallArtBtn = document.getElementById('add-wall-art');
+const wallArtList = document.getElementById('wall-art-list');
+const wallArtEmptyState = document.getElementById('wall-art-empty-state');
+const wallArtModal = document.getElementById('wall-art-modal');
+const wallArtModalTitle = document.getElementById('wall-art-modal-title');
+const wallArtRegionCanvas = document.getElementById('wall-art-region-canvas');
+const wallArtPaintEnabled = document.getElementById('wall-art-paint-enabled');
+const wallArtPaintColor = document.getElementById('wall-art-paint-color');
+const wallArtPaintOpacity = document.getElementById('wall-art-paint-opacity');
+const wallArtPaintOpacityValue = document.getElementById('wall-art-paint-opacity-value');
+const wallArtImageUrl = document.getElementById('wall-art-image-url');
+const wallArtImageFile = document.getElementById('wall-art-image-file');
+const wallArtAspectMode = document.getElementById('wall-art-aspect-mode');
+const wallArtArtOpacity = document.getElementById('wall-art-art-opacity');
+const wallArtArtOpacityValue = document.getElementById('wall-art-art-opacity-value');
+const wallArtCancelBtn = document.getElementById('wall-art-cancel');
+const wallArtConfirmBtn = document.getElementById('wall-art-confirm');
+const segmentationEnabled = document.getElementById('segmentation-enabled');
+const segmentationPreset = document.getElementById('segmentation-preset');
+const segmentationOptions = document.getElementById('segmentation-options');
+const featherRadius = document.getElementById('feather-radius');
+const featherValue = document.getElementById('feather-value');
+
+// Wall Art region editor state
+let wallArtRegion = null;
+let wallArtDraggingCorner = null;
+
 // Initialize
 async function init() {
   await loadOverlays();
+  await loadWallArt();
   renderOverlayList();
   renderPreviewOverlays();
+  renderWallArtList();
+  setupWallArtEventHandlers();
 }
 
 // Sort overlays by layer and zIndex for display
@@ -236,6 +277,528 @@ async function saveOverlays() {
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
+
+// ==================== WALL ART FUNCTIONS ====================
+
+// Load wall art from storage
+async function loadWallArt() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['wallArtOverlays', 'wallArtSettings'], (result) => {
+      wallArtOverlays = result.wallArtOverlays || [];
+      if (result.wallArtSettings) {
+        wallArtSettings = result.wallArtSettings;
+      }
+      // Update UI state
+      if (segmentationEnabled) {
+        segmentationEnabled.checked = wallArtSettings.segmentationEnabled;
+      }
+      if (segmentationPreset) {
+        segmentationPreset.value = wallArtSettings.segmentationPreset;
+      }
+      if (featherRadius) {
+        featherRadius.value = wallArtSettings.featherRadius;
+      }
+      if (featherValue) {
+        featherValue.textContent = `${wallArtSettings.featherRadius}px`;
+      }
+      if (segmentationOptions) {
+        segmentationOptions.classList.toggle('hidden', !wallArtSettings.segmentationEnabled);
+      }
+      resolve();
+    });
+  });
+}
+
+// Save wall art to storage and notify content script
+async function saveWallArt() {
+  await chrome.storage.local.set({ wallArtOverlays, wallArtSettings });
+
+  // Notify active Meet tabs
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  for (const tab of tabs) {
+    chrome.tabs.sendMessage(tab.id, { type: 'UPDATE_WALL_ART', wallArtOverlays }).catch(() => {});
+    chrome.tabs.sendMessage(tab.id, { type: 'UPDATE_WALL_ART_SETTINGS', settings: wallArtSettings }).catch(() => {});
+  }
+}
+
+// Create a default wall art region (centered 60x60%)
+function createDefaultRegion() {
+  return {
+    topLeft: { x: 20, y: 20 },
+    topRight: { x: 80, y: 20 },
+    bottomLeft: { x: 20, y: 80 },
+    bottomRight: { x: 80, y: 80 }
+  };
+}
+
+// Draw region on canvas
+function drawRegionOnCanvas() {
+  if (!wallArtRegionCanvas || !wallArtRegion) return;
+
+  const ctx = wallArtRegionCanvas.getContext('2d');
+  const width = wallArtRegionCanvas.width;
+  const height = wallArtRegionCanvas.height;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+
+  // Draw background gradient
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#1a1a2e');
+  gradient.addColorStop(1, '#16213e');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  // Convert region to pixels
+  const toPixel = (point) => ({
+    x: (point.x / 100) * width,
+    y: (point.y / 100) * height
+  });
+
+  const tl = toPixel(wallArtRegion.topLeft);
+  const tr = toPixel(wallArtRegion.topRight);
+  const bl = toPixel(wallArtRegion.bottomLeft);
+  const br = toPixel(wallArtRegion.bottomRight);
+
+  // Draw filled region
+  ctx.fillStyle = 'rgba(233, 69, 96, 0.2)';
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y);
+  ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y);
+  ctx.lineTo(bl.x, bl.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Draw outline
+  ctx.strokeStyle = '#e94560';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Draw corner handles
+  const corners = [tl, tr, bl, br];
+  for (const corner of corners) {
+    // White border
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(corner.x, corner.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pink fill
+    ctx.fillStyle = '#e94560';
+    ctx.beginPath();
+    ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Get which corner is at a point
+function getCornerAtPoint(x, y) {
+  if (!wallArtRegion || !wallArtRegionCanvas) return null;
+
+  const width = wallArtRegionCanvas.width;
+  const height = wallArtRegionCanvas.height;
+  const threshold = 15; // pixels
+
+  const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+
+  for (const corner of corners) {
+    const px = (wallArtRegion[corner].x / 100) * width;
+    const py = (wallArtRegion[corner].y / 100) * height;
+    const dist = Math.sqrt(Math.pow(x - px, 2) + Math.pow(y - py, 2));
+    if (dist <= threshold) {
+      return corner;
+    }
+  }
+
+  return null;
+}
+
+// Create wall art item for list
+function createWallArtItem(wallArt, index) {
+  const item = document.createElement('div');
+  item.className = `overlay-item wall-art-item${wallArt.active ? ' active' : ''}`;
+  item.dataset.id = wallArt.id;
+
+  const paintColor = wallArt.paint?.enabled ? wallArt.paint.color : 'transparent';
+  const hasArt = wallArt.art && wallArt.art.src;
+
+  item.innerHTML = `
+    <div class="wall-art-icon">
+      🖼️
+      ${wallArt.paint?.enabled ? `<div class="paint-indicator" style="background: ${paintColor}"></div>` : ''}
+    </div>
+    <div class="info">
+      <div class="name">${wallArt.name || 'Wall Art Region'}</div>
+      <div class="position">
+        ${wallArt.paint?.enabled ? 'Paint' : ''}${wallArt.paint?.enabled && hasArt ? ' + ' : ''}${hasArt ? 'Art' : ''}
+        ${!wallArt.paint?.enabled && !hasArt ? 'No content' : ''}
+      </div>
+    </div>
+    <button class="trigger-btn ${wallArt.active ? 'active' : ''}" data-id="${wallArt.id}">
+      ${wallArt.active ? 'ON' : 'OFF'}
+    </button>
+    <button class="edit-text-btn" data-id="${wallArt.id}" title="Edit">✏️</button>
+    <button class="delete-btn" data-index="${index}" title="Remove">×</button>
+  `;
+
+  return item;
+}
+
+// Render wall art list
+function renderWallArtList() {
+  if (!wallArtList) return;
+
+  wallArtList.innerHTML = '';
+
+  // Handle empty state
+  if (wallArtEmptyState) {
+    wallArtEmptyState.classList.toggle('hidden', wallArtOverlays.length > 0);
+  }
+
+  wallArtOverlays.forEach((wallArt, index) => {
+    const item = createWallArtItem(wallArt, index);
+    wallArtList.appendChild(item);
+  });
+
+  // Set up event handlers
+  setupWallArtListHandlers();
+}
+
+// Set up wall art list event handlers
+function setupWallArtListHandlers() {
+  if (!wallArtList) return;
+
+  // Toggle buttons
+  wallArtList.querySelectorAll('.trigger-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const wallArt = wallArtOverlays.find(wa => wa.id === id);
+      if (wallArt) {
+        wallArt.active = !wallArt.active;
+        await saveWallArt();
+        renderWallArtList();
+
+        // Also send toggle message to content script
+        const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+        for (const tab of tabs) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'TOGGLE_WALL_ART',
+            id,
+            active: wallArt.active
+          }).catch(() => {});
+        }
+      }
+    });
+  });
+
+  // Edit buttons
+  wallArtList.querySelectorAll('.edit-text-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      openWallArtModal(id);
+    });
+  });
+
+  // Delete buttons
+  wallArtList.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const index = parseInt(btn.dataset.index);
+      if (index >= 0 && index < wallArtOverlays.length) {
+        showConfirmDialog(
+          'Delete Wall Art',
+          'Are you sure you want to delete this wall art region?',
+          async () => {
+            wallArtOverlays.splice(index, 1);
+            await saveWallArt();
+            renderWallArtList();
+            showStatus('Wall art deleted', 'success');
+          }
+        );
+      }
+    });
+  });
+}
+
+// Open wall art modal for adding or editing
+function openWallArtModal(editId = null) {
+  if (!wallArtModal) return;
+
+  editingWallArtId = editId;
+
+  if (editId) {
+    // Editing existing
+    const wallArt = wallArtOverlays.find(wa => wa.id === editId);
+    if (!wallArt) return;
+
+    if (wallArtModalTitle) {
+      wallArtModalTitle.textContent = 'Edit Wall Art Region';
+    }
+    if (wallArtConfirmBtn) {
+      wallArtConfirmBtn.textContent = 'Save';
+    }
+
+    // Load region
+    wallArtRegion = JSON.parse(JSON.stringify(wallArt.region));
+
+    // Load paint settings
+    if (wallArtPaintEnabled) {
+      wallArtPaintEnabled.checked = wallArt.paint?.enabled || false;
+    }
+    if (wallArtPaintColor) {
+      wallArtPaintColor.value = wallArt.paint?.color || '#808080';
+    }
+    if (wallArtPaintOpacity) {
+      wallArtPaintOpacity.value = (wallArt.paint?.opacity || 1) * 100;
+    }
+    if (wallArtPaintOpacityValue) {
+      wallArtPaintOpacityValue.textContent = `${Math.round((wallArt.paint?.opacity || 1) * 100)}%`;
+    }
+
+    // Load art settings
+    if (wallArtImageUrl) {
+      wallArtImageUrl.value = wallArt.art?.src || '';
+    }
+    if (wallArtAspectMode) {
+      wallArtAspectMode.value = wallArt.art?.aspectRatioMode || 'stretch';
+    }
+    if (wallArtArtOpacity) {
+      wallArtArtOpacity.value = (wallArt.art?.opacity || 1) * 100;
+    }
+    if (wallArtArtOpacityValue) {
+      wallArtArtOpacityValue.textContent = `${Math.round((wallArt.art?.opacity || 1) * 100)}%`;
+    }
+  } else {
+    // Adding new
+    if (wallArtModalTitle) {
+      wallArtModalTitle.textContent = 'Add Wall Art Region';
+    }
+    if (wallArtConfirmBtn) {
+      wallArtConfirmBtn.textContent = 'Add';
+    }
+
+    // Reset to defaults
+    wallArtRegion = createDefaultRegion();
+
+    if (wallArtPaintEnabled) wallArtPaintEnabled.checked = false;
+    if (wallArtPaintColor) wallArtPaintColor.value = '#808080';
+    if (wallArtPaintOpacity) wallArtPaintOpacity.value = 100;
+    if (wallArtPaintOpacityValue) wallArtPaintOpacityValue.textContent = '100%';
+    if (wallArtImageUrl) wallArtImageUrl.value = '';
+    if (wallArtImageFile) wallArtImageFile.value = '';
+    if (wallArtAspectMode) wallArtAspectMode.value = 'stretch';
+    if (wallArtArtOpacity) wallArtArtOpacity.value = 100;
+    if (wallArtArtOpacityValue) wallArtArtOpacityValue.textContent = '100%';
+  }
+
+  // Draw initial region
+  drawRegionOnCanvas();
+
+  // Show modal
+  wallArtModal.classList.remove('hidden');
+}
+
+// Setup wall art event handlers
+function setupWallArtEventHandlers() {
+  // Add Wall Art button
+  if (addWallArtBtn) {
+    addWallArtBtn.addEventListener('click', () => {
+      openWallArtModal();
+    });
+  }
+
+  // Wall Art Modal tabs
+  document.querySelectorAll('.wall-art-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.dataset.tab;
+
+      // Update tab active states
+      document.querySelectorAll('.wall-art-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      // Show/hide tab content
+      const paintTab = document.getElementById('wall-art-paint-tab');
+      const artTab = document.getElementById('wall-art-art-tab');
+      if (paintTab) paintTab.classList.toggle('hidden', tabName !== 'paint');
+      if (artTab) artTab.classList.toggle('hidden', tabName !== 'art');
+    });
+  });
+
+  // Wall Art Modal cancel
+  if (wallArtCancelBtn) {
+    wallArtCancelBtn.addEventListener('click', () => {
+      wallArtModal.classList.add('hidden');
+      editingWallArtId = null;
+    });
+  }
+
+  // Wall Art Modal confirm
+  if (wallArtConfirmBtn) {
+    wallArtConfirmBtn.addEventListener('click', async () => {
+      // Get art source (URL or file)
+      let artSrc = wallArtImageUrl?.value || '';
+      let contentType = 'image';
+
+      // Check if file was uploaded
+      if (wallArtImageFile?.files?.length > 0) {
+        const file = wallArtImageFile.files[0];
+        artSrc = await readFileAsDataUrl(file);
+        if (file.type === 'image/gif') {
+          contentType = 'gif';
+        }
+      }
+
+      const wallArtData = {
+        region: wallArtRegion,
+        paint: wallArtPaintEnabled?.checked ? {
+          enabled: true,
+          color: wallArtPaintColor?.value || '#808080',
+          opacity: (wallArtPaintOpacity?.value || 100) / 100
+        } : null,
+        art: artSrc ? {
+          src: artSrc,
+          contentType,
+          aspectRatioMode: wallArtAspectMode?.value || 'stretch',
+          opacity: (wallArtArtOpacity?.value || 100) / 100
+        } : null,
+        active: true
+      };
+
+      if (editingWallArtId) {
+        // Update existing
+        const index = wallArtOverlays.findIndex(wa => wa.id === editingWallArtId);
+        if (index >= 0) {
+          wallArtOverlays[index] = {
+            ...wallArtOverlays[index],
+            ...wallArtData,
+            updatedAt: Date.now()
+          };
+        }
+      } else {
+        // Add new
+        const newWallArt = {
+          id: `wall-art-${generateId()}`,
+          type: TYPE_WALL_ART,
+          name: `Wall Art Region`,
+          ...wallArtData,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        wallArtOverlays.push(newWallArt);
+      }
+
+      await saveWallArt();
+      renderWallArtList();
+      wallArtModal.classList.add('hidden');
+      editingWallArtId = null;
+      showStatus(editingWallArtId ? 'Wall art updated' : 'Wall art added', 'success');
+    });
+  }
+
+  // Paint opacity slider
+  if (wallArtPaintOpacity) {
+    wallArtPaintOpacity.addEventListener('input', () => {
+      if (wallArtPaintOpacityValue) {
+        wallArtPaintOpacityValue.textContent = `${wallArtPaintOpacity.value}%`;
+      }
+    });
+  }
+
+  // Art opacity slider
+  if (wallArtArtOpacity) {
+    wallArtArtOpacity.addEventListener('input', () => {
+      if (wallArtArtOpacityValue) {
+        wallArtArtOpacityValue.textContent = `${wallArtArtOpacity.value}%`;
+      }
+    });
+  }
+
+  // Region canvas mouse events
+  if (wallArtRegionCanvas) {
+    wallArtRegionCanvas.addEventListener('mousedown', (e) => {
+      const rect = wallArtRegionCanvas.getBoundingClientRect();
+      const scaleX = wallArtRegionCanvas.width / rect.width;
+      const scaleY = wallArtRegionCanvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+
+      const corner = getCornerAtPoint(x, y);
+      if (corner) {
+        wallArtDraggingCorner = corner;
+      }
+    });
+
+    wallArtRegionCanvas.addEventListener('mousemove', (e) => {
+      if (!wallArtDraggingCorner || !wallArtRegion) return;
+
+      const rect = wallArtRegionCanvas.getBoundingClientRect();
+      const scaleX = wallArtRegionCanvas.width / rect.width;
+      const scaleY = wallArtRegionCanvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+
+      // Convert to percentage
+      const px = Math.max(0, Math.min(100, (x / wallArtRegionCanvas.width) * 100));
+      const py = Math.max(0, Math.min(100, (y / wallArtRegionCanvas.height) * 100));
+
+      wallArtRegion[wallArtDraggingCorner] = { x: px, y: py };
+      drawRegionOnCanvas();
+    });
+
+    wallArtRegionCanvas.addEventListener('mouseup', () => {
+      wallArtDraggingCorner = null;
+    });
+
+    wallArtRegionCanvas.addEventListener('mouseleave', () => {
+      wallArtDraggingCorner = null;
+    });
+  }
+
+  // Segmentation toggle
+  if (segmentationEnabled) {
+    segmentationEnabled.addEventListener('change', async () => {
+      wallArtSettings.segmentationEnabled = segmentationEnabled.checked;
+      if (segmentationOptions) {
+        segmentationOptions.classList.toggle('hidden', !segmentationEnabled.checked);
+      }
+      await saveWallArt();
+    });
+  }
+
+  // Segmentation preset
+  if (segmentationPreset) {
+    segmentationPreset.addEventListener('change', async () => {
+      wallArtSettings.segmentationPreset = segmentationPreset.value;
+      await saveWallArt();
+    });
+  }
+
+  // Feather radius
+  if (featherRadius) {
+    featherRadius.addEventListener('input', async () => {
+      wallArtSettings.featherRadius = parseInt(featherRadius.value);
+      if (featherValue) {
+        featherValue.textContent = `${featherRadius.value}px`;
+      }
+      await saveWallArt();
+    });
+  }
+}
+
+// Helper to read file as data URL
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ==================== END WALL ART FUNCTIONS ====================
 
 // Add overlay modal
 addOverlayBtn.addEventListener('click', () => {

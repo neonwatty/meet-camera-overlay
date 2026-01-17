@@ -43,6 +43,42 @@
       <div id="bundled-overlay-list" class="overlay-list"></div>
     </div>
 
+    <!-- Wall Art Section -->
+    <div class="overlay-section wall-art-section">
+      <div class="section-header">
+        <h2>Wall Art</h2>
+        <button id="add-wall-art" class="btn btn-wall-art">+ Wall Art</button>
+      </div>
+      <div id="wall-art-list" class="overlay-list"></div>
+      <p id="wall-art-empty-state" class="empty-state">No wall art regions. Add one to paint your background or display art behind you.</p>
+
+      <!-- Segmentation Settings -->
+      <div id="segmentation-panel" class="segmentation-panel">
+        <div class="segmentation-toggle">
+          <label class="toggle-switch">
+            <input type="checkbox" id="segmentation-enabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Person Occlusion</span>
+          <span class="toggle-hint">(you appear in front of wall art)</span>
+        </div>
+        <div id="segmentation-options" class="segmentation-options hidden">
+          <div class="form-group">
+            <label>Performance Preset</label>
+            <select id="segmentation-preset">
+              <option value="quality">Quality (slower)</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="performance">Performance (faster)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Edge Feather: <span id="feather-value">2px</span></label>
+            <input type="range" id="feather-radius" min="0" max="5" value="2" step="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Add Overlay Modal -->
     <div id="add-modal" class="modal hidden">
       <div class="modal-content">
@@ -169,6 +205,76 @@
         <div class="modal-actions">
           <button id="timer-cancel" class="btn btn-secondary">Cancel</button>
           <button id="timer-confirm" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wall Art Modal -->
+    <div id="wall-art-modal" class="modal hidden">
+      <div class="modal-content modal-wide wall-art-modal">
+        <h3 id="wall-art-modal-title">Add Wall Art Region</h3>
+
+        <!-- Region Canvas -->
+        <div class="wall-art-region-editor">
+          <canvas id="wall-art-region-canvas" width="320" height="180"></canvas>
+          <p class="hint">Drag corners to adjust region shape</p>
+        </div>
+
+        <!-- Tabs for Paint and Art -->
+        <div class="wall-art-tabs">
+          <button type="button" class="wall-art-tab active" data-tab="paint">Paint</button>
+          <button type="button" class="wall-art-tab" data-tab="art">Art</button>
+        </div>
+
+        <!-- Paint Tab Content -->
+        <div id="wall-art-paint-tab" class="wall-art-tab-content">
+          <div class="form-group">
+            <label class="toggle-inline">
+              <input type="checkbox" id="wall-art-paint-enabled">
+              <span>Enable Paint Fill</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div class="form-group form-group-half">
+              <label>Color</label>
+              <input type="color" id="wall-art-paint-color" value="#808080">
+            </div>
+            <div class="form-group form-group-half">
+              <label>Opacity: <span id="wall-art-paint-opacity-value">100%</span></label>
+              <input type="range" id="wall-art-paint-opacity" min="0" max="100" value="100">
+            </div>
+          </div>
+        </div>
+
+        <!-- Art Tab Content -->
+        <div id="wall-art-art-tab" class="wall-art-tab-content hidden">
+          <div class="form-group">
+            <label>Image URL</label>
+            <input type="text" id="wall-art-image-url" placeholder="https://example.com/image.png">
+          </div>
+          <div class="form-group">
+            <label>Or upload a file</label>
+            <input type="file" id="wall-art-image-file" accept="image/*,.gif">
+          </div>
+          <div class="form-row">
+            <div class="form-group form-group-half">
+              <label>Aspect Ratio</label>
+              <select id="wall-art-aspect-mode">
+                <option value="stretch">Stretch</option>
+                <option value="fit">Fit</option>
+                <option value="crop">Crop</option>
+              </select>
+            </div>
+            <div class="form-group form-group-half">
+              <label>Opacity: <span id="wall-art-art-opacity-value">100%</span></label>
+              <input type="range" id="wall-art-art-opacity" min="0" max="100" value="100">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="wall-art-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="wall-art-confirm" class="btn btn-primary">Add</button>
         </div>
       </div>
     </div>

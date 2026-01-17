@@ -24,15 +24,30 @@ function injectScript(src) {
 // Load scripts in order
 (async () => {
   try {
+    // Load wall art libraries first (they define global functions)
+    await injectScript('lib/wall-region.js');
+    await injectScript('lib/wall-paint-renderer.js');
+    await injectScript('lib/wall-art-renderer.js');
+    await injectScript('lib/wall-segmentation.js');
+    // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('inject.js');
 
-    // Send initial overlays from chrome.storage to the injected script
+    // Send initial overlays and wall art from chrome.storage to the injected script
     setTimeout(() => {
-      chrome.storage.local.get(['overlays'], (result) => {
+      chrome.storage.local.get(['overlays', 'wallArtOverlays', 'wallArtSettings'], (result) => {
         const overlays = result.overlays || [];
+        const wallArtOverlays = result.wallArtOverlays || [];
+        const wallArtSettings = result.wallArtSettings || {
+          segmentationEnabled: false,
+          segmentationPreset: 'balanced',
+          featherRadius: 2
+        };
         console.log('[Meet Overlay] Sending initial overlays:', overlays.length);
+        console.log('[Meet Overlay] Sending initial wall art:', wallArtOverlays.length);
         window.postMessage({ type: 'MEET_OVERLAY_UPDATE', overlays }, '*');
+        window.postMessage({ type: 'MEET_OVERLAY_UPDATE_WALL_ART', wallArtOverlays }, '*');
+        window.postMessage({ type: 'MEET_OVERLAY_UPDATE_WALL_ART_SETTINGS', settings: wallArtSettings }, '*');
       });
     }, 500);
   } catch (e) {
@@ -112,6 +127,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     window.addEventListener('message', handler);
 
     return true; // Keep channel open for async response
+  }
+
+  // Wall Art message handlers
+  if (message.type === 'UPDATE_WALL_ART') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_UPDATE_WALL_ART',
+      wallArtOverlays: message.wallArtOverlays
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'TOGGLE_WALL_ART') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_TOGGLE_WALL_ART',
+      id: message.id,
+      active: message.active
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'UPDATE_WALL_ART_SETTINGS') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_UPDATE_WALL_ART_SETTINGS',
+      settings: message.settings
+    }, '*');
+    sendResponse({ success: true });
   }
 });
 

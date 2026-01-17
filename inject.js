@@ -31,6 +31,16 @@
   let isProcessing = false;
   let activeProcessor = null;
 
+  // Wall art state
+  let wallArtOverlays = [];
+  const wallArtImages = new Map(); // id -> HTMLImageElement, HTMLCanvasElement, or AnimatedImage
+  let wallArtSegmenter = null;
+  const wallArtSettings = {
+    segmentationEnabled: false,
+    segmentationPreset: 'balanced',
+    featherRadius: 2
+  };
+
   // Check if AnimatedImage class is available (from gif-decoder.js)
   const hasGifSupport = typeof window.AnimatedImage !== 'undefined';
 
@@ -339,6 +349,98 @@
     img.src = overlay.src;
   }
 
+  // Load an image for a wall art overlay
+  async function loadWallArtImage(wallArt) {
+    if (!wallArt.art || !wallArt.art.src) return;
+
+    const src = wallArt.art.src;
+    const contentType = wallArt.art.contentType || 'image';
+
+    // Check if it's an animated GIF
+    if (hasGifSupport && (contentType === 'gif' || window.isAnimatedGif(src))) {
+      try {
+        console.log('[Meet Overlay] Loading wall art GIF:', wallArt.id);
+        let animatedImage;
+
+        if (src.startsWith('data:')) {
+          animatedImage = await window.decodeGifFromDataUrl(src);
+        } else {
+          animatedImage = await window.decodeGifFromUrl(src);
+        }
+
+        wallArtImages.set(wallArt.id, animatedImage);
+        console.log('[Meet Overlay] Loaded wall art GIF with', animatedImage.frames.length, 'frames');
+      } catch (e) {
+        console.error('[Meet Overlay] Failed to decode wall art GIF:', e);
+        loadWallArtStaticImage(wallArt);
+      }
+      return;
+    }
+
+    // Check if it's a video
+    if (contentType === 'video' && window.WallArtRenderer && window.WallArtRenderer.createVideoLoop) {
+      try {
+        console.log('[Meet Overlay] Loading wall art video:', wallArt.id);
+        const video = await window.WallArtRenderer.createVideoLoop(src);
+        wallArtImages.set(wallArt.id, video);
+        console.log('[Meet Overlay] Loaded wall art video');
+      } catch (e) {
+        console.error('[Meet Overlay] Failed to load wall art video:', e);
+      }
+      return;
+    }
+
+    // Load as static image
+    loadWallArtStaticImage(wallArt);
+  }
+
+  // Load a static image for wall art
+  function loadWallArtStaticImage(wallArt) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      wallArtImages.set(wallArt.id, img);
+      console.log('[Meet Overlay] Loaded wall art image:', wallArt.id);
+    };
+    img.onerror = () => {
+      console.error('[Meet Overlay] Failed to load wall art image:', wallArt.art.src);
+      wallArtImages.delete(wallArt.id);
+    };
+    img.src = wallArt.art.src;
+  }
+
+  // Get or create segmenter lazily
+  async function getSegmenter() {
+    if (!window.WallSegmentation) {
+      console.warn('[Meet Overlay] Wall segmentation library not loaded');
+      return null;
+    }
+
+    if (wallArtSegmenter && wallArtSegmenter.isReady) {
+      return wallArtSegmenter;
+    }
+
+    if (!wallArtSegmenter) {
+      console.log('[Meet Overlay] Creating wall art segmenter...');
+      wallArtSegmenter = new window.WallSegmentation.WallArtSegmenter({
+        preset: wallArtSettings.segmentationPreset,
+        onInitialized: () => {
+          console.log('[Meet Overlay] Wall art segmenter initialized');
+        },
+        onError: (error) => {
+          console.error('[Meet Overlay] Wall art segmenter error:', error);
+        }
+      });
+    }
+
+    // Start initialization if not already in progress
+    if (!wallArtSegmenter.isInitializing && !wallArtSegmenter.isReady) {
+      await wallArtSegmenter.initialize();
+    }
+
+    return wallArtSegmenter.isReady ? wallArtSegmenter : null;
+  }
+
   // Video processor class
   class VideoProcessor {
     constructor(originalStream) {
@@ -397,12 +499,15 @@
       return this.outputStream;
     }
 
-    render(timestamp) {
+    async render(timestamp) {
       if (!this.running) return;
 
       if (this.video.readyState >= 2) {
         // Draw original video frame
         this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+
+        // Render wall art (before regular overlays, as wall art is background layer)
+        await this.renderWallArt(timestamp);
 
         // Sort overlays by layer and zIndex, then draw
         const sortedOverlays = sortOverlaysByLayer(overlays);
@@ -488,6 +593,45 @@
       }
 
       requestAnimationFrame((ts) => this.render(ts));
+    }
+
+    // Render wall art overlays
+    async renderWallArt(timestamp) {
+      // Check if we have any active wall art
+      const activeWallArt = wallArtOverlays.filter(wa => wa.active);
+      if (activeWallArt.length === 0) return;
+
+      // Check if wall art renderer is available
+      if (!window.WallPaintRenderer || !window.WallArtRenderer) {
+        return;
+      }
+
+      // Get person mask if segmentation is enabled
+      let personMask = null;
+      if (wallArtSettings.segmentationEnabled) {
+        try {
+          const segmenter = await getSegmenter();
+          if (segmenter) {
+            const result = await segmenter.segment(this.video);
+            personMask = result.mask;
+          }
+        } catch (e) {
+          // Segmentation failed, continue without mask
+          console.warn('[Meet Overlay] Segmentation failed:', e);
+        }
+      }
+
+      const renderOptions = {
+        personMask,
+        featherRadius: wallArtSettings.featherRadius,
+        timestamp
+      };
+
+      // Render paint layers first
+      window.WallPaintRenderer.renderAllWallPaint(this.ctx, wallArtOverlays, renderOptions);
+
+      // Render art layers
+      window.WallArtRenderer.renderAllWallArt(this.ctx, wallArtOverlays, wallArtImages, renderOptions);
     }
 
     stop() {
@@ -643,6 +787,67 @@
         } else if (action === 'reset') {
           overlay.timerState = { running: false, startTime: null, pausedAt: null, elapsed: 0 };
           console.log('[Meet Overlay] Timer reset');
+        }
+      }
+    }
+
+    // Wall art update
+    if (event.data.type === 'MEET_OVERLAY_UPDATE_WALL_ART') {
+      console.log('[Meet Overlay] Received wall art update:', event.data.wallArtOverlays?.length || 0, 'overlays');
+      wallArtOverlays = event.data.wallArtOverlays || [];
+
+      // Load any new art images
+      wallArtOverlays.forEach(wallArt => {
+        if (wallArt.art && wallArt.art.src && !wallArtImages.has(wallArt.id)) {
+          loadWallArtImage(wallArt);
+        }
+      });
+
+      // Remove images for deleted wall art overlays
+      for (const id of wallArtImages.keys()) {
+        if (!wallArtOverlays.find(wa => wa.id === id)) {
+          wallArtImages.delete(id);
+        }
+      }
+    }
+
+    // Toggle wall art visibility
+    if (event.data.type === 'MEET_OVERLAY_TOGGLE_WALL_ART') {
+      const { id, active } = event.data;
+      console.log('[Meet Overlay] Toggling wall art:', id, 'active:', active);
+
+      const wallArt = wallArtOverlays.find(wa => wa.id === id);
+      if (wallArt) {
+        wallArt.active = active;
+
+        // Reset animation when activating if it's a GIF
+        if (active) {
+          const img = wallArtImages.get(id);
+          if (img && img instanceof window.AnimatedImage) {
+            img.reset();
+          }
+        }
+      }
+    }
+
+    // Update wall art segmentation settings
+    if (event.data.type === 'MEET_OVERLAY_UPDATE_WALL_ART_SETTINGS') {
+      const settings = event.data.settings;
+      console.log('[Meet Overlay] Updating wall art settings:', settings);
+
+      if (settings) {
+        if (settings.segmentationEnabled !== undefined) {
+          wallArtSettings.segmentationEnabled = settings.segmentationEnabled;
+        }
+        if (settings.segmentationPreset !== undefined) {
+          wallArtSettings.segmentationPreset = settings.segmentationPreset;
+          // Update segmenter preset if it exists
+          if (wallArtSegmenter) {
+            wallArtSegmenter.setPreset(settings.segmentationPreset);
+          }
+        }
+        if (settings.featherRadius !== undefined) {
+          wallArtSettings.featherRadius = settings.featherRadius;
         }
       }
     }
