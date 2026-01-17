@@ -74,12 +74,12 @@ test.describe('Wall Art Mock Meet Tests', () => {
     await page.waitForTimeout(100);
 
     // Verify message was received (check via custom listener)
-    const received = await page.evaluate(() => {
+    const _received = await page.evaluate(() => {
       return window.__wallArtReceived || false;
     });
 
     // The message should be posted - inject.js will handle it
-    // For now, we just verify the message can be sent
+    // For now, we just verify the message can be sent (unused var prefixed with _)
     await page.close();
   });
 
