@@ -52,6 +52,15 @@
       <div id="wall-art-list" class="overlay-list"></div>
       <p id="wall-art-empty-state" class="empty-state">No wall art regions. Add one to paint your background or display art behind you.</p>
 
+      <!-- Setup Wizard Trigger -->
+      <div id="wizard-trigger-section" class="wizard-trigger-section">
+        <div class="wizard-status" id="wizard-status">
+          <span class="wizard-status-icon">⚙️</span>
+          <span class="wizard-status-text">Setup not complete</span>
+        </div>
+        <button id="run-wizard" class="btn btn-wizard">Run Setup Wizard</button>
+      </div>
+
       <!-- Segmentation Settings -->
       <div id="segmentation-panel" class="segmentation-panel">
         <div class="segmentation-toggle">
@@ -275,6 +284,101 @@
         <div class="modal-actions">
           <button id="wall-art-cancel" class="btn btn-secondary">Cancel</button>
           <button id="wall-art-confirm" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Setup Wizard Modal -->
+    <div id="wizard-modal" class="modal hidden">
+      <div class="modal-content modal-wizard">
+        <div class="wizard-header">
+          <h3>Setup Wizard</h3>
+          <button id="wizard-close" class="wizard-close-btn">×</button>
+        </div>
+
+        <!-- Progress Steps -->
+        <div class="wizard-progress">
+          <div class="wizard-step" data-step="1">
+            <div class="wizard-step-circle">1</div>
+            <div class="wizard-step-label">Step Away</div>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="2">
+            <div class="wizard-step-circle">2</div>
+            <div class="wizard-step-label">Processing</div>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="3">
+            <div class="wizard-step-circle">3</div>
+            <div class="wizard-step-label">Draw Region</div>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="4">
+            <div class="wizard-step-circle">4</div>
+            <div class="wizard-step-label">Confirm</div>
+          </div>
+        </div>
+
+        <!-- Step 1: Step Away Countdown -->
+        <div id="wizard-step-1" class="wizard-content">
+          <div class="wizard-countdown-container">
+            <div class="wizard-countdown-number" id="wizard-countdown">5</div>
+            <div class="wizard-countdown-text">Step out of frame...</div>
+            <p class="wizard-hint">Move away from your camera so we can capture your background.</p>
+          </div>
+        </div>
+
+        <!-- Step 2: Processing -->
+        <div id="wizard-step-2" class="wizard-content hidden">
+          <div class="wizard-tasks">
+            <div class="wizard-task" data-task="capture">
+              <span class="wizard-task-icon">⏳</span>
+              <span class="wizard-task-text">Capturing reference frame...</span>
+            </div>
+            <div class="wizard-task" data-task="benchmark">
+              <span class="wizard-task-icon">⏳</span>
+              <span class="wizard-task-text">Running performance benchmark...</span>
+            </div>
+            <div class="wizard-task" data-task="analyze">
+              <span class="wizard-task-icon">⏳</span>
+              <span class="wizard-task-text">Analyzing results...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Draw Region -->
+        <div id="wizard-step-3" class="wizard-content hidden">
+          <div class="wizard-region-editor">
+            <canvas id="wizard-region-canvas" width="320" height="180"></canvas>
+            <p class="wizard-hint">Drag corners to define your wall art region. The background shows your captured frame.</p>
+          </div>
+        </div>
+
+        <!-- Step 4: Confirm Settings -->
+        <div id="wizard-step-4" class="wizard-content hidden">
+          <div class="wizard-summary">
+            <div class="wizard-summary-item">
+              <span class="wizard-summary-label">Recommended Preset:</span>
+              <select id="wizard-preset-select">
+                <option value="quality">Quality (slower)</option>
+                <option value="balanced">Balanced</option>
+                <option value="performance">Performance (faster)</option>
+              </select>
+            </div>
+            <div class="wizard-benchmark-results" id="wizard-benchmark-results">
+              <p class="wizard-hint">Benchmark results will appear here...</p>
+            </div>
+            <div class="wizard-summary-item">
+              <span class="wizard-summary-label">Region Defined:</span>
+              <span class="wizard-summary-value" id="wizard-region-status">✓ Ready</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="wizard-actions">
+          <button id="wizard-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="wizard-next" class="btn btn-primary">Next</button>
         </div>
       </div>
     </div>

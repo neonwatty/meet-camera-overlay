@@ -851,6 +851,121 @@
         }
       }
     }
+
+    // ==================== SETUP WIZARD MESSAGE HANDLERS ====================
+
+    // Capture a single video frame for the wizard
+    if (event.data.type === 'MEET_OVERLAY_WIZARD_CAPTURE_FRAME') {
+      console.log('[Meet Overlay] Wizard: Capturing frame...');
+
+      try {
+        // Get the current video frame from the active processor
+        if (activeProcessor && activeProcessor.video && activeProcessor.video.readyState >= 2) {
+          const video = activeProcessor.video;
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = video.videoWidth || 640;
+          tempCanvas.height = video.videoHeight || 480;
+          const tempCtx = tempCanvas.getContext('2d');
+
+          // Draw current video frame
+          tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+          // Convert to data URL (JPEG for smaller size)
+          const frameDataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
+
+          window.postMessage({
+            type: 'MEET_OVERLAY_WIZARD_FRAME_CAPTURED',
+            success: true,
+            frameDataUrl,
+            width: tempCanvas.width,
+            height: tempCanvas.height
+          }, '*');
+
+          console.log('[Meet Overlay] Wizard: Frame captured successfully');
+        } else {
+          throw new Error('Video not ready or no active processor');
+        }
+      } catch (error) {
+        console.error('[Meet Overlay] Wizard: Frame capture failed:', error);
+        window.postMessage({
+          type: 'MEET_OVERLAY_WIZARD_FRAME_CAPTURED',
+          success: false,
+          error: error.message
+        }, '*');
+      }
+    }
+
+    // Run performance benchmark for the wizard
+    if (event.data.type === 'MEET_OVERLAY_WIZARD_RUN_BENCHMARK') {
+      console.log('[Meet Overlay] Wizard: Running benchmark...');
+
+      (async () => {
+        try {
+          // Ensure we have an active video processor
+          if (!activeProcessor || !activeProcessor.video || activeProcessor.video.readyState < 2) {
+            throw new Error('Video not ready or no active processor');
+          }
+
+          const video = activeProcessor.video;
+          const iterations = 10;
+          const timings = [];
+
+          // Initialize segmenter if not already done
+          const segmenter = await getSegmenter();
+          if (!segmenter) {
+            throw new Error('Segmenter not available');
+          }
+
+          // Run benchmark iterations
+          for (let i = 0; i < iterations; i++) {
+            const startTime = performance.now();
+            await segmenter.segment(video);
+            const endTime = performance.now();
+            timings.push(endTime - startTime);
+          }
+
+          // Calculate statistics
+          const avgTime = timings.reduce((a, b) => a + b, 0) / timings.length;
+          const minTime = Math.min(...timings);
+          const maxTime = Math.max(...timings);
+
+          // Determine recommended preset based on average time
+          let recommendedPreset = 'balanced';
+          if (avgTime < 20) {
+            recommendedPreset = 'quality'; // Fast machine, can use quality
+          } else if (avgTime > 50) {
+            recommendedPreset = 'performance'; // Slow machine, use performance
+          }
+
+          const result = {
+            success: true,
+            iterations,
+            avgTime: Math.round(avgTime * 10) / 10,
+            minTime: Math.round(minTime * 10) / 10,
+            maxTime: Math.round(maxTime * 10) / 10,
+            recommendedPreset,
+            fps: Math.round(1000 / avgTime)
+          };
+
+          console.log('[Meet Overlay] Wizard: Benchmark complete:', result);
+
+          window.postMessage({
+            type: 'MEET_OVERLAY_WIZARD_BENCHMARK_COMPLETE',
+            ...result
+          }, '*');
+
+        } catch (error) {
+          console.error('[Meet Overlay] Wizard: Benchmark failed:', error);
+          window.postMessage({
+            type: 'MEET_OVERLAY_WIZARD_BENCHMARK_COMPLETE',
+            success: false,
+            error: error.message,
+            // Provide defaults on failure
+            recommendedPreset: 'balanced'
+          }, '*');
+        }
+      })();
+    }
   });
 
   // Initial load

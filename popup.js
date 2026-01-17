@@ -800,6 +800,594 @@ function readFileAsDataUrl(file) {
 
 // ==================== END WALL ART FUNCTIONS ====================
 
+// ==================== SETUP WIZARD FUNCTIONS ====================
+
+// Wizard state
+let wizardState = {
+  currentStep: 1,
+  countdownInterval: null,
+  capturedFrame: null,
+  benchmarkResults: null,
+  wizardRegion: null,
+  wizardDraggingCorner: null
+};
+
+// Wizard DOM elements
+const wizardModal = document.getElementById('wizard-modal');
+const wizardCloseBtn = document.getElementById('wizard-close');
+const wizardCancelBtn = document.getElementById('wizard-cancel');
+const wizardNextBtn = document.getElementById('wizard-next');
+const wizardCountdown = document.getElementById('wizard-countdown');
+const wizardRegionCanvas = document.getElementById('wizard-region-canvas');
+const wizardPresetSelect = document.getElementById('wizard-preset-select');
+const wizardBenchmarkResults = document.getElementById('wizard-benchmark-results');
+const wizardRegionStatus = document.getElementById('wizard-region-status');
+const runWizardBtn = document.getElementById('run-wizard');
+const wizardStatusEl = document.getElementById('wizard-status');
+
+// Initialize wizard on page load
+async function initWizard() {
+  // Check if wizard has been completed before
+  const result = await chrome.storage.local.get(['wizardSetupData']);
+  if (result.wizardSetupData) {
+    updateWizardStatusDisplay(true);
+  }
+
+  // Set up wizard event handlers
+  setupWizardEventHandlers();
+}
+
+// Update the wizard status display in the trigger section
+function updateWizardStatusDisplay(complete) {
+  if (!wizardStatusEl) return;
+
+  const icon = wizardStatusEl.querySelector('.wizard-status-icon');
+  const text = wizardStatusEl.querySelector('.wizard-status-text');
+
+  if (complete) {
+    wizardStatusEl.classList.add('complete');
+    if (icon) icon.textContent = '✓';
+    if (text) text.textContent = 'Setup complete';
+  } else {
+    wizardStatusEl.classList.remove('complete');
+    if (icon) icon.textContent = '⚙️';
+    if (text) text.textContent = 'Setup not complete';
+  }
+}
+
+// Set up wizard event handlers
+function setupWizardEventHandlers() {
+  if (runWizardBtn) {
+    runWizardBtn.addEventListener('click', openWizard);
+  }
+
+  if (wizardCloseBtn) {
+    wizardCloseBtn.addEventListener('click', closeWizard);
+  }
+
+  if (wizardCancelBtn) {
+    wizardCancelBtn.addEventListener('click', closeWizard);
+  }
+
+  if (wizardNextBtn) {
+    wizardNextBtn.addEventListener('click', handleWizardNext);
+  }
+
+  // Set up region canvas event handlers
+  if (wizardRegionCanvas) {
+    wizardRegionCanvas.addEventListener('mousedown', handleWizardCanvasMouseDown);
+    wizardRegionCanvas.addEventListener('mousemove', handleWizardCanvasMouseMove);
+    wizardRegionCanvas.addEventListener('mouseup', handleWizardCanvasMouseUp);
+    wizardRegionCanvas.addEventListener('mouseleave', handleWizardCanvasMouseUp);
+  }
+
+  // Close wizard on outside click
+  if (wizardModal) {
+    wizardModal.addEventListener('click', (e) => {
+      if (e.target === wizardModal) {
+        closeWizard();
+      }
+    });
+  }
+}
+
+// Open the wizard modal
+async function openWizard() {
+  // Check if we have an active Meet tab
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  if (tabs.length === 0) {
+    showStatus('Please open a Google Meet tab first', 'error');
+    return;
+  }
+
+  // Reset wizard state
+  wizardState = {
+    currentStep: 1,
+    countdownInterval: null,
+    capturedFrame: null,
+    benchmarkResults: null,
+    wizardRegion: createDefaultRegion(),
+    wizardDraggingCorner: null
+  };
+
+  // Show modal
+  if (wizardModal) {
+    wizardModal.classList.remove('hidden');
+  }
+
+  // Update UI for step 1
+  updateWizardStep(1);
+
+  // Start countdown
+  startCountdown();
+}
+
+// Close the wizard modal
+function closeWizard() {
+  // Stop countdown if running
+  if (wizardState.countdownInterval) {
+    clearInterval(wizardState.countdownInterval);
+    wizardState.countdownInterval = null;
+  }
+
+  // Hide modal
+  if (wizardModal) {
+    wizardModal.classList.add('hidden');
+  }
+}
+
+// Update wizard step display
+function updateWizardStep(step) {
+  wizardState.currentStep = step;
+
+  // Update progress indicators
+  document.querySelectorAll('.wizard-step').forEach(stepEl => {
+    const stepNum = parseInt(stepEl.dataset.step);
+    stepEl.classList.remove('active', 'completed');
+    if (stepNum < step) {
+      stepEl.classList.add('completed');
+    } else if (stepNum === step) {
+      stepEl.classList.add('active');
+    }
+  });
+
+  // Update step lines
+  document.querySelectorAll('.wizard-step-line').forEach((line, index) => {
+    if (index + 1 < step) {
+      line.classList.add('completed');
+    } else {
+      line.classList.remove('completed');
+    }
+  });
+
+  // Show/hide step content
+  for (let i = 1; i <= 4; i++) {
+    const content = document.getElementById(`wizard-step-${i}`);
+    if (content) {
+      content.classList.toggle('hidden', i !== step);
+    }
+  }
+
+  // Update next button text
+  if (wizardNextBtn) {
+    if (step === 1) {
+      wizardNextBtn.textContent = 'Skip';
+      wizardNextBtn.disabled = false;
+    } else if (step === 2) {
+      wizardNextBtn.textContent = 'Processing...';
+      wizardNextBtn.disabled = true;
+    } else if (step === 3) {
+      wizardNextBtn.textContent = 'Continue';
+      wizardNextBtn.disabled = false;
+    } else if (step === 4) {
+      wizardNextBtn.textContent = 'Apply Settings';
+      wizardNextBtn.disabled = false;
+    }
+  }
+}
+
+// Start the countdown for step 1
+function startCountdown() {
+  let count = 5;
+
+  if (wizardCountdown) {
+    wizardCountdown.textContent = count;
+  }
+
+  wizardState.countdownInterval = setInterval(() => {
+    count--;
+
+    if (wizardCountdown) {
+      wizardCountdown.textContent = count;
+    }
+
+    if (count <= 0) {
+      clearInterval(wizardState.countdownInterval);
+      wizardState.countdownInterval = null;
+
+      // Move to step 2 and start processing
+      updateWizardStep(2);
+      runProcessingTasks();
+    }
+  }, 1000);
+}
+
+// Run the processing tasks (step 2)
+async function runProcessingTasks() {
+  const captureTask = document.querySelector('.wizard-task[data-task="capture"]');
+  const benchmarkTask = document.querySelector('.wizard-task[data-task="benchmark"]');
+  const analyzeTask = document.querySelector('.wizard-task[data-task="analyze"]');
+
+  // Task 1: Capture frame
+  if (captureTask) {
+    captureTask.classList.add('active');
+    captureTask.querySelector('.wizard-task-icon').textContent = '⏳';
+  }
+
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+    if (tabs.length > 0) {
+      const response = await chrome.tabs.sendMessage(tabs[0].id, { type: 'WIZARD_CAPTURE_FRAME' });
+
+      if (response && response.success) {
+        wizardState.capturedFrame = response;
+        if (captureTask) {
+          captureTask.classList.remove('active');
+          captureTask.classList.add('completed');
+          captureTask.querySelector('.wizard-task-icon').textContent = '✓';
+        }
+      } else {
+        throw new Error(response?.error || 'Frame capture failed');
+      }
+    }
+  } catch (error) {
+    console.error('Frame capture error:', error);
+    if (captureTask) {
+      captureTask.classList.remove('active');
+      captureTask.classList.add('error');
+      captureTask.querySelector('.wizard-task-icon').textContent = '✗';
+    }
+  }
+
+  // Task 2: Run benchmark
+  if (benchmarkTask) {
+    benchmarkTask.classList.add('active');
+    benchmarkTask.querySelector('.wizard-task-icon').textContent = '⏳';
+  }
+
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+    if (tabs.length > 0) {
+      const response = await chrome.tabs.sendMessage(tabs[0].id, { type: 'WIZARD_RUN_BENCHMARK' });
+
+      if (response && response.success) {
+        wizardState.benchmarkResults = response;
+        if (benchmarkTask) {
+          benchmarkTask.classList.remove('active');
+          benchmarkTask.classList.add('completed');
+          benchmarkTask.querySelector('.wizard-task-icon').textContent = '✓';
+        }
+      } else {
+        // Use default if benchmark fails
+        wizardState.benchmarkResults = {
+          success: false,
+          recommendedPreset: response?.recommendedPreset || 'balanced',
+          error: response?.error
+        };
+        if (benchmarkTask) {
+          benchmarkTask.classList.remove('active');
+          benchmarkTask.classList.add('completed');
+          benchmarkTask.querySelector('.wizard-task-icon').textContent = '⚠';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Benchmark error:', error);
+    wizardState.benchmarkResults = { success: false, recommendedPreset: 'balanced' };
+    if (benchmarkTask) {
+      benchmarkTask.classList.remove('active');
+      benchmarkTask.classList.add('error');
+      benchmarkTask.querySelector('.wizard-task-icon').textContent = '✗';
+    }
+  }
+
+  // Task 3: Analyze results
+  if (analyzeTask) {
+    analyzeTask.classList.add('active');
+    analyzeTask.querySelector('.wizard-task-icon').textContent = '⏳';
+  }
+
+  // Brief delay for UX
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  if (analyzeTask) {
+    analyzeTask.classList.remove('active');
+    analyzeTask.classList.add('completed');
+    analyzeTask.querySelector('.wizard-task-icon').textContent = '✓';
+  }
+
+  // Enable next button and move forward
+  if (wizardNextBtn) {
+    wizardNextBtn.textContent = 'Continue';
+    wizardNextBtn.disabled = false;
+  }
+
+  // Auto-advance to step 3
+  setTimeout(() => {
+    updateWizardStep(3);
+    initWizardRegionCanvas();
+  }, 500);
+}
+
+// Initialize the wizard region canvas with the captured frame
+function initWizardRegionCanvas() {
+  if (!wizardRegionCanvas || !wizardState.capturedFrame?.frameDataUrl) {
+    // If no frame captured, just draw default background
+    drawWizardRegion();
+    return;
+  }
+
+  // Load the captured frame as background
+  const img = new Image();
+  img.onload = () => {
+    wizardState.backgroundImage = img;
+    drawWizardRegion();
+  };
+  img.src = wizardState.capturedFrame.frameDataUrl;
+}
+
+// Draw the wizard region on canvas
+function drawWizardRegion() {
+  if (!wizardRegionCanvas || !wizardState.wizardRegion) return;
+
+  const ctx = wizardRegionCanvas.getContext('2d');
+  const width = wizardRegionCanvas.width;
+  const height = wizardRegionCanvas.height;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+
+  // Draw background image if available, otherwise draw gradient
+  if (wizardState.backgroundImage) {
+    ctx.drawImage(wizardState.backgroundImage, 0, 0, width, height);
+  } else {
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(1, '#16213e');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  // Convert region to pixels
+  const toPixel = (point) => ({
+    x: (point.x / 100) * width,
+    y: (point.y / 100) * height
+  });
+
+  const tl = toPixel(wizardState.wizardRegion.topLeft);
+  const tr = toPixel(wizardState.wizardRegion.topRight);
+  const bl = toPixel(wizardState.wizardRegion.bottomLeft);
+  const br = toPixel(wizardState.wizardRegion.bottomRight);
+
+  // Draw filled region with semi-transparent overlay
+  ctx.fillStyle = 'rgba(14, 165, 233, 0.2)';
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y);
+  ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y);
+  ctx.lineTo(bl.x, bl.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Draw outline
+  ctx.strokeStyle = '#0ea5e9';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Draw corner handles
+  const corners = [tl, tr, bl, br];
+  for (const corner of corners) {
+    // White border
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(corner.x, corner.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Blue fill
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath();
+    ctx.arc(corner.x, corner.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Get which corner of the wizard region is at a point
+function getWizardCornerAtPoint(x, y) {
+  if (!wizardState.wizardRegion || !wizardRegionCanvas) return null;
+
+  const width = wizardRegionCanvas.width;
+  const height = wizardRegionCanvas.height;
+  const threshold = 15;
+
+  const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+
+  for (const corner of corners) {
+    const px = (wizardState.wizardRegion[corner].x / 100) * width;
+    const py = (wizardState.wizardRegion[corner].y / 100) * height;
+    const dist = Math.sqrt(Math.pow(x - px, 2) + Math.pow(y - py, 2));
+    if (dist <= threshold) {
+      return corner;
+    }
+  }
+
+  return null;
+}
+
+// Handle wizard canvas mouse down
+function handleWizardCanvasMouseDown(e) {
+  const rect = wizardRegionCanvas.getBoundingClientRect();
+  const scaleX = wizardRegionCanvas.width / rect.width;
+  const scaleY = wizardRegionCanvas.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+
+  const corner = getWizardCornerAtPoint(x, y);
+  if (corner) {
+    wizardState.wizardDraggingCorner = corner;
+  }
+}
+
+// Handle wizard canvas mouse move
+function handleWizardCanvasMouseMove(e) {
+  if (!wizardState.wizardDraggingCorner || !wizardState.wizardRegion) return;
+
+  const rect = wizardRegionCanvas.getBoundingClientRect();
+  const scaleX = wizardRegionCanvas.width / rect.width;
+  const scaleY = wizardRegionCanvas.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+
+  // Convert to percentage
+  const px = Math.max(0, Math.min(100, (x / wizardRegionCanvas.width) * 100));
+  const py = Math.max(0, Math.min(100, (y / wizardRegionCanvas.height) * 100));
+
+  wizardState.wizardRegion[wizardState.wizardDraggingCorner] = { x: px, y: py };
+  drawWizardRegion();
+}
+
+// Handle wizard canvas mouse up
+function handleWizardCanvasMouseUp() {
+  wizardState.wizardDraggingCorner = null;
+}
+
+// Handle wizard next button
+async function handleWizardNext() {
+  if (wizardState.currentStep === 1) {
+    // Skip countdown, move to step 2
+    if (wizardState.countdownInterval) {
+      clearInterval(wizardState.countdownInterval);
+      wizardState.countdownInterval = null;
+    }
+    updateWizardStep(2);
+    runProcessingTasks();
+  } else if (wizardState.currentStep === 2) {
+    // Shouldn't happen normally (button is disabled during processing)
+    // but advance anyway if clicked
+    updateWizardStep(3);
+    initWizardRegionCanvas();
+  } else if (wizardState.currentStep === 3) {
+    // Move to confirm step
+    updateWizardStep(4);
+    populateConfirmStep();
+  } else if (wizardState.currentStep === 4) {
+    // Apply settings and close
+    await applyWizardSettings();
+  }
+}
+
+// Populate the confirm step with benchmark results
+function populateConfirmStep() {
+  // Set the preset selector to the recommended value
+  if (wizardPresetSelect && wizardState.benchmarkResults?.recommendedPreset) {
+    wizardPresetSelect.value = wizardState.benchmarkResults.recommendedPreset;
+  }
+
+  // Show benchmark results
+  if (wizardBenchmarkResults) {
+    if (wizardState.benchmarkResults?.success) {
+      const results = wizardState.benchmarkResults;
+      wizardBenchmarkResults.innerHTML = `
+        <div class="benchmark-stat">
+          <span>Average time:</span>
+          <span>${results.avgTime}ms</span>
+        </div>
+        <div class="benchmark-stat">
+          <span>Min / Max:</span>
+          <span>${results.minTime}ms / ${results.maxTime}ms</span>
+        </div>
+        <div class="benchmark-stat">
+          <span>Estimated FPS:</span>
+          <span>${results.fps} fps</span>
+        </div>
+      `;
+    } else {
+      wizardBenchmarkResults.innerHTML = `
+        <p class="wizard-hint">Benchmark skipped or failed. Using default preset.</p>
+      `;
+    }
+  }
+
+  // Update region status
+  if (wizardRegionStatus) {
+    wizardRegionStatus.textContent = '✓ Ready';
+  }
+}
+
+// Apply wizard settings and save
+async function applyWizardSettings() {
+  // Get selected preset
+  const selectedPreset = wizardPresetSelect?.value || wizardState.benchmarkResults?.recommendedPreset || 'balanced';
+
+  // Save wizard setup data
+  const setupData = {
+    completedAt: Date.now(),
+    region: wizardState.wizardRegion,
+    referenceFrame: wizardState.capturedFrame?.frameDataUrl || null,
+    benchmarkResults: wizardState.benchmarkResults,
+    selectedPreset
+  };
+
+  await chrome.storage.local.set({ wizardSetupData: setupData });
+
+  // Update wall art settings with recommended preset
+  wallArtSettings.segmentationPreset = selectedPreset;
+  wallArtSettings.segmentationEnabled = true;
+  await saveWallArt();
+
+  // Update preset dropdown in main UI
+  if (segmentationPreset) {
+    segmentationPreset.value = selectedPreset;
+  }
+  if (segmentationEnabled) {
+    segmentationEnabled.checked = true;
+    if (segmentationOptions) {
+      segmentationOptions.classList.remove('hidden');
+    }
+  }
+
+  // Create or update wall art region if none exists
+  if (wallArtOverlays.length === 0) {
+    const newWallArt = {
+      id: `wall-art-${generateId()}`,
+      type: TYPE_WALL_ART,
+      name: 'Wall Art Region',
+      region: wizardState.wizardRegion,
+      paint: null,
+      art: null,
+      active: false, // Start inactive until user adds content
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    wallArtOverlays.push(newWallArt);
+    await saveWallArt();
+    renderWallArtList();
+  }
+
+  // Update wizard status display
+  updateWizardStatusDisplay(true);
+
+  // Close wizard
+  closeWizard();
+
+  // Show success message
+  showStatus('Setup wizard complete! Wall art is ready to use.', 'success');
+}
+
+// Initialize wizard when page loads
+initWizard();
+
+// ==================== END SETUP WIZARD FUNCTIONS ====================
+
 // Add overlay modal
 addOverlayBtn.addEventListener('click', () => {
   addingType = 'standard';
@@ -2094,6 +2682,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!confirmModal.classList.contains('hidden')) {
       hideConfirmDialog();
+    } else if (wizardModal && !wizardModal.classList.contains('hidden')) {
+      closeWizard();
     } else if (!addModal.classList.contains('hidden')) {
       addModal.classList.add('hidden');
     } else {
