@@ -1228,3 +1228,379 @@ h2 {
   font-weight: 500;
   color: #333;
 }
+
+/* ==================== Setup Wizard ==================== */
+
+/* Wizard Trigger Section */
+.wizard-trigger-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  margin-top: 12px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+}
+
+.wizard-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-status-icon {
+  font-size: 18px;
+}
+
+.wizard-status-text {
+  font-size: 12px;
+  color: #0369a1;
+}
+
+.wizard-status.complete .wizard-status-text {
+  color: #059669;
+}
+
+.btn-wizard {
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-wizard:hover {
+  background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+}
+
+/* Wizard Modal */
+.modal-wizard {
+  max-width: 420px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+  color: #fff;
+}
+
+.wizard-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.wizard-close-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.wizard-close-btn:hover {
+  opacity: 1;
+}
+
+/* Progress Steps */
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.wizard-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.wizard-step.active .wizard-step-circle {
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+}
+
+.wizard-step.completed .wizard-step-circle {
+  background: #10b981;
+  color: #fff;
+}
+
+.wizard-step.completed .wizard-step-circle::after {
+  content: '✓';
+}
+
+.wizard-step-label {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wizard-step.active .wizard-step-label {
+  color: #0ea5e9;
+}
+
+.wizard-step.completed .wizard-step-label {
+  color: #10b981;
+}
+
+.wizard-step-line {
+  width: 30px;
+  height: 2px;
+  background: #e2e8f0;
+  margin: 0 8px;
+  margin-bottom: 20px;
+  transition: background 0.3s;
+}
+
+.wizard-step-line.completed {
+  background: #10b981;
+}
+
+/* Wizard Content */
+.wizard-content {
+  padding: 24px;
+  min-height: 200px;
+}
+
+.wizard-content.hidden {
+  display: none;
+}
+
+/* Step 1: Countdown */
+.wizard-countdown-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.wizard-countdown-number {
+  font-size: 72px;
+  font-weight: 700;
+  color: #0ea5e9;
+  line-height: 1;
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+@keyframes countdown-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.wizard-countdown-text {
+  font-size: 18px;
+  color: #334155;
+  margin-top: 12px;
+  font-weight: 500;
+}
+
+.wizard-hint {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+/* Step 2: Tasks */
+.wizard-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wizard-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s;
+}
+
+.wizard-task.active {
+  background: #eff6ff;
+  border-color: #60a5fa;
+}
+
+.wizard-task.completed {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.wizard-task.error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.wizard-task-icon {
+  font-size: 20px;
+}
+
+.wizard-task.active .wizard-task-icon::after {
+  content: '';
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.wizard-task.completed .wizard-task-icon {
+  color: #10b981;
+}
+
+.wizard-task.error .wizard-task-icon {
+  color: #ef4444;
+}
+
+.wizard-task-text {
+  font-size: 13px;
+  color: #334155;
+}
+
+/* Step 3: Region Editor */
+.wizard-region-editor {
+  text-align: center;
+}
+
+.wizard-region-editor canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+  cursor: crosshair;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+/* Step 4: Summary */
+.wizard-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wizard-summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.wizard-summary-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.wizard-summary-value {
+  font-size: 13px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.wizard-benchmark-results {
+  padding: 16px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.wizard-benchmark-results .wizard-hint {
+  margin: 0;
+}
+
+.wizard-benchmark-results p {
+  font-size: 12px;
+  color: #475569;
+  margin: 4px 0;
+}
+
+.wizard-benchmark-results .benchmark-stat {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.wizard-benchmark-results .benchmark-stat span:first-child {
+  color: #64748b;
+}
+
+.wizard-benchmark-results .benchmark-stat span:last-child {
+  font-weight: 600;
+  color: #0ea5e9;
+}
+
+/* Wizard Actions */
+.wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.wizard-actions .btn-primary {
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+}
+
+.wizard-actions .btn-primary:hover {
+  background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+}
+
+.wizard-actions .btn-primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Wizard preset select */
+#wizard-preset-select {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+
+#wizard-preset-select:focus {
+  outline: none;
+  border-color: #0ea5e9;
+}

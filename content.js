@@ -154,6 +154,60 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }, '*');
     sendResponse({ success: true });
   }
+
+  // ==================== SETUP WIZARD MESSAGE FORWARDING ====================
+
+  // Forward wizard frame capture request and wait for response
+  if (message.type === 'WIZARD_CAPTURE_FRAME') {
+    console.log('[Meet Overlay] Forwarding frame capture request...');
+
+    // Post message to inject.js
+    window.postMessage({ type: 'MEET_OVERLAY_WIZARD_CAPTURE_FRAME' }, '*');
+
+    // Set up one-time listener for response
+    const handler = (event) => {
+      if (event.source !== window) return;
+      if (event.data.type === 'MEET_OVERLAY_WIZARD_FRAME_CAPTURED') {
+        window.removeEventListener('message', handler);
+        sendResponse(event.data);
+      }
+    };
+    window.addEventListener('message', handler);
+
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      sendResponse({ success: false, error: 'Frame capture timed out' });
+    }, 5000);
+
+    return true; // Keep channel open for async response
+  }
+
+  // Forward wizard benchmark request and wait for response
+  if (message.type === 'WIZARD_RUN_BENCHMARK') {
+    console.log('[Meet Overlay] Forwarding benchmark request...');
+
+    // Post message to inject.js
+    window.postMessage({ type: 'MEET_OVERLAY_WIZARD_RUN_BENCHMARK' }, '*');
+
+    // Set up one-time listener for response
+    const handler = (event) => {
+      if (event.source !== window) return;
+      if (event.data.type === 'MEET_OVERLAY_WIZARD_BENCHMARK_COMPLETE') {
+        window.removeEventListener('message', handler);
+        sendResponse(event.data);
+      }
+    };
+    window.addEventListener('message', handler);
+
+    // Timeout after 30 seconds (benchmark can take a while)
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      sendResponse({ success: false, error: 'Benchmark timed out', recommendedPreset: 'balanced' });
+    }, 30000);
+
+    return true; // Keep channel open for async response
+  }
 });
 
 console.log('[Meet Overlay] Content script initialized');
