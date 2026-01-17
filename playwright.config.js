@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 import path from 'path';
 
 const extensionPath = path.resolve(process.cwd());
+const testVideoPath = path.resolve(process.cwd(), 'tests/fixtures/videos/test-background.y4m');
 
 export default defineConfig({
   testDir: './tests/integration',
@@ -31,6 +32,10 @@ export default defineConfig({
         `--load-extension=${extensionPath}`,
         '--use-fake-device-for-media-stream', // Use fake camera in CI
         '--use-fake-ui-for-media-stream', // Auto-accept camera prompts
+        `--use-file-for-fake-video-capture=${testVideoPath}`, // Use custom test video
+        // WebGL support for headless canvas rendering
+        '--enable-webgl',
+        '--use-gl=swiftshader',
       ],
     },
   },
