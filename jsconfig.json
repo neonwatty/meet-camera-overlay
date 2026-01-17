@@ -14,7 +14,8 @@
     "strictFunctionTypes": false
   },
   "include": [
-    "lib/**/*.js"
+    "lib/**/*.js",
+    "lib/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",

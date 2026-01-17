@@ -1026,3 +1026,205 @@ h2 {
 .edit-text-btn:hover {
   background: #f5f3ff;
 }
+
+/* ==================== Wall Art Section ==================== */
+
+.wall-art-section {
+  margin-top: 12px;
+}
+
+.btn-wall-art {
+  background: linear-gradient(135deg, #e94560 0%, #ff6b9d 100%);
+  color: #fff;
+}
+
+.btn-wall-art:hover {
+  background: linear-gradient(135deg, #d13a52 0%, #e55a85 100%);
+}
+
+/* Wall Art Item Styles */
+.overlay-item.wall-art-item {
+  border-color: #e94560;
+  background: linear-gradient(135deg, #fff5f7 0%, #fff0f5 100%);
+}
+
+.overlay-item.wall-art-item.active {
+  border-color: #ff6b9d;
+  box-shadow: 0 0 8px rgba(233, 69, 96, 0.4);
+}
+
+/* Wall Art icon */
+.wall-art-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #e94560 0%, #ff6b9d 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  position: relative;
+}
+
+/* Paint indicator */
+.wall-art-icon .paint-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+/* Segmentation Panel */
+.segmentation-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.segmentation-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.toggle-hint {
+  font-size: 11px;
+  color: #888;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 22px;
+}
+
+.toggle-slider::before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #e94560 0%, #ff6b9d 100%);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(18px);
+}
+
+.segmentation-options {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
+
+/* ==================== Wall Art Modal ==================== */
+
+.wall-art-modal {
+  max-width: 400px;
+}
+
+.wall-art-region-editor {
+  margin-bottom: 16px;
+}
+
+.wall-art-region-editor canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  cursor: crosshair;
+}
+
+.wall-art-region-editor .hint {
+  margin-top: 6px;
+}
+
+/* Wall Art Tabs */
+.wall-art-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.wall-art-tab {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: 6px 6px 0 0;
+}
+
+.wall-art-tab:hover {
+  background: #e8e8e8;
+}
+
+.wall-art-tab.active {
+  background: linear-gradient(135deg, #e94560 0%, #ff6b9d 100%);
+  color: #fff;
+}
+
+.wall-art-tab-content {
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 0 0 6px 6px;
+}
+
+/* Toggle inline */
+.toggle-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.toggle-inline input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.toggle-inline span {
+  font-weight: 500;
+  color: #333;
+}
