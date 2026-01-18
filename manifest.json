@@ -52,6 +52,8 @@
         "lib/jiggle-compensator.js",
         "lib/lighting-detector.js",
         "lib/wall-detector.js",
+        "lib/edge-detector.js",
+        "lib/snap-engine.js",
         "assets/effects/*.gif",
         "assets/wall-art/*.png"
       ],

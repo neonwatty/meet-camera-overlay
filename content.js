@@ -29,6 +29,9 @@ function injectScript(src) {
     await injectScript('lib/wall-paint-renderer.js');
     await injectScript('lib/wall-art-renderer.js');
     await injectScript('lib/wall-segmentation.js');
+    // Load edge detection and snapping before region editor (editor depends on them)
+    await injectScript('lib/edge-detector.js');
+    await injectScript('lib/snap-engine.js');
     await injectScript('lib/wall-region-editor.js');
     // Load performance monitor
     await injectScript('lib/performance-monitor.js');
