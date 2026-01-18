@@ -29,7 +29,8 @@ let wallArtSettings = {
   segmentationEnabled: false,
   segmentationPreset: 'balanced',
   featherRadius: 2,
-  jiggleCompensationEnabled: false
+  jiggleCompensationEnabled: false,
+  lightingCompensationEnabled: false
 };
 let editingWallArtId = null;  // Track which wall art is being edited
 
@@ -130,6 +131,7 @@ const featherRadius = document.getElementById('feather-radius');
 const featherValue = document.getElementById('feather-value');
 const editRegionOnVideoBtn = document.getElementById('edit-region-on-video');
 const jiggleCompensationEnabled = document.getElementById('jiggle-compensation-enabled');
+const lightingCompensationEnabled = document.getElementById('lighting-compensation-enabled');
 
 // Wall Art region editor state
 let wallArtRegion = null;
@@ -374,6 +376,9 @@ async function loadWallArt() {
       }
       if (jiggleCompensationEnabled) {
         jiggleCompensationEnabled.checked = wallArtSettings.jiggleCompensationEnabled || false;
+      }
+      if (lightingCompensationEnabled) {
+        lightingCompensationEnabled.checked = wallArtSettings.lightingCompensationEnabled || false;
       }
       resolve();
     });
@@ -879,6 +884,14 @@ function setupWallArtEventHandlers() {
   if (jiggleCompensationEnabled) {
     jiggleCompensationEnabled.addEventListener('change', async () => {
       wallArtSettings.jiggleCompensationEnabled = jiggleCompensationEnabled.checked;
+      await saveWallArt();
+    });
+  }
+
+  // Lighting compensation (auto-lighting) toggle
+  if (lightingCompensationEnabled) {
+    lightingCompensationEnabled.addEventListener('change', async () => {
+      wallArtSettings.lightingCompensationEnabled = lightingCompensationEnabled.checked;
       await saveWallArt();
     });
   }

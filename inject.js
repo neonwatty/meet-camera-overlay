@@ -39,7 +39,8 @@
     segmentationEnabled: false,
     segmentationPreset: 'balanced',
     featherRadius: 2,
-    jiggleCompensationEnabled: false
+    jiggleCompensationEnabled: false,
+    lightingCompensationEnabled: false
   };
 
   // Jiggle compensator instance
@@ -54,6 +55,20 @@
       };
     }
     return jiggleCompensator;
+  }
+
+  // Lighting detector instance
+  let lightingDetector = null;
+
+  // Get or create lighting detector lazily
+  function getLightingDetector() {
+    if (!lightingDetector && window.LightingDetector) {
+      lightingDetector = new window.LightingDetector();
+      lightingDetector.onLightingChange = (change) => {
+        console.log('[Meet Overlay] Lighting change detected:', change);
+      };
+    }
+    return lightingDetector;
   }
 
   // Check if AnimatedImage class is available (from gif-decoder.js)
@@ -710,6 +725,29 @@
         }
       }
 
+      // Apply lighting compensation if enabled (piggyback on segmentation frame)
+      let artBrightnessMultiplier = 1.0;
+      if (wallArtSettings.lightingCompensationEnabled) {
+        try {
+          const detector = getLightingDetector();
+          if (detector) {
+            // Get first active wall art region for sampling (or null for full frame)
+            const sampleRegion = activeWallArt.length > 0 ? activeWallArt[0].region : null;
+
+            // Initialize on first use
+            if (!detector.initialized) {
+              detector.initialize(this.video, personMask, sampleRegion);
+            }
+
+            // Process frame and check for lighting changes
+            const lightingResult = detector.process(this.video, personMask, sampleRegion);
+            artBrightnessMultiplier = lightingResult.artBrightnessMultiplier;
+          }
+        } catch (e) {
+          console.warn('[Meet Overlay] Lighting detection failed:', e);
+        }
+      }
+
       // Apply compensation to wall art regions
       const compensatedWallArt = activeWallArt.map(wa => {
         if (compensationTransform.dx === 0 && compensationTransform.dy === 0) {
@@ -726,7 +764,8 @@
       const renderOptions = {
         personMask,
         featherRadius: wallArtSettings.featherRadius,
-        timestamp
+        timestamp,
+        artBrightnessMultiplier
       };
 
       // Render paint layers first (with compensated regions)
@@ -958,6 +997,16 @@
             jiggleCompensator.setEnabled(settings.jiggleCompensationEnabled);
             if (!settings.jiggleCompensationEnabled) {
               jiggleCompensator.reset();
+            }
+          }
+        }
+        if (settings.lightingCompensationEnabled !== undefined) {
+          wallArtSettings.lightingCompensationEnabled = settings.lightingCompensationEnabled;
+          // Reset detector when toggling
+          if (lightingDetector) {
+            lightingDetector.setEnabled(settings.lightingCompensationEnabled);
+            if (!settings.lightingCompensationEnabled) {
+              lightingDetector.reset();
             }
           }
         }

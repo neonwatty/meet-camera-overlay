@@ -50,6 +50,7 @@
         "lib/wall-region-editor.js",
         "lib/performance-monitor.js",
         "lib/jiggle-compensator.js",
+        "lib/lighting-detector.js",
         "assets/effects/*.gif"
       ],
       "matches": ["https://meet.google.com/*"]

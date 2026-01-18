@@ -34,6 +34,8 @@ function injectScript(src) {
     await injectScript('lib/performance-monitor.js');
     // Load jiggle compensator
     await injectScript('lib/jiggle-compensator.js');
+    // Load lighting detector
+    await injectScript('lib/lighting-detector.js');
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('inject.js');
