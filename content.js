@@ -29,6 +29,7 @@ function injectScript(src) {
     await injectScript('lib/wall-paint-renderer.js');
     await injectScript('lib/wall-art-renderer.js');
     await injectScript('lib/wall-segmentation.js');
+    await injectScript('lib/wall-region-editor.js');
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('inject.js');
@@ -207,6 +208,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }, 30000);
 
     return true; // Keep channel open for async response
+  }
+
+  // Region editor message handlers
+  if (message.type === 'SHOW_REGION_EDITOR') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_REGION_EDITOR_SHOW',
+      region: message.region,
+      wallArtId: message.wallArtId
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'HIDE_REGION_EDITOR') {
+    window.postMessage({
+      type: 'MEET_OVERLAY_REGION_EDITOR_HIDE'
+    }, '*');
+    sendResponse({ success: true });
+  }
+});
+
+// Listen for region editor messages from inject.js and forward to popup
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+
+  // Forward region editor results back to extension
+  if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_SAVE') {
+    chrome.runtime.sendMessage({
+      type: 'REGION_EDITOR_SAVE',
+      region: event.data.region,
+      wallArtId: event.data.wallArtId
+    }).catch(() => {});
+  }
+
+  if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_CANCEL') {
+    chrome.runtime.sendMessage({
+      type: 'REGION_EDITOR_CANCEL',
+      wallArtId: event.data.wallArtId
+    }).catch(() => {});
+  }
+
+  if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_UPDATE') {
+    chrome.runtime.sendMessage({
+      type: 'REGION_EDITOR_UPDATE',
+      region: event.data.region,
+      wallArtId: event.data.wallArtId
+    }).catch(() => {});
   }
 });
 

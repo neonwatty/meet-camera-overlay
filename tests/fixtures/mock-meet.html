@@ -103,9 +103,13 @@
 <body>
   <h1>Mock Google Meet</h1>
 
-  <div class="video-container">
+  <!-- Self-view container with data-self-name attribute (like real Meet) -->
+  <div class="video-container" data-self-name="true" data-participant-id="local-user">
     <video id="video" autoplay playsinline muted></video>
   </div>
+
+  <!-- Load wall region editor for testing (path from project root) -->
+  <script src="/lib/wall-region-editor.js"></script>
 
   <div class="controls">
     <button id="start-btn" class="start-btn">Start Camera</button>
@@ -277,8 +281,205 @@
           }
         }
         return false;
+      },
+
+      // ==================== REGION EDITOR TEST HELPERS ====================
+
+      // Show region editor with given region via postMessage
+      showRegionEditor: (region, wallArtId = 'test-wall-art') => {
+        window.postMessage({
+          type: 'MEET_OVERLAY_REGION_EDITOR_SHOW',
+          region: region || {
+            topLeft: { x: 20, y: 20 },
+            topRight: { x: 80, y: 20 },
+            bottomLeft: { x: 20, y: 80 },
+            bottomRight: { x: 80, y: 80 }
+          },
+          wallArtId
+        }, '*');
+        log('Showing region editor via postMessage', 'info');
+      },
+
+      // Get current region from editor
+      getEditorRegion: () => {
+        if (window.WallRegionEditor && window.WallRegionEditor.getCurrentRegion) {
+          return window.WallRegionEditor.getCurrentRegion();
+        }
+        return null;
+      },
+
+      // Check if editor overlay is visible
+      isEditorVisible: () => {
+        const overlay = document.querySelector('.region-editor-overlay');
+        return overlay !== null;
+      },
+
+      // Check if WallRegionEditor is active
+      isEditorActive: () => {
+        return window.WallRegionEditor && window.WallRegionEditor.isActive();
+      },
+
+      // Get editor overlay element
+      getEditorOverlay: () => {
+        return document.querySelector('.region-editor-overlay');
+      },
+
+      // Get editor canvas element
+      getEditorCanvas: () => {
+        return document.querySelector('.region-editor-canvas');
+      },
+
+      // Click editor save button
+      clickEditorSave: () => {
+        const saveBtn = document.querySelector('.region-editor-save');
+        if (saveBtn) {
+          saveBtn.click();
+          log('Clicked editor save button', 'info');
+          return true;
+        }
+        log('Save button not found', 'error');
+        return false;
+      },
+
+      // Click editor cancel button
+      clickEditorCancel: () => {
+        const cancelBtn = document.querySelector('.region-editor-cancel');
+        if (cancelBtn) {
+          cancelBtn.click();
+          log('Clicked editor cancel button', 'info');
+          return true;
+        }
+        log('Cancel button not found', 'error');
+        return false;
+      },
+
+      // Hide region editor
+      hideRegionEditor: () => {
+        window.postMessage({
+          type: 'MEET_OVERLAY_REGION_EDITOR_HIDE'
+        }, '*');
+        log('Hiding region editor via postMessage', 'info');
+      },
+
+      // Get corner handle position in pixels
+      getCornerPosition: (corner) => {
+        const canvas = document.querySelector('.region-editor-canvas');
+        if (!canvas || !window.WallRegionEditor) return null;
+
+        const region = window.WallRegionEditor.getCurrentRegion();
+        if (!region || !region[corner]) return null;
+
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: rect.left + (region[corner].x / 100) * rect.width,
+          y: rect.top + (region[corner].y / 100) * rect.height
+        };
+      },
+
+      // Simulate dragging a corner
+      dragEditorCorner: async (corner, dx, dy) => {
+        const canvas = document.querySelector('.region-editor-canvas');
+        if (!canvas) {
+          log('Editor canvas not found', 'error');
+          return false;
+        }
+
+        const region = window.WallRegionEditor?.getCurrentRegion();
+        if (!region || !region[corner]) {
+          log(`Corner ${corner} not found`, 'error');
+          return false;
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        const startX = rect.left + (region[corner].x / 100) * rect.width;
+        const startY = rect.top + (region[corner].y / 100) * rect.height;
+
+        // Simulate mousedown
+        const mousedownEvent = new MouseEvent('mousedown', {
+          clientX: startX,
+          clientY: startY,
+          bubbles: true
+        });
+        canvas.dispatchEvent(mousedownEvent);
+
+        // Simulate mousemove
+        const mousemoveEvent = new MouseEvent('mousemove', {
+          clientX: startX + dx,
+          clientY: startY + dy,
+          bubbles: true
+        });
+        canvas.dispatchEvent(mousemoveEvent);
+
+        // Simulate mouseup
+        const mouseupEvent = new MouseEvent('mouseup', {
+          clientX: startX + dx,
+          clientY: startY + dy,
+          bubbles: true
+        });
+        canvas.dispatchEvent(mouseupEvent);
+
+        log(`Dragged ${corner} by (${dx}, ${dy})`, 'info');
+        return true;
       }
     };
+
+    // Listen for region editor events
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+
+      // Handle show region editor message
+      if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_SHOW') {
+        const { region, wallArtId } = event.data;
+        log('Received region editor show message', 'info');
+
+        if (window.WallRegionEditor) {
+          window.WallRegionEditor.show(region, {
+            onUpdate: (updatedRegion) => {
+              window.postMessage({
+                type: 'MEET_OVERLAY_REGION_EDITOR_UPDATE',
+                region: updatedRegion,
+                wallArtId
+              }, '*');
+            },
+            onSave: (savedRegion) => {
+              window.postMessage({
+                type: 'MEET_OVERLAY_REGION_EDITOR_SAVE',
+                region: savedRegion,
+                wallArtId
+              }, '*');
+            },
+            onCancel: () => {
+              window.postMessage({
+                type: 'MEET_OVERLAY_REGION_EDITOR_CANCEL',
+                wallArtId
+              }, '*');
+            }
+          });
+        } else {
+          log('WallRegionEditor not loaded', 'error');
+        }
+      }
+
+      // Handle hide region editor message
+      if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_HIDE') {
+        log('Received region editor hide message', 'info');
+        if (window.WallRegionEditor) {
+          window.WallRegionEditor.hide();
+        }
+      }
+
+      if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_SAVE') {
+        log(`Region editor saved: ${JSON.stringify(event.data.region)}`, 'success');
+        window.__mockMeet.lastSavedRegion = event.data.region;
+      }
+      if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_CANCEL') {
+        log('Region editor cancelled', 'info');
+      }
+      if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_UPDATE') {
+        log(`Region editor updated: ${JSON.stringify(event.data.region)}`, 'info');
+        window.__mockMeet.lastUpdatedRegion = event.data.region;
+      }
+    });
   </script>
 </body>
 </html>

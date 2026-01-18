@@ -966,6 +966,47 @@
         }
       })();
     }
+
+    // Region editor show
+    if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_SHOW') {
+      const { region, wallArtId } = event.data;
+      console.log('[Meet Overlay] Showing region editor for wall art:', wallArtId);
+
+      if (window.WallRegionEditor) {
+        window.WallRegionEditor.show(region, {
+          onUpdate: (updatedRegion) => {
+            window.postMessage({
+              type: 'MEET_OVERLAY_REGION_EDITOR_UPDATE',
+              region: updatedRegion,
+              wallArtId
+            }, '*');
+          },
+          onSave: (savedRegion) => {
+            window.postMessage({
+              type: 'MEET_OVERLAY_REGION_EDITOR_SAVE',
+              region: savedRegion,
+              wallArtId
+            }, '*');
+          },
+          onCancel: () => {
+            window.postMessage({
+              type: 'MEET_OVERLAY_REGION_EDITOR_CANCEL',
+              wallArtId
+            }, '*');
+          }
+        });
+      } else {
+        console.error('[Meet Overlay] WallRegionEditor not loaded');
+      }
+    }
+
+    // Region editor hide
+    if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_HIDE') {
+      console.log('[Meet Overlay] Hiding region editor');
+      if (window.WallRegionEditor) {
+        window.WallRegionEditor.hide();
+      }
+    }
   });
 
   // Initial load

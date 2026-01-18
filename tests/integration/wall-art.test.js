@@ -42,7 +42,7 @@ test.describe('Wall Art Mock Meet Tests', () => {
 
   test('wall art overlay message is received', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Create a wall art overlay
     const wallArtOverlay = {
@@ -85,7 +85,7 @@ test.describe('Wall Art Mock Meet Tests', () => {
 
   test('wall art settings message is received', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Send wall art settings update
     const settings = {
@@ -105,7 +105,7 @@ test.describe('Wall Art Mock Meet Tests', () => {
 
   test('toggle wall art message is received', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Send toggle message
     await page.evaluate(() => {
@@ -119,7 +119,7 @@ test.describe('Wall Art Mock Meet Tests', () => {
 
   test('camera starts with custom test video', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Start camera
     await page.click('#start-btn');
