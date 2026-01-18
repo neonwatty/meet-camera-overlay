@@ -30,6 +30,8 @@ function injectScript(src) {
     await injectScript('lib/wall-art-renderer.js');
     await injectScript('lib/wall-segmentation.js');
     await injectScript('lib/wall-region-editor.js');
+    // Load performance monitor
+    await injectScript('lib/performance-monitor.js');
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('inject.js');
@@ -228,9 +230,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Listen for region editor messages from inject.js and forward to popup
+// Listen for messages from inject.js and forward to popup
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
+
+  // Forward performance metrics to popup
+  if (event.data.type === 'MEET_OVERLAY_PERFORMANCE_METRICS') {
+    chrome.runtime.sendMessage({
+      type: 'PERFORMANCE_METRICS',
+      metrics: event.data.metrics
+    }).catch(() => {});
+  }
 
   // Forward region editor results back to extension
   if (event.data.type === 'MEET_OVERLAY_REGION_EDITOR_SAVE') {
