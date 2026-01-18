@@ -52,7 +52,8 @@
         "lib/jiggle-compensator.js",
         "lib/lighting-detector.js",
         "lib/wall-detector.js",
-        "assets/effects/*.gif"
+        "assets/effects/*.gif",
+        "assets/wall-art/*.png"
       ],
       "matches": ["https://meet.google.com/*"]
     }

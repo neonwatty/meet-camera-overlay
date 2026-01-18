@@ -296,15 +296,42 @@
 
         <!-- Art Tab Content -->
         <div id="wall-art-art-tab" class="wall-art-tab-content hidden">
-          <div class="form-group">
-            <label>Image URL</label>
-            <input type="text" id="wall-art-image-url" placeholder="https://example.com/image.png">
+          <!-- Art Source Tabs -->
+          <div class="art-source-tabs">
+            <button type="button" class="art-source-tab active" data-source="upload">Upload</button>
+            <button type="button" class="art-source-tab" data-source="gallery">Gallery</button>
           </div>
-          <div class="form-group">
-            <label>Or upload a file (image, GIF, or video)</label>
-            <input type="file" id="wall-art-image-file" accept="image/*,.gif,video/mp4,video/webm">
+
+          <!-- Upload Source Content -->
+          <div id="art-source-upload" class="art-source-content">
+            <div class="form-group">
+              <label>Image URL</label>
+              <input type="text" id="wall-art-image-url" placeholder="https://example.com/image.png">
+            </div>
+            <div class="form-group">
+              <label>Or upload a file (image, GIF, or video)</label>
+              <input type="file" id="wall-art-image-file" accept="image/*,.gif,video/mp4,video/webm">
+            </div>
           </div>
-          <div class="form-row">
+
+          <!-- Gallery Source Content -->
+          <div id="art-source-gallery" class="art-source-content hidden">
+            <div class="gallery-categories">
+              <button type="button" class="gallery-category-btn active" data-category="all">All</button>
+              <button type="button" class="gallery-category-btn" data-category="abstract">Abstract</button>
+              <button type="button" class="gallery-category-btn" data-category="nature">Nature</button>
+              <button type="button" class="gallery-category-btn" data-category="patterns">Patterns</button>
+              <button type="button" class="gallery-category-btn" data-category="solid">Solid</button>
+              <button type="button" class="gallery-category-btn" data-category="office">Office</button>
+              <button type="button" class="gallery-category-btn" data-category="seasonal">Seasonal</button>
+            </div>
+            <div id="gallery-grid" class="gallery-grid">
+              <!-- Gallery items populated by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Art Options (shown for both sources) -->
+          <div class="form-row art-options">
             <div class="form-group form-group-half">
               <label>Aspect Ratio</label>
               <select id="wall-art-aspect-mode">

@@ -34,6 +34,50 @@ let wallArtSettings = {
 };
 let editingWallArtId = null;  // Track which wall art is being edited
 
+// Gallery state
+let selectedGalleryItem = null;  // Currently selected gallery item
+let galleryItems = [];  // Loaded gallery items
+
+// Bundled wall art definitions
+const BUNDLED_WALL_ART = [
+  // Abstract (5)
+  { id: 'wa-abstract-1', name: 'Blue Gradient', file: 'abstract-blue.png', category: 'abstract' },
+  { id: 'wa-abstract-2', name: 'Warm Sunset', file: 'abstract-sunset.png', category: 'abstract' },
+  { id: 'wa-abstract-3', name: 'Purple Haze', file: 'abstract-purple.png', category: 'abstract' },
+  { id: 'wa-abstract-4', name: 'Ocean Wave', file: 'abstract-ocean.png', category: 'abstract' },
+  { id: 'wa-abstract-5', name: 'Forest Green', file: 'abstract-green.png', category: 'abstract' },
+  // Nature (5)
+  { id: 'wa-nature-1', name: 'Mountain View', file: 'nature-mountain.png', category: 'nature' },
+  { id: 'wa-nature-2', name: 'Beach Sunset', file: 'nature-beach.png', category: 'nature' },
+  { id: 'wa-nature-3', name: 'Green Leaves', file: 'nature-leaves.png', category: 'nature' },
+  { id: 'wa-nature-4', name: 'Cloudy Sky', file: 'nature-sky.png', category: 'nature' },
+  { id: 'wa-nature-5', name: 'Autumn Trees', file: 'nature-autumn.png', category: 'nature' },
+  // Patterns (5)
+  { id: 'wa-pattern-1', name: 'Geometric', file: 'pattern-geometric.png', category: 'patterns' },
+  { id: 'wa-pattern-2', name: 'Hexagons', file: 'pattern-hexagon.png', category: 'patterns' },
+  { id: 'wa-pattern-3', name: 'Waves', file: 'pattern-waves.png', category: 'patterns' },
+  { id: 'wa-pattern-4', name: 'Dots', file: 'pattern-dots.png', category: 'patterns' },
+  { id: 'wa-pattern-5', name: 'Lines', file: 'pattern-lines.png', category: 'patterns' },
+  // Solid Colors (5)
+  { id: 'wa-solid-1', name: 'Navy Blue', file: 'solid-navy.png', category: 'solid' },
+  { id: 'wa-solid-2', name: 'Forest Green', file: 'solid-green.png', category: 'solid' },
+  { id: 'wa-solid-3', name: 'Warm Gray', file: 'solid-gray.png', category: 'solid' },
+  { id: 'wa-solid-4', name: 'Soft White', file: 'solid-white.png', category: 'solid' },
+  { id: 'wa-solid-5', name: 'Deep Purple', file: 'solid-purple.png', category: 'solid' },
+  // Office (5)
+  { id: 'wa-office-1', name: 'Bookshelf', file: 'office-bookshelf.png', category: 'office' },
+  { id: 'wa-office-2', name: 'Plant Wall', file: 'office-plants.png', category: 'office' },
+  { id: 'wa-office-3', name: 'Brick Wall', file: 'office-brick.png', category: 'office' },
+  { id: 'wa-office-4', name: 'Wood Panel', file: 'office-wood.png', category: 'office' },
+  { id: 'wa-office-5', name: 'Modern Art', file: 'office-art.png', category: 'office' },
+  // Seasonal (5)
+  { id: 'wa-seasonal-1', name: 'Winter Snow', file: 'seasonal-winter.png', category: 'seasonal' },
+  { id: 'wa-seasonal-2', name: 'Spring Flowers', file: 'seasonal-spring.png', category: 'seasonal' },
+  { id: 'wa-seasonal-3', name: 'Summer Beach', file: 'seasonal-summer.png', category: 'seasonal' },
+  { id: 'wa-seasonal-4', name: 'Fall Leaves', file: 'seasonal-fall.png', category: 'seasonal' },
+  { id: 'wa-seasonal-5', name: 'Holiday Lights', file: 'seasonal-holiday.png', category: 'seasonal' }
+];
+
 // Undo/redo state
 let previousState = null;      // Snapshot before last action
 let lastActionType = null;     // 'add', 'delete', 'move', etc.
@@ -133,6 +177,11 @@ const editRegionOnVideoBtn = document.getElementById('edit-region-on-video');
 const jiggleCompensationEnabled = document.getElementById('jiggle-compensation-enabled');
 const lightingCompensationEnabled = document.getElementById('lighting-compensation-enabled');
 const detectWallsBtn = document.getElementById('detect-walls');
+
+// Gallery DOM elements
+const galleryGrid = document.getElementById('gallery-grid');
+const artSourceUpload = document.getElementById('art-source-upload');
+const artSourceGallery = document.getElementById('art-source-gallery');
 
 // Wall Art region editor state
 let wallArtRegion = null;
@@ -941,6 +990,84 @@ function openWallArtModal(editId = null) {
 
   // Show modal
   wallArtModal.classList.remove('hidden');
+
+  // Reset to upload tab by default
+  document.querySelectorAll('.art-source-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.source === 'upload');
+  });
+  if (artSourceUpload) artSourceUpload.classList.remove('hidden');
+  if (artSourceGallery) artSourceGallery.classList.add('hidden');
+  selectedGalleryItem = null;
+  clearGallerySelection();
+}
+
+// Gallery functions
+function populateGallery(category = 'all') {
+  if (!galleryGrid) return;
+
+  // Get extension URL for asset paths
+  const extensionUrl = chrome.runtime.getURL('');
+
+  // Build gallery items from bundled wall art
+  galleryItems = BUNDLED_WALL_ART.map(art => ({
+    id: art.id,
+    name: art.name,
+    src: `${extensionUrl}assets/wall-art/${art.file}`,
+    category: art.category,
+    isBundled: true
+  }));
+
+  // Filter by category
+  const filteredItems = category === 'all'
+    ? galleryItems
+    : galleryItems.filter(item => item.category === category);
+
+  // Render gallery
+  galleryGrid.innerHTML = filteredItems.map(item => `
+    <div class="gallery-item${selectedGalleryItem?.id === item.id ? ' selected' : ''}"
+         data-id="${item.id}"
+         title="${item.name}">
+      <img src="${item.src}" alt="${item.name}" loading="lazy">
+    </div>
+  `).join('');
+
+  // Add click handlers
+  galleryGrid.querySelectorAll('.gallery-item').forEach(itemEl => {
+    itemEl.addEventListener('click', () => {
+      const itemId = itemEl.dataset.id;
+      selectGalleryItem(itemId);
+    });
+  });
+}
+
+function selectGalleryItem(itemId) {
+  const item = galleryItems.find(i => i.id === itemId);
+  if (!item) return;
+
+  // Update selection state
+  selectedGalleryItem = item;
+
+  // Update UI
+  galleryGrid.querySelectorAll('.gallery-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === itemId);
+  });
+
+  // Clear upload fields when selecting from gallery
+  if (wallArtImageUrl) wallArtImageUrl.value = '';
+  if (wallArtImageFile) wallArtImageFile.value = '';
+}
+
+function clearGallerySelection() {
+  selectedGalleryItem = null;
+  if (galleryGrid) {
+    galleryGrid.querySelectorAll('.gallery-item').forEach(el => {
+      el.classList.remove('selected');
+    });
+  }
+}
+
+function filterGalleryByCategory(category) {
+  populateGallery(category);
 }
 
 // Setup wall art event handlers
@@ -983,6 +1110,50 @@ function setupWallArtEventHandlers() {
     });
   });
 
+  // Art Source tabs (Upload/Gallery)
+  document.querySelectorAll('.art-source-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const source = tab.dataset.source;
+
+      // Update tab active states
+      document.querySelectorAll('.art-source-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      // Show/hide source content
+      if (artSourceUpload) artSourceUpload.classList.toggle('hidden', source !== 'upload');
+      if (artSourceGallery) artSourceGallery.classList.toggle('hidden', source !== 'gallery');
+
+      // Populate gallery when switching to it
+      if (source === 'gallery') {
+        populateGallery();
+      }
+
+      // Clear selection when switching sources
+      if (source === 'upload') {
+        selectedGalleryItem = null;
+        clearGallerySelection();
+      } else {
+        // Clear upload fields when switching to gallery
+        if (wallArtImageUrl) wallArtImageUrl.value = '';
+        if (wallArtImageFile) wallArtImageFile.value = '';
+      }
+    });
+  });
+
+  // Gallery category buttons
+  document.querySelectorAll('.gallery-category-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const category = btn.dataset.category;
+
+      // Update button active states
+      document.querySelectorAll('.gallery-category-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Filter gallery
+      filterGalleryByCategory(category);
+    });
+  });
+
   // Wall Art Modal cancel
   if (wallArtCancelBtn) {
     wallArtCancelBtn.addEventListener('click', () => {
@@ -994,12 +1165,17 @@ function setupWallArtEventHandlers() {
   // Wall Art Modal confirm
   if (wallArtConfirmBtn) {
     wallArtConfirmBtn.addEventListener('click', async () => {
-      // Get art source (URL or file)
+      // Get art source (URL, file, or gallery selection)
       let artSrc = wallArtImageUrl?.value || '';
       let contentType = 'image';
 
+      // Check if gallery item is selected
+      if (selectedGalleryItem) {
+        artSrc = selectedGalleryItem.src;
+        contentType = 'image';
+      }
       // Check if file was uploaded
-      if (wallArtImageFile?.files?.length > 0) {
+      else if (wallArtImageFile?.files?.length > 0) {
         const file = wallArtImageFile.files[0];
 
         // Detect content type from MIME type
