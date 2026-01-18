@@ -1168,6 +1168,66 @@
         window.WallRegionEditor.hide();
       }
     }
+
+    // ==================== WALL DETECTION MESSAGE HANDLERS ====================
+
+    // Detect walls in the current video frame
+    if (event.data.type === 'MEET_OVERLAY_DETECT_WALLS') {
+      console.log('[Meet Overlay] Detecting walls...');
+
+      (async () => {
+        try {
+          // Ensure we have an active video processor
+          if (!activeProcessor || !activeProcessor.video || activeProcessor.video.readyState < 2) {
+            throw new Error('Video not ready or no active processor');
+          }
+
+          const video = activeProcessor.video;
+
+          // Get person mask if segmentation is enabled
+          let personMask = null;
+          if (wallArtSettings.segmentationEnabled) {
+            try {
+              const segmenter = await getSegmenter();
+              if (segmenter) {
+                const result = await segmenter.segment(video);
+                personMask = result.mask;
+              }
+            } catch (e) {
+              console.warn('[Meet Overlay] Segmentation failed for wall detection:', e);
+            }
+          }
+
+          // Initialize wall detector if needed
+          if (!window.WallDetector) {
+            throw new Error('WallDetector not loaded');
+          }
+
+          const detector = new window.WallDetector();
+          detector.initialize();
+
+          // Detect walls
+          const result = await detector.detectWalls(video, personMask);
+
+          console.log('[Meet Overlay] Wall detection result:', result);
+
+          window.postMessage({
+            type: 'MEET_OVERLAY_WALLS_DETECTED',
+            ...result
+          }, '*');
+
+        } catch (error) {
+          console.error('[Meet Overlay] Wall detection failed:', error);
+          window.postMessage({
+            type: 'MEET_OVERLAY_WALLS_DETECTED',
+            success: false,
+            regions: [],
+            reason: 'detection_error',
+            error: error.message
+          }, '*');
+        }
+      })();
+    }
   });
 
   // Initial load

@@ -158,5 +158,43 @@ declare global {
       MIN_BRIGHTNESS_MULTIPLIER: number;
       MAX_BRIGHTNESS_MULTIPLIER: number;
     };
+
+    // Wall Detector (from wall-detector.js)
+    WallDetector: new () => {
+      initialized: boolean;
+      initialize: () => void;
+      detectWalls: (source: HTMLVideoElement | HTMLCanvasElement, personMask?: ImageData | null) => Promise<{
+        success: boolean;
+        regions: Array<{
+          bounds: { x: number; y: number; width: number; height: number };
+          region: {
+            topLeft: { x: number; y: number };
+            topRight: { x: number; y: number };
+            bottomLeft: { x: number; y: number };
+            bottomRight: { x: number; y: number };
+          };
+          score: number;
+          color: { r: number; g: number; b: number } | null;
+          area: number;
+        }>;
+        reason?: string;
+      }>;
+      reset: () => void;
+    };
+    WALL_DETECTOR_CONFIG: {
+      ANALYSIS_WIDTH: number;
+      ANALYSIS_HEIGHT: number;
+      EDGE_THRESHOLD: number;
+      MIN_REGION_SIZE: number;
+      MAX_REGION_SIZE: number;
+      COLOR_VARIANCE_THRESHOLD: number;
+      GRID_SIZE: number;
+      SCORE_SIZE: number;
+      SCORE_UNIFORMITY: number;
+      SCORE_POSITION: number;
+      SCORE_RECTANGULAR: number;
+      SCORE_VERTICAL: number;
+      MAX_REGIONS: number;
+    };
   }
 }

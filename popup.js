@@ -132,6 +132,7 @@ const featherValue = document.getElementById('feather-value');
 const editRegionOnVideoBtn = document.getElementById('edit-region-on-video');
 const jiggleCompensationEnabled = document.getElementById('jiggle-compensation-enabled');
 const lightingCompensationEnabled = document.getElementById('lighting-compensation-enabled');
+const detectWallsBtn = document.getElementById('detect-walls');
 
 // Wall Art region editor state
 let wallArtRegion = null;
@@ -599,6 +600,158 @@ function setupWallArtListHandlers() {
   });
 }
 
+// Detect walls in the current video feed
+async function detectWalls() {
+  // Check for active Meet tab
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  if (tabs.length === 0) {
+    showStatus('Open Google Meet first', 'error');
+    return;
+  }
+
+  // Show loading status
+  showStatus('Detecting walls...', 'info');
+  if (detectWallsBtn) {
+    detectWallsBtn.disabled = true;
+    detectWallsBtn.textContent = '⏳ Detecting...';
+  }
+
+  try {
+    // Send detection request to content script
+    const response = await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'DETECT_WALLS' }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+    if (response.success && response.regions && response.regions.length > 0) {
+      // Found regions - let user select one
+      showWallRegionPicker(response.regions);
+    } else {
+      showStatus(response.reason || 'No suitable wall regions found', 'error');
+    }
+  } catch (error) {
+    console.error('[Meet Overlay] Wall detection failed:', error);
+    showStatus('Wall detection failed - is camera active?', 'error');
+  } finally {
+    // Reset button state
+    if (detectWallsBtn) {
+      detectWallsBtn.disabled = false;
+      detectWallsBtn.textContent = '🔍 Detect';
+    }
+  }
+}
+
+// Show wall region picker for detected regions
+function showWallRegionPicker(regions) {
+  // Create a modal to show detected regions
+  let pickerModal = document.getElementById('wall-region-picker-modal');
+  if (!pickerModal) {
+    pickerModal = document.createElement('div');
+    pickerModal.id = 'wall-region-picker-modal';
+    pickerModal.className = 'modal';
+    document.body.appendChild(pickerModal);
+  }
+
+  // Generate region cards
+  const regionCards = regions.map((r, index) => {
+    const colorHex = r.color ? `#${((1 << 24) + (r.color.r << 16) + (r.color.g << 8) + r.color.b).toString(16).slice(1)}` : '#888';
+    const areaPercent = Math.round(r.area * 100);
+    return `
+      <div class="wall-region-card" data-index="${index}">
+        <div class="wall-region-preview" style="background: ${colorHex};">
+          <span class="wall-region-score">${Math.round(r.score * 100)}%</span>
+        </div>
+        <div class="wall-region-info">
+          <span class="wall-region-label">Region ${index + 1}</span>
+          <span class="wall-region-size">${areaPercent}% of frame</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  pickerModal.innerHTML = `
+    <div class="modal-content modal-wide">
+      <h3>Detected Wall Regions</h3>
+      <p class="modal-hint">Select a region to create wall art:</p>
+      <div class="wall-region-grid">
+        ${regionCards}
+      </div>
+      <div class="modal-actions">
+        <button id="wall-picker-cancel" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  pickerModal.classList.remove('hidden');
+
+  // Add event handlers
+  pickerModal.querySelectorAll('.wall-region-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const index = parseInt(card.dataset.index);
+      const selectedRegion = regions[index];
+      pickerModal.classList.add('hidden');
+
+      // Open wall art modal with detected region
+      openWallArtModalWithRegion(selectedRegion.region);
+    });
+  });
+
+  document.getElementById('wall-picker-cancel')?.addEventListener('click', () => {
+    pickerModal.classList.add('hidden');
+  });
+
+  showStatus(`Found ${regions.length} wall region(s)`, 'success');
+}
+
+// Open wall art modal pre-populated with a detected region
+function openWallArtModalWithRegion(region) {
+  if (!wallArtModal) return;
+
+  editingWallArtId = null;
+
+  if (wallArtModalTitle) {
+    wallArtModalTitle.textContent = 'Create Wall Art from Detection';
+  }
+  if (wallArtConfirmBtn) {
+    wallArtConfirmBtn.textContent = 'Add';
+  }
+
+  // Set the detected region
+  wallArtRegion = region;
+
+  // Reset other fields to defaults
+  if (wallArtPaintEnabled) wallArtPaintEnabled.checked = false;
+  if (wallArtPaintColor) wallArtPaintColor.value = '#808080';
+  if (wallArtPaintOpacity) wallArtPaintOpacity.value = 100;
+  if (wallArtPaintOpacityValue) wallArtPaintOpacityValue.textContent = '100%';
+  if (wallArtImageUrl) wallArtImageUrl.value = '';
+  if (wallArtImageFile) wallArtImageFile.value = '';
+  if (wallArtAspectMode) wallArtAspectMode.value = 'stretch';
+  if (wallArtArtOpacity) wallArtArtOpacity.value = 100;
+  if (wallArtArtOpacityValue) wallArtArtOpacityValue.textContent = '100%';
+
+  // Reset to paint tab
+  document.querySelectorAll('.wall-art-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === 'paint');
+  });
+  const paintTab = document.getElementById('wall-art-paint-tab');
+  const artTab = document.getElementById('wall-art-art-tab');
+  if (paintTab) paintTab.classList.remove('hidden');
+  if (artTab) artTab.classList.add('hidden');
+
+  wallArtModal.classList.remove('hidden');
+
+  // Draw the region on canvas
+  drawRegionOnCanvas();
+
+  showStatus('Region loaded - adjust and save', 'success');
+}
+
 // Open wall art modal for adding or editing
 function openWallArtModal(editId = null) {
   if (!wallArtModal) return;
@@ -690,6 +843,13 @@ function setupWallArtEventHandlers() {
   if (editRegionOnVideoBtn) {
     editRegionOnVideoBtn.addEventListener('click', () => {
       openRegionEditorOnVideo();
+    });
+  }
+
+  // Detect Walls button
+  if (detectWallsBtn) {
+    detectWallsBtn.addEventListener('click', () => {
+      detectWalls();
     });
   }
 

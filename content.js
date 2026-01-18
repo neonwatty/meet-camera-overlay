@@ -36,6 +36,8 @@ function injectScript(src) {
     await injectScript('lib/jiggle-compensator.js');
     // Load lighting detector
     await injectScript('lib/lighting-detector.js');
+    // Load wall detector
+    await injectScript('lib/wall-detector.js');
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('inject.js');
@@ -231,6 +233,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       type: 'MEET_OVERLAY_REGION_EDITOR_HIDE'
     }, '*');
     sendResponse({ success: true });
+  }
+
+  // Forward wall detection request and wait for response
+  if (message.type === 'DETECT_WALLS') {
+    console.log('[Meet Overlay] Forwarding wall detection request...');
+
+    // Post message to inject.js
+    window.postMessage({ type: 'MEET_OVERLAY_DETECT_WALLS' }, '*');
+
+    // Set up one-time listener for response
+    const handler = (event) => {
+      if (event.source !== window) return;
+      if (event.data.type === 'MEET_OVERLAY_WALLS_DETECTED') {
+        window.removeEventListener('message', handler);
+        sendResponse(event.data);
+      }
+    };
+    window.addEventListener('message', handler);
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      sendResponse({ success: false, regions: [], reason: 'timeout' });
+    }, 10000);
+
+    return true; // Keep channel open for async response
   }
 });
 
