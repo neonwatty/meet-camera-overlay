@@ -38,8 +38,23 @@
   const wallArtSettings = {
     segmentationEnabled: false,
     segmentationPreset: 'balanced',
-    featherRadius: 2
+    featherRadius: 2,
+    jiggleCompensationEnabled: false
   };
+
+  // Jiggle compensator instance
+  let jiggleCompensator = null;
+
+  // Get or create jiggle compensator lazily
+  function getJiggleCompensator() {
+    if (!jiggleCompensator && window.JiggleCompensator) {
+      jiggleCompensator = new window.JiggleCompensator();
+      jiggleCompensator.onReset = () => {
+        console.log('[Meet Overlay] Jiggle compensator reset due to large motion');
+      };
+    }
+    return jiggleCompensator;
+  }
 
   // Check if AnimatedImage class is available (from gif-decoder.js)
   const hasGifSupport = typeof window.AnimatedImage !== 'undefined';
@@ -677,17 +692,48 @@
         }
       }
 
+      // Apply jiggle compensation if enabled
+      let compensationTransform = { dx: 0, dy: 0, scale: 1, rotation: 0 };
+      if (wallArtSettings.jiggleCompensationEnabled) {
+        try {
+          const compensator = getJiggleCompensator();
+          if (compensator) {
+            // Initialize on first use
+            if (!compensator.initialized) {
+              compensator.initialize(this.video, personMask);
+            }
+            // Process frame and get compensation
+            compensationTransform = compensator.process(this.video, personMask);
+          }
+        } catch (e) {
+          console.warn('[Meet Overlay] Jiggle compensation failed:', e);
+        }
+      }
+
+      // Apply compensation to wall art regions
+      const compensatedWallArt = activeWallArt.map(wa => {
+        if (compensationTransform.dx === 0 && compensationTransform.dy === 0) {
+          return wa;
+        }
+        return {
+          ...wa,
+          region: window.JiggleCompensator
+            ? window.JiggleCompensator.applyToRegion(wa.region, compensationTransform)
+            : wa.region
+        };
+      });
+
       const renderOptions = {
         personMask,
         featherRadius: wallArtSettings.featherRadius,
         timestamp
       };
 
-      // Render paint layers first
-      window.WallPaintRenderer.renderAllWallPaint(this.ctx, wallArtOverlays, renderOptions);
+      // Render paint layers first (with compensated regions)
+      window.WallPaintRenderer.renderAllWallPaint(this.ctx, compensatedWallArt, renderOptions);
 
-      // Render art layers
-      window.WallArtRenderer.renderAllWallArt(this.ctx, wallArtOverlays, wallArtImages, renderOptions);
+      // Render art layers (with compensated regions)
+      window.WallArtRenderer.renderAllWallArt(this.ctx, compensatedWallArt, wallArtImages, renderOptions);
     }
 
     stop() {
@@ -904,6 +950,16 @@
         }
         if (settings.featherRadius !== undefined) {
           wallArtSettings.featherRadius = settings.featherRadius;
+        }
+        if (settings.jiggleCompensationEnabled !== undefined) {
+          wallArtSettings.jiggleCompensationEnabled = settings.jiggleCompensationEnabled;
+          // Reset compensator when toggling
+          if (jiggleCompensator) {
+            jiggleCompensator.setEnabled(settings.jiggleCompensationEnabled);
+            if (!settings.jiggleCompensationEnabled) {
+              jiggleCompensator.reset();
+            }
+          }
         }
       }
     }

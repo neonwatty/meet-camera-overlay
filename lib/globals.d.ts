@@ -95,5 +95,28 @@ declare global {
       SEGMENTATION_SLOW: string;
       SEGMENTATION_CRITICAL: string;
     };
+
+    // Jiggle Compensator (from jiggle-compensator.js)
+    JiggleCompensator: {
+      new (): {
+        features: Array<{ x: number; y: number; response: number }>;
+        initialized: boolean;
+        enabled: boolean;
+        cumulativeTransform: { dx: number; dy: number; scale: number; rotation: number };
+        onReset: Function | null;
+        initialize: (source: HTMLVideoElement | HTMLCanvasElement, personMask?: ImageData | null) => void;
+        process: (source: HTMLVideoElement | HTMLCanvasElement, personMask?: ImageData | null) => { dx: number; dy: number; scale: number; rotation: number };
+        reset: () => void;
+        setEnabled: (enabled: boolean) => void;
+        getStatus: () => {
+          initialized: boolean;
+          enabled: boolean;
+          featureCount: number;
+          cumulativeDx: string;
+          cumulativeDy: string;
+        };
+      };
+      applyToRegion: (region: any, transform: { dx: number; dy: number; scale: number; rotation: number }) => any;
+    };
   }
 }
