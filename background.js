@@ -9,6 +9,10 @@ import { BUNDLED_EFFECTS, createBundledEffect } from './lib/bundled-effects.js';
 // Run on extension install
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
+    // Set first-use flag for tutorial
+    await chrome.storage.local.set({ showTutorial: true });
+    console.log('[Meet Camera Overlay] First-use flag set');
+
     await loadBundledEffects();
     console.log('[Meet Camera Overlay] Bundled effects loaded on install');
   }

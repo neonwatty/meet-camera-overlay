@@ -422,6 +422,99 @@
       </div>
     </div>
 
+    <!-- Tutorial Modal (First-Use Onboarding) -->
+    <div id="tutorial-modal" class="modal hidden">
+      <div class="modal-content modal-tutorial">
+        <div class="tutorial-header">
+          <h3>Welcome to Meet Camera Overlay!</h3>
+          <button id="tutorial-close" class="tutorial-close-btn">×</button>
+        </div>
+
+        <!-- Progress Steps -->
+        <div class="tutorial-progress">
+          <div class="tutorial-step active" data-step="1">
+            <div class="tutorial-step-dot"></div>
+          </div>
+          <div class="tutorial-step-line"></div>
+          <div class="tutorial-step" data-step="2">
+            <div class="tutorial-step-dot"></div>
+          </div>
+          <div class="tutorial-step-line"></div>
+          <div class="tutorial-step" data-step="3">
+            <div class="tutorial-step-dot"></div>
+          </div>
+          <div class="tutorial-step-line"></div>
+          <div class="tutorial-step" data-step="4">
+            <div class="tutorial-step-dot"></div>
+          </div>
+        </div>
+
+        <!-- Step 1: Welcome -->
+        <div id="tutorial-step-1" class="tutorial-content">
+          <div class="tutorial-icon">🎥</div>
+          <h4>Make Your Meetings More Engaging</h4>
+          <p>Add custom overlays, effects, text banners, and wall art to your Google Meet camera feed.</p>
+          <div class="tutorial-features">
+            <div class="tutorial-feature">
+              <span class="feature-icon">🖼️</span>
+              <span>Image Overlays</span>
+            </div>
+            <div class="tutorial-feature">
+              <span class="feature-icon">✨</span>
+              <span>Animated Effects</span>
+            </div>
+            <div class="tutorial-feature">
+              <span class="feature-icon">📝</span>
+              <span>Text Banners</span>
+            </div>
+            <div class="tutorial-feature">
+              <span class="feature-icon">🎨</span>
+              <span>Wall Art</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Overlays -->
+        <div id="tutorial-step-2" class="tutorial-content hidden">
+          <div class="tutorial-icon">🖼️</div>
+          <h4>Add Image Overlays</h4>
+          <p>Upload images, logos, or GIFs that appear on top of your video. Perfect for branding or fun reactions!</p>
+          <div class="tutorial-tip">
+            <strong>Tip:</strong> Drag overlays in the preview to position them exactly where you want.
+          </div>
+        </div>
+
+        <!-- Step 3: Wall Art -->
+        <div id="tutorial-step-3" class="tutorial-content hidden">
+          <div class="tutorial-icon">🎨</div>
+          <h4>Transform Your Background</h4>
+          <p>Wall Art lets you paint colors or display images on your wall - behind you! Enable "Person Occlusion" so you appear in front.</p>
+          <div class="tutorial-tip">
+            <strong>Tip:</strong> Use the "Detect" button to automatically find wall regions in your video.
+          </div>
+        </div>
+
+        <!-- Step 4: Get Started -->
+        <div id="tutorial-step-4" class="tutorial-content hidden">
+          <div class="tutorial-icon">🚀</div>
+          <h4>You're All Set!</h4>
+          <p>Open Google Meet, start your camera, and click the extension icon to add your first overlay.</p>
+          <div class="tutorial-cta">
+            <p>Ready to get started?</p>
+          </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="tutorial-actions">
+          <button id="tutorial-skip" class="btn btn-secondary">Skip</button>
+          <div class="tutorial-nav">
+            <button id="tutorial-prev" class="btn btn-secondary hidden">Back</button>
+            <button id="tutorial-next" class="btn btn-primary">Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Effect Preview (shown on hover) -->
     <div id="effect-preview" class="effect-preview hidden">
       <img class="effect-preview-img" src="" alt="">

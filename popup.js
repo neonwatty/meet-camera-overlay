@@ -147,6 +147,17 @@ const performanceWarningsContainer = document.getElementById('performance-warnin
 const fpsWarningBadge = document.querySelector('.warning-badge.fps-warning');
 const segmentationWarningBadge = document.querySelector('.warning-badge.quality-warning');
 
+// Tutorial modal elements
+const tutorialModal = document.getElementById('tutorial-modal');
+const tutorialCloseBtn = document.getElementById('tutorial-close');
+const tutorialSkipBtn = document.getElementById('tutorial-skip');
+const tutorialPrevBtn = document.getElementById('tutorial-prev');
+const tutorialNextBtn = document.getElementById('tutorial-next');
+
+// Tutorial state
+let tutorialCurrentStep = 1;
+const TUTORIAL_TOTAL_STEPS = 4;
+
 // Initialize
 async function init() {
   await loadOverlays();
@@ -156,6 +167,8 @@ async function init() {
   renderWallArtList();
   setupWallArtEventHandlers();
   setupPerformanceMetricsListener();
+  setupTutorial();
+  await checkShowTutorial();
 }
 
 // ==================== PERFORMANCE WARNING BADGES ====================
@@ -211,6 +224,106 @@ function setupPerformanceMetricsListener() {
     // Return false to indicate synchronous response
     return false;
   });
+}
+
+// ==================== TUTORIAL (FIRST-USE ONBOARDING) ====================
+
+/**
+ * Check if tutorial should be shown on startup
+ */
+async function checkShowTutorial() {
+  const result = await chrome.storage.local.get(['showTutorial']);
+  if (result.showTutorial) {
+    showTutorial();
+  }
+}
+
+/**
+ * Set up tutorial event handlers
+ */
+function setupTutorial() {
+  if (tutorialCloseBtn) {
+    tutorialCloseBtn.addEventListener('click', closeTutorial);
+  }
+  if (tutorialSkipBtn) {
+    tutorialSkipBtn.addEventListener('click', closeTutorial);
+  }
+  if (tutorialPrevBtn) {
+    tutorialPrevBtn.addEventListener('click', tutorialPrev);
+  }
+  if (tutorialNextBtn) {
+    tutorialNextBtn.addEventListener('click', tutorialNext);
+  }
+}
+
+/**
+ * Show the tutorial modal
+ */
+function showTutorial() {
+  if (!tutorialModal) return;
+  tutorialCurrentStep = 1;
+  updateTutorialStep();
+  tutorialModal.classList.remove('hidden');
+}
+
+/**
+ * Close the tutorial and mark as completed
+ */
+async function closeTutorial() {
+  if (!tutorialModal) return;
+  tutorialModal.classList.add('hidden');
+  // Mark tutorial as completed so it doesn't show again
+  await chrome.storage.local.set({ showTutorial: false });
+}
+
+/**
+ * Go to previous tutorial step
+ */
+function tutorialPrev() {
+  if (tutorialCurrentStep > 1) {
+    tutorialCurrentStep--;
+    updateTutorialStep();
+  }
+}
+
+/**
+ * Go to next tutorial step or finish
+ */
+function tutorialNext() {
+  if (tutorialCurrentStep < TUTORIAL_TOTAL_STEPS) {
+    tutorialCurrentStep++;
+    updateTutorialStep();
+  } else {
+    closeTutorial();
+  }
+}
+
+/**
+ * Update the tutorial UI to reflect current step
+ */
+function updateTutorialStep() {
+  // Update step content visibility
+  for (let i = 1; i <= TUTORIAL_TOTAL_STEPS; i++) {
+    const stepContent = document.getElementById(`tutorial-step-${i}`);
+    if (stepContent) {
+      stepContent.classList.toggle('hidden', i !== tutorialCurrentStep);
+    }
+  }
+
+  // Update progress dots
+  document.querySelectorAll('.tutorial-step').forEach(step => {
+    const stepNum = parseInt(step.dataset.step);
+    step.classList.toggle('active', stepNum === tutorialCurrentStep);
+    step.classList.toggle('completed', stepNum < tutorialCurrentStep);
+  });
+
+  // Update navigation buttons
+  if (tutorialPrevBtn) {
+    tutorialPrevBtn.classList.toggle('hidden', tutorialCurrentStep === 1);
+  }
+  if (tutorialNextBtn) {
+    tutorialNextBtn.textContent = tutorialCurrentStep === TUTORIAL_TOTAL_STEPS ? 'Get Started' : 'Next';
+  }
 }
 
 // Sort overlays by layer and zIndex for display

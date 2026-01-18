@@ -487,6 +487,12 @@ test.describe('Region Editor Popup Tests', () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
 
+    // Clear tutorial flag
+    await page.evaluate(() => {
+      chrome.storage.local.set({ showTutorial: false });
+    });
+    await page.reload();
+
     // Open wall art modal
     await page.click('#add-wall-art');
     await expect(page.locator('#wall-art-modal')).toBeVisible();
@@ -503,6 +509,12 @@ test.describe('Region Editor Popup Tests', () => {
 
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear tutorial flag
+    await page.evaluate(() => {
+      chrome.storage.local.set({ showTutorial: false });
+    });
+    await page.reload();
 
     // Open wall art modal
     await page.click('#add-wall-art');
@@ -522,6 +534,12 @@ test.describe('Region Editor Popup Tests', () => {
 
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    // Clear tutorial flag
+    await page.evaluate(() => {
+      chrome.storage.local.set({ showTutorial: false });
+    });
+    await page.reload();
 
     // Open wall art modal
     await page.click('#add-wall-art');
