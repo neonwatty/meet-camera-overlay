@@ -441,6 +441,35 @@
     return wallArtSegmenter.isReady ? wallArtSegmenter : null;
   }
 
+  // Performance monitoring
+  let performanceMonitor = null;
+  let lastMetricsSendTime = 0;
+  const METRICS_SEND_INTERVAL = 1000; // Send metrics every second
+
+  // Initialize performance monitor if available
+  function getPerformanceMonitor() {
+    if (!performanceMonitor && window.PerformanceMonitor) {
+      performanceMonitor = new window.PerformanceMonitor();
+    }
+    return performanceMonitor;
+  }
+
+  // Send performance metrics to content script
+  function sendPerformanceMetrics(timestamp) {
+    // Throttle to once per second
+    if (timestamp - lastMetricsSendTime < METRICS_SEND_INTERVAL) return;
+    lastMetricsSendTime = timestamp;
+
+    const monitor = getPerformanceMonitor();
+    if (!monitor) return;
+
+    const metrics = monitor.getMetrics();
+    window.postMessage({
+      type: 'MEET_OVERLAY_PERFORMANCE_METRICS',
+      metrics
+    }, '*');
+  }
+
   // Video processor class
   class VideoProcessor {
     constructor(originalStream) {
@@ -451,6 +480,7 @@
       this.canvas = null;
       this.ctx = null;
       this.outputStream = null;
+      this.lastRenderTime = 0;
     }
 
     async start() {
@@ -501,6 +531,14 @@
 
     async render(timestamp) {
       if (!this.running) return;
+
+      // Record frame for FPS tracking
+      const monitor = getPerformanceMonitor();
+      if (monitor) {
+        monitor.recordFrame(timestamp);
+      }
+
+      const renderStart = performance.now();
 
       if (this.video.readyState >= 2) {
         // Draw original video frame
@@ -590,6 +628,16 @@
           this.ctx.drawImage(drawableImg, -w / 2, -h / 2, w, h);
           this.ctx.restore();
         });
+
+        // Track render time
+        const renderEnd = performance.now();
+        this.lastRenderTime = renderEnd - renderStart;
+        if (monitor) {
+          monitor.recordRenderTime(this.lastRenderTime);
+        }
+
+        // Send performance metrics periodically
+        sendPerformanceMetrics(timestamp);
       }
 
       requestAnimationFrame((ts) => this.render(ts));
@@ -612,8 +660,16 @@
         try {
           const segmenter = await getSegmenter();
           if (segmenter) {
+            const segmentStart = performance.now();
             const result = await segmenter.segment(this.video);
             personMask = result.mask;
+
+            // Track segmentation time
+            const segmentTime = performance.now() - segmentStart;
+            const monitor = getPerformanceMonitor();
+            if (monitor) {
+              monitor.recordSegmentationTime(segmentTime);
+            }
           }
         } catch (e) {
           // Segmentation failed, continue without mask

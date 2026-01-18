@@ -137,6 +137,11 @@ let wallArtDraggingCorner = null;
 // eslint-disable-next-line no-unused-vars
 let videoRegionEditorOpen = false;
 
+// Performance warning badge elements
+const performanceWarningsContainer = document.getElementById('performance-warnings');
+const fpsWarningBadge = document.querySelector('.warning-badge.fps-warning');
+const segmentationWarningBadge = document.querySelector('.warning-badge.quality-warning');
+
 // Initialize
 async function init() {
   await loadOverlays();
@@ -145,6 +150,62 @@ async function init() {
   renderPreviewOverlays();
   renderWallArtList();
   setupWallArtEventHandlers();
+  setupPerformanceMetricsListener();
+}
+
+// ==================== PERFORMANCE WARNING BADGES ====================
+
+/**
+ * Update warning badges based on performance metrics
+ * @param {Object} metrics - Performance metrics from inject.js
+ */
+function updatePerformanceWarnings(metrics) {
+  if (!performanceWarningsContainer) return;
+
+  const warnings = metrics.warnings || [];
+  let hasWarnings = false;
+
+  // Update FPS warning badge
+  const fpsWarning = warnings.find(w => w.type === 'fps_low' || w.type === 'fps_critical');
+  if (fpsWarningBadge) {
+    if (fpsWarning) {
+      fpsWarningBadge.classList.remove('hidden');
+      fpsWarningBadge.classList.toggle('critical', fpsWarning.severity === 'critical');
+      fpsWarningBadge.querySelector('.warning-text').textContent = fpsWarning.message;
+      hasWarnings = true;
+    } else {
+      fpsWarningBadge.classList.add('hidden');
+    }
+  }
+
+  // Update segmentation warning badge
+  const segWarning = warnings.find(w => w.type === 'segmentation_slow' || w.type === 'segmentation_critical');
+  if (segmentationWarningBadge) {
+    if (segWarning) {
+      segmentationWarningBadge.classList.remove('hidden');
+      segmentationWarningBadge.classList.toggle('critical', segWarning.severity === 'critical');
+      segmentationWarningBadge.querySelector('.warning-text').textContent = segWarning.message;
+      hasWarnings = true;
+    } else {
+      segmentationWarningBadge.classList.add('hidden');
+    }
+  }
+
+  // Show/hide the container
+  performanceWarningsContainer.classList.toggle('hidden', !hasWarnings);
+}
+
+/**
+ * Set up listener for performance metrics from content script
+ */
+function setupPerformanceMetricsListener() {
+  chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
+    if (message.type === 'PERFORMANCE_METRICS') {
+      updatePerformanceWarnings(message.metrics);
+    }
+    // Return false to indicate synchronous response
+    return false;
+  });
 }
 
 // Sort overlays by layer and zIndex for display

@@ -1604,3 +1604,78 @@ h2 {
   outline: none;
   border-color: #0ea5e9;
 }
+
+/* ==================== Performance Warning Badges ==================== */
+
+.warnings-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.warnings-container.hidden {
+  display: none;
+}
+
+.warning-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 170, 0, 0.15);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #b87a00;
+  transition: all 0.2s;
+  cursor: default;
+}
+
+.warning-badge.hidden {
+  display: none;
+}
+
+.warning-badge:hover {
+  background: rgba(255, 170, 0, 0.25);
+}
+
+.warning-badge.critical {
+  background: rgba(220, 53, 69, 0.15);
+  border-color: rgba(220, 53, 69, 0.3);
+  color: #c92a2a;
+}
+
+.warning-badge.critical:hover {
+  background: rgba(220, 53, 69, 0.25);
+}
+
+.warning-icon {
+  font-size: 14px;
+}
+
+.warning-text {
+  font-weight: 500;
+}
+
+/* Warning badge pulse animation for critical warnings */
+@keyframes warning-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.warning-badge.critical {
+  animation: warning-pulse 2s ease-in-out infinite;
+}
+
+/* Region editor actions */
+.region-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}

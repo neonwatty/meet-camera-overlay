@@ -8,6 +8,18 @@
   <div class="container">
     <h1>Camera Overlay</h1>
 
+    <!-- Performance Warnings -->
+    <div id="performance-warnings" class="warnings-container hidden">
+      <div class="warning-badge fps-warning hidden" data-warning="fps">
+        <span class="warning-icon">⚠️</span>
+        <span class="warning-text">Low FPS</span>
+      </div>
+      <div class="warning-badge quality-warning hidden" data-warning="segmentation">
+        <span class="warning-icon">⚠️</span>
+        <span class="warning-text">Segmentation slow</span>
+      </div>
+    </div>
+
     <!-- Visual Preview (no camera needed) -->
     <div class="preview-section">
       <div id="preview-container">

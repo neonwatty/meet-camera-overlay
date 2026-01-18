@@ -59,5 +59,41 @@ declare global {
     isAnimatedGif: (src: string) => boolean;
     decodeGifFromDataUrl: (dataUrl: string) => Promise<any>;
     decodeGifFromUrl: (url: string) => Promise<any>;
+
+    // Performance Monitor (from performance-monitor.js)
+    PerformanceMonitor: new () => {
+      fps: number;
+      segmentationTime: number;
+      renderTime: number;
+      segmentationQuality: 'good' | 'degraded' | 'poor';
+      recordFrame: (timestamp: number) => void;
+      recordSegmentationTime: (timeMs: number) => void;
+      recordRenderTime: (timeMs: number) => void;
+      getAverageFps: () => number;
+      getAverageSegmentationTime: () => number;
+      getWarnings: () => Array<{ type: string; message: string; severity: string }>;
+      getMetrics: () => {
+        fps: number;
+        avgFps: number;
+        segmentationTime: number;
+        avgSegmentationTime: number;
+        renderTime: number;
+        segmentationQuality: string;
+        warnings: Array<{ type: string; message: string; severity: string }>;
+      };
+      reset: () => void;
+    };
+    PERFORMANCE_THRESHOLDS: {
+      FPS_WARNING: number;
+      FPS_CRITICAL: number;
+      SEGMENT_WARNING: number;
+      SEGMENT_CRITICAL: number;
+    };
+    WARNING_TYPES: {
+      FPS_LOW: string;
+      FPS_CRITICAL: string;
+      SEGMENTATION_SLOW: string;
+      SEGMENTATION_CRITICAL: string;
+    };
   }
 }
