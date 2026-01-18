@@ -32,6 +32,8 @@ function injectScript(src) {
     await injectScript('lib/wall-region-editor.js');
     // Load performance monitor
     await injectScript('lib/performance-monitor.js');
+    // Load jiggle compensator
+    await injectScript('lib/jiggle-compensator.js');
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('inject.js');
