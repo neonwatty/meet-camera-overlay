@@ -118,5 +118,45 @@ declare global {
       };
       applyToRegion: (region: any, transform: { dx: number; dy: number; scale: number; rotation: number }) => any;
     };
+
+    // Lighting Detector (from lighting-detector.js)
+    LightingDetector: new () => {
+      referenceMetrics: { brightness: number; colorTemp: number; contrast: number } | null;
+      currentMetrics: { brightness: number; colorTemp: number; contrast: number } | null;
+      enabled: boolean;
+      initialized: boolean;
+      artBrightnessMultiplier: number;
+      onLightingChange: Function | null;
+      initialize: (source: HTMLVideoElement | HTMLCanvasElement, personMask?: ImageData | null, region?: any) => void;
+      process: (source: HTMLVideoElement | HTMLCanvasElement, personMask?: ImageData | null, region?: any) => {
+        changed: boolean;
+        brightnessDelta: number;
+        colorTempDelta: number;
+        contrastDelta: number;
+        artBrightnessMultiplier: number;
+      };
+      reset: () => void;
+      setEnabled: (enabled: boolean) => void;
+      updateReference: () => void;
+      getStatus: () => {
+        initialized: boolean;
+        enabled: boolean;
+        referenceMetrics: any;
+        currentMetrics: any;
+        artBrightnessMultiplier: string;
+        cooldownRemaining: number;
+      };
+    };
+    LIGHTING_CONFIG: {
+      BRIGHTNESS_THRESHOLD: number;
+      COLOR_TEMP_THRESHOLD: number;
+      CONTRAST_THRESHOLD: number;
+      COOLDOWN_MS: number;
+      SAMPLE_GRID_SIZE: number;
+      MIN_SAMPLES: number;
+      HISTORY_SIZE: number;
+      MIN_BRIGHTNESS_MULTIPLIER: number;
+      MAX_BRIGHTNESS_MULTIPLIER: number;
+    };
   }
 }
