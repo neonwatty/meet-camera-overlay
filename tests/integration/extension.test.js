@@ -307,7 +307,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear existing overlays
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -343,7 +343,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add an overlay
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -386,7 +386,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear any existing overlays first
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -430,7 +430,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear any existing overlays first
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -471,7 +471,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear any existing overlays first
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -506,7 +506,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add two overlays
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -566,7 +566,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add an overlay
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -599,7 +599,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add an overlay
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -631,7 +631,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add an overlay
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -664,7 +664,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add an overlay
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -692,7 +692,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear and add an overlay
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -725,7 +725,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear overlays
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -751,7 +751,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clear overlays and any undo state by reloading
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.reload();
 
@@ -783,7 +783,7 @@ test.describe('Extension Popup Tests', () => {
         zIndex: 0,
         createdAt: Date.now()
       };
-      chrome.storage.local.set({ overlays: [bundledEffect] });
+      chrome.storage.local.set({ overlays: [bundledEffect], showTutorial: false });
     });
     await page.reload();
 
@@ -794,7 +794,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clean up
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.close();
   });
@@ -820,7 +820,7 @@ test.describe('Extension Popup Tests', () => {
         zIndex: 0,
         createdAt: Date.now()
       };
-      chrome.storage.local.set({ overlays: [bundledEffect] });
+      chrome.storage.local.set({ overlays: [bundledEffect], showTutorial: false });
     });
     await page.reload();
 
@@ -831,7 +831,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clean up
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.close();
   });
@@ -871,7 +871,7 @@ test.describe('Extension Popup Tests', () => {
           createdAt: Date.now()
         }
       ];
-      chrome.storage.local.set({ overlays });
+      chrome.storage.local.set({ overlays, showTutorial: false });
     });
     await page.reload();
 
@@ -885,7 +885,7 @@ test.describe('Extension Popup Tests', () => {
 
     // Clean up
     await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [] });
+      chrome.storage.local.set({ overlays: [], showTutorial: false });
     });
     await page.close();
   });

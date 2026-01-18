@@ -237,7 +237,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Clear existing wall art
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], wallArtSettings: {} });
+      chrome.storage.local.set({ wallArtOverlays: [], wallArtSettings: {}, showTutorial: false });
     });
     await page.reload();
 
@@ -263,7 +263,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Clean up
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [] });
+      chrome.storage.local.set({ wallArtOverlays: [], showTutorial: false });
     });
     await page.close();
   });
@@ -276,7 +276,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Clear and set up
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], wallArtSettings: {} });
+      chrome.storage.local.set({ wallArtOverlays: [], wallArtSettings: {}, showTutorial: false });
     });
     await page.reload();
 
@@ -317,7 +317,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Clean up
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [] });
+      chrome.storage.local.set({ wallArtOverlays: [], showTutorial: false });
     });
     await page.close();
   });
@@ -330,7 +330,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Clear settings
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: false } });
+      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: false }, showTutorial: false });
     });
     await page.reload();
 
@@ -375,7 +375,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Enable segmentation first
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true } });
+      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true }, showTutorial: false });
     });
     await page.reload();
 
@@ -408,7 +408,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Enable segmentation first
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true, featherRadius: 2 } });
+      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true, featherRadius: 2 }, showTutorial: false });
     });
     await page.reload();
 
@@ -502,7 +502,7 @@ test.describe('Wall Art Popup Tests', () => {
         layer: 'background',
         zIndex: 0
       };
-      chrome.storage.local.set({ wallArtOverlays: [wallArt] });
+      chrome.storage.local.set({ wallArtOverlays: [wallArt], showTutorial: false });
     });
     await page.reload();
 
@@ -547,7 +547,7 @@ test.describe('Wall Art Popup Tests', () => {
         layer: 'background',
         zIndex: 0
       };
-      chrome.storage.local.set({ wallArtOverlays: [wallArt] });
+      chrome.storage.local.set({ wallArtOverlays: [wallArt], showTutorial: false });
     });
     await page.reload();
 
@@ -575,7 +575,7 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Clean up
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [] });
+      chrome.storage.local.set({ wallArtOverlays: [], showTutorial: false });
     });
     await page.close();
   });
