@@ -38,7 +38,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('mock meet page loads', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     await expect(page.locator('h1')).toContainText('Mock Google Meet');
     await expect(page.locator('#start-btn')).toBeVisible();
@@ -48,7 +48,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('mock meet can start camera with fake device', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Start camera
     await page.click('#start-btn');
@@ -69,7 +69,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('camera stream is properly created', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Start camera
     await page.click('#start-btn');
@@ -101,7 +101,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('overlay updates with opacity are received', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     // Send overlay update with opacity
     const testOverlay = {
@@ -138,7 +138,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('multiple overlays with varying opacities are handled', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     const testOverlays = [
       { id: 'full', src: 'data:image/png;base64,xxx', x: 0, y: 0, width: 20, height: 20, opacity: 1, name: 'Full' },
@@ -166,7 +166,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('overlays with layer and zIndex fields are received', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     const testOverlays = [
       { id: 'bg1', src: 'data:image/png;base64,xxx', x: 0, y: 0, width: 100, height: 100, opacity: 1, name: 'Background 1', layer: 'background', zIndex: 0, category: 'user' },
@@ -204,7 +204,7 @@ test.describe('Mock Meet Page Tests', () => {
 
   test('effect overlays are received with active state', async () => {
     const page = await context.newPage();
-    await page.goto('http://localhost:8080/mock-meet.html');
+    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
 
     const testOverlays = [
       { id: 'effect1', src: 'data:image/gif;base64,xxx', x: 0, y: 0, width: 100, height: 100, opacity: 1, name: 'Fire Effect', type: 'effect', active: false, layer: 'background', zIndex: 0 },

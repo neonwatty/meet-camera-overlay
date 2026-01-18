@@ -227,6 +227,12 @@
         <div class="wall-art-region-editor">
           <canvas id="wall-art-region-canvas" width="320" height="180"></canvas>
           <p class="hint">Drag corners to adjust region shape</p>
+          <div class="region-editor-actions">
+            <button id="edit-region-on-video" class="btn btn-secondary btn-small" type="button">
+              Edit on Video
+            </button>
+            <span class="hint">Opens editor on your Meet video</span>
+          </div>
         </div>
 
         <!-- Tabs for Paint and Art -->
@@ -262,8 +268,8 @@
             <input type="text" id="wall-art-image-url" placeholder="https://example.com/image.png">
           </div>
           <div class="form-group">
-            <label>Or upload a file</label>
-            <input type="file" id="wall-art-image-file" accept="image/*,.gif">
+            <label>Or upload a file (image, GIF, or video)</label>
+            <input type="file" id="wall-art-image-file" accept="image/*,.gif,video/mp4,video/webm">
           </div>
           <div class="form-row">
             <div class="form-group form-group-half">

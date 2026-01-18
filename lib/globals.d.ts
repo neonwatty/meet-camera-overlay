@@ -45,6 +45,14 @@ declare global {
       checkSegmentationSupport: () => { supported: boolean; reason: string | null };
     };
 
+    WallRegionEditor: {
+      show: (region: any, callbacks: { onUpdate?: (region: any) => void; onSave?: (region: any) => void; onCancel?: () => void }) => void;
+      hide: () => void;
+      updateRegion: (region: any) => void;
+      isActive: () => boolean;
+      getCurrentRegion: () => any | null;
+    };
+
     // GIF decoder (from gif-decoder.js)
     GifDecoder: any;
     AnimatedImage: any;

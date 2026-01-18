@@ -127,10 +127,15 @@ const segmentationPreset = document.getElementById('segmentation-preset');
 const segmentationOptions = document.getElementById('segmentation-options');
 const featherRadius = document.getElementById('feather-radius');
 const featherValue = document.getElementById('feather-value');
+const editRegionOnVideoBtn = document.getElementById('edit-region-on-video');
 
 // Wall Art region editor state
 let wallArtRegion = null;
 let wallArtDraggingCorner = null;
+
+// Track if video region editor is open (state tracking for potential future use)
+// eslint-disable-next-line no-unused-vars
+let videoRegionEditorOpen = false;
 
 // Initialize
 async function init() {
@@ -610,6 +615,13 @@ function setupWallArtEventHandlers() {
     });
   }
 
+  // Edit Region on Video button
+  if (editRegionOnVideoBtn) {
+    editRegionOnVideoBtn.addEventListener('click', () => {
+      openRegionEditorOnVideo();
+    });
+  }
+
   // Wall Art Modal tabs
   document.querySelectorAll('.wall-art-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -645,9 +657,19 @@ function setupWallArtEventHandlers() {
       // Check if file was uploaded
       if (wallArtImageFile?.files?.length > 0) {
         const file = wallArtImageFile.files[0];
-        artSrc = await readFileAsDataUrl(file);
+
+        // Detect content type from MIME type
         if (file.type === 'image/gif') {
           contentType = 'gif';
+        } else if (file.type.startsWith('video/')) {
+          contentType = 'video';
+        }
+
+        // Use Blob URL for large files (>2MB) or videos to avoid data URL limits
+        if (file.size > 2 * 1024 * 1024 || contentType === 'video') {
+          artSrc = URL.createObjectURL(file);
+        } else {
+          artSrc = await readFileAsDataUrl(file);
         }
       }
 
@@ -797,6 +819,79 @@ function readFileAsDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// Open region editor on Meet video
+async function openRegionEditorOnVideo() {
+  // Check if we have a Google Meet tab open
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  if (tabs.length === 0) {
+    showStatus('Open Google Meet first', 'error');
+    return;
+  }
+
+  if (!wallArtRegion) {
+    showStatus('No region to edit', 'error');
+    return;
+  }
+
+  videoRegionEditorOpen = true;
+
+  // Send message to content script to show the editor
+  try {
+    await chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'SHOW_REGION_EDITOR',
+      region: wallArtRegion,
+      wallArtId: editingWallArtId
+    });
+
+    showStatus('Editing on video - switch to Meet tab', 'success');
+  } catch (err) {
+    console.error('Failed to open region editor:', err);
+    showStatus('Failed to open editor on video', 'error');
+    videoRegionEditorOpen = false;
+  }
+}
+
+// Listen for messages from content script (region editor results)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'REGION_EDITOR_SAVE') {
+    console.log('[Popup] Region editor save:', message);
+    videoRegionEditorOpen = false;
+
+    // Update the region in our state
+    if (message.region) {
+      wallArtRegion = message.region;
+
+      // If we're editing a wall art, update it
+      if (editingWallArtId && message.wallArtId === editingWallArtId) {
+        // Redraw the canvas to show updated region
+        drawRegionOnCanvas();
+      }
+
+      showStatus('Region updated from video', 'success');
+    }
+
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'REGION_EDITOR_CANCEL') {
+    console.log('[Popup] Region editor cancelled');
+    videoRegionEditorOpen = false;
+    showStatus('Region editing cancelled', 'success');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'REGION_EDITOR_UPDATE') {
+    // Live update the region preview in popup
+    if (message.region && editingWallArtId && message.wallArtId === editingWallArtId) {
+      wallArtRegion = message.region;
+      drawRegionOnCanvas();
+    }
+    sendResponse({ success: true });
+  }
+
+  return true; // Keep channel open for async response
+});
 
 // ==================== END WALL ART FUNCTIONS ====================
 
