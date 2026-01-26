@@ -8,12 +8,11 @@ export default defineConfig({
   testDir: './tests/integration',
   timeout: 30000,
   retries: 0,
-  workers: 1, // Extensions require sequential testing
+  workers: 1, // Sequential testing for consistency
 
   use: {
-    // Use Chrome with extension
     browserName: 'chromium',
-    headless: false, // Extensions don't work in headless mode
+    headless: true, // Run headless with mocked Chrome APIs
     viewport: { width: 1280, height: 720 },
 
     // Record video of tests for visual verification
@@ -25,15 +24,11 @@ export default defineConfig({
     // Grant camera permissions
     permissions: ['camera'],
 
-    // Use persistent context for extension loading
     launchOptions: {
       args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream', // Use fake camera in CI
+        '--use-fake-device-for-media-stream', // Use fake camera
         '--use-fake-ui-for-media-stream', // Auto-accept camera prompts
         `--use-file-for-fake-video-capture=${testVideoPath}`, // Use custom test video
-        // WebGL support for headless canvas rendering
         '--enable-webgl',
         '--use-gl=swiftshader',
       ],
@@ -47,9 +42,54 @@ export default defineConfig({
     },
   ],
 
-  // Web server for serving test fixtures and extension files
+  // Web server for serving test fixtures AND extension files
   webServer: {
-    command: 'python3 -m http.server 8080',
+    command: `node -e "
+      const http = require('http');
+      const fs = require('fs');
+      const path = require('path');
+
+      const mimeTypes = {
+        '.html': 'text/html',
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.jpg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.json': 'application/json',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.y4m': 'video/x-raw-yuv',
+      };
+
+      const server = http.createServer((req, res) => {
+        let filePath;
+        const url = req.url.split('?')[0];
+
+        if (url.startsWith('/extension/')) {
+          // Serve extension files from project root
+          filePath = path.join('${extensionPath.replace(/\\/g, '\\\\')}', url.replace('/extension/', ''));
+        } else {
+          // Serve test fixtures
+          filePath = path.join('${extensionPath.replace(/\\/g, '\\\\')}', 'tests/fixtures', url === '/' ? 'mock-meet.html' : url);
+        }
+
+        fs.readFile(filePath, (err, data) => {
+          if (err) {
+            res.writeHead(404);
+            res.end('Not Found: ' + filePath);
+            return;
+          }
+          const ext = path.extname(filePath);
+          const mimeType = mimeTypes[ext] || 'application/octet-stream';
+          res.writeHead(200, { 'Content-Type': mimeType });
+          res.end(data);
+        });
+      });
+
+      server.listen(8080, () => console.log('Test server running on http://localhost:8080'));
+    "`,
     port: 8080,
     reuseExistingServer: !process.env.CI,
   },

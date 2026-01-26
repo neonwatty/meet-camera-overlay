@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Popup Test Wrapper</title>
+  <!-- Load Chrome mock FIRST, before any extension code -->
+  <script src="chrome-mock.js"></script>
+  <!-- Load extension styles -->
+  <link rel="stylesheet" href="/extension/styles.css">
+</head>
+<body>
+  <!-- Popup content will be loaded here -->
+  <div id="popup-root"></div>
+
+  <script>
+    // Fetch and inject the popup HTML content
+    async function loadPopup() {
+      try {
+        const response = await fetch('/extension/popup.html');
+        const html = await response.text();
+
+        // Parse the HTML and extract body content
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Get the body content (excluding scripts for now)
+        const body = doc.body;
+        const container = body.querySelector('.container');
+
+        if (container) {
+          document.getElementById('popup-root').innerHTML = container.outerHTML;
+        } else {
+          // Fallback: use full body content
+          document.getElementById('popup-root').innerHTML = body.innerHTML;
+        }
+
+        // Remove any script tags from the injected content to avoid double execution
+        document.querySelectorAll('#popup-root script').forEach(s => s.remove());
+
+        // Now load popup.js
+        const script = document.createElement('script');
+        script.src = '/extension/popup.js';
+        script.onload = () => {
+          console.log('[PopupTest] popup.js loaded');
+          window.__popupLoaded = true;
+        };
+        script.onerror = (e) => {
+          console.error('[PopupTest] Failed to load popup.js:', e);
+        };
+        document.body.appendChild(script);
+
+      } catch (error) {
+        console.error('[PopupTest] Failed to load popup:', error);
+        document.getElementById('popup-root').innerHTML = `
+          <div style="color: red; padding: 20px;">
+            Error loading popup: ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    // Load popup on DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadPopup);
+    } else {
+      loadPopup();
+    }
+  </script>
+</body>
+</html>

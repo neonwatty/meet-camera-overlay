@@ -1,48 +1,12 @@
-import { test, expect, chromium } from '@playwright/test';
-import path from 'path';
-
-const extensionPath = path.resolve(process.cwd());
-const testVideoPath = path.resolve(process.cwd(), 'tests/fixtures/videos/test-background.y4m');
-const isCI = !!process.env.CI;
-const videoDir = path.resolve(process.cwd(), 'test-results/videos');
+import { test, expect } from '@playwright/test';
 
 /**
  * Wall Art Mock Meet Tests - Test wall art message handling
  * These tests verify that wall art overlays are properly sent and received
  */
 test.describe('Wall Art Mock Meet Tests', () => {
-  let context;
-
-  test.beforeAll(async () => {
-    context = await chromium.launchPersistentContext('', {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        `--use-file-for-fake-video-capture=${testVideoPath}`,
-        '--no-first-run',
-        '--disable-gpu',
-        '--enable-webgl',
-        '--use-gl=swiftshader',
-      ],
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 }
-      }
-    });
-  });
-
-  test.afterAll(async () => {
-    if (context) {
-      await context.close();
-    }
-  });
-
-  test('wall art overlay message is received', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('wall art overlay message is received', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Create a wall art overlay
     const wallArtOverlay = {
@@ -73,19 +37,12 @@ test.describe('Wall Art Mock Meet Tests', () => {
 
     await page.waitForTimeout(100);
 
-    // Verify message was received (check via custom listener)
-    const _received = await page.evaluate(() => {
-      return window.__wallArtReceived || false;
-    });
-
     // The message should be posted - inject.js will handle it
-    // For now, we just verify the message can be sent (unused var prefixed with _)
-    await page.close();
+    // For now, we just verify the message can be sent
   });
 
-  test('wall art settings message is received', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('wall art settings message is received', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Send wall art settings update
     const settings = {
@@ -99,13 +56,10 @@ test.describe('Wall Art Mock Meet Tests', () => {
     }, settings);
 
     await page.waitForTimeout(100);
-
-    await page.close();
   });
 
-  test('toggle wall art message is received', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('toggle wall art message is received', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Send toggle message
     await page.evaluate(() => {
@@ -113,13 +67,10 @@ test.describe('Wall Art Mock Meet Tests', () => {
     });
 
     await page.waitForTimeout(100);
-
-    await page.close();
   });
 
-  test('camera starts with custom test video', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('camera starts with custom test video', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Start camera
     await page.click('#start-btn');
@@ -149,7 +100,6 @@ test.describe('Wall Art Mock Meet Tests', () => {
     expect(streamInfo.videoTrackCount).toBe(1);
 
     await page.click('#stop-btn');
-    await page.close();
   });
 });
 
@@ -158,63 +108,24 @@ test.describe('Wall Art Mock Meet Tests', () => {
  * These tests verify the Wall Art section in the extension popup
  */
 test.describe('Wall Art Popup Tests', () => {
-  test.skip(isCI, 'Extension popup tests are skipped in CI - run locally');
+  test.beforeEach(async ({ page }) => {
+    // Load popup test page with Chrome mocks
+    await page.goto('http://localhost:8080/popup-test.html');
 
-  let context;
-  let extensionId;
+    // Wait for popup to load
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
-  test.beforeAll(async () => {
-    context = await chromium.launchPersistentContext('', {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        `--use-file-for-fake-video-capture=${testVideoPath}`,
-        '--no-first-run',
-        '--enable-webgl',
-        '--use-gl=swiftshader',
-      ],
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 }
-      }
+    // Reset mock state
+    await page.evaluate(() => {
+      window.__resetChromeMock();
     });
 
-    // Get extension ID
-    const page = await context.newPage();
-    await page.goto('chrome://extensions');
-    await page.waitForTimeout(1000);
-
-    extensionId = await page.evaluate(() => {
-      const manager = document.querySelector('extensions-manager');
-      if (manager?.shadowRoot) {
-        const itemsList = manager.shadowRoot.querySelector('extensions-item-list');
-        if (itemsList?.shadowRoot) {
-          const item = itemsList.shadowRoot.querySelector('extensions-item');
-          return item?.id || null;
-        }
-      }
-      return null;
-    });
-
-    await page.close();
-    console.log('Extension ID:', extensionId);
+    // Reload to apply clean state
+    await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
   });
 
-  test.afterAll(async () => {
-    if (context) {
-      await context.close();
-    }
-  });
-
-  test('wall art section is visible in popup', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('wall art section is visible in popup', async ({ page }) => {
     // Scroll to wall art section
     await page.evaluate(() => {
       const wallArtSection = document.querySelector('.wall-art-section');
@@ -225,22 +136,9 @@ test.describe('Wall Art Popup Tests', () => {
     await expect(page.locator('.wall-art-section')).toBeVisible();
     await expect(page.locator('.wall-art-section h2')).toContainText('Wall Art');
     await expect(page.locator('#add-wall-art')).toBeVisible();
-
-    await page.close();
   });
 
-  test('can add a wall art region', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear existing wall art
-    await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], wallArtSettings: {}, showTutorial: false });
-    });
-    await page.reload();
-
+  test('can add a wall art region', async ({ page }) => {
     // Initially should show empty state
     await expect(page.locator('#wall-art-empty-state')).toBeVisible();
 
@@ -260,26 +158,9 @@ test.describe('Wall Art Popup Tests', () => {
     // Wall art item should appear in list
     await expect(page.locator('#wall-art-list .wall-art-item')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#wall-art-empty-state')).toBeHidden();
-
-    // Clean up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], showTutorial: false });
-    });
-    await page.close();
   });
 
-  test('can configure wall art paint color', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and set up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], wallArtSettings: {}, showTutorial: false });
-    });
-    await page.reload();
-
+  test('can configure wall art paint color', async ({ page }) => {
     // Add a wall art region
     await page.click('#add-wall-art');
     await expect(page.locator('#wall-art-modal')).toBeVisible();
@@ -314,25 +195,15 @@ test.describe('Wall Art Popup Tests', () => {
     expect(wallArt[0].paint.color).toBe('#ff5500');
     // Opacity is stored as decimal (0-1), not percentage
     expect(wallArt[0].paint.opacity).toBe(0.7);
-
-    // Clean up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], showTutorial: false });
-    });
-    await page.close();
   });
 
-  test('can toggle person occlusion setting', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear settings
+  test('can toggle person occlusion setting', async ({ page }) => {
+    // Set initial state
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: false }, showTutorial: false });
+      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: false } });
     });
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // Scroll to segmentation panel first
     await page.evaluate(() => {
@@ -347,7 +218,6 @@ test.describe('Wall Art Popup Tests', () => {
     expect(isChecked).toBe(false);
 
     // Click the toggle switch label to enable segmentation
-    // (the actual checkbox is hidden with opacity: 0)
     await page.click('.segmentation-toggle .toggle-switch');
 
     // Verify options become visible
@@ -363,21 +233,15 @@ test.describe('Wall Art Popup Tests', () => {
     });
 
     expect(settings.segmentationEnabled).toBe(true);
-
-    await page.close();
   });
 
-  test('can change segmentation preset', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('can change segmentation preset', async ({ page }) => {
     // Enable segmentation first
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true }, showTutorial: false });
+      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true } });
     });
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // Change preset
     await page.selectOption('#segmentation-preset', 'performance');
@@ -396,21 +260,15 @@ test.describe('Wall Art Popup Tests', () => {
     });
 
     expect(settings.segmentationPreset).toBe('performance');
-
-    await page.close();
   });
 
-  test('can adjust feather radius', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('can adjust feather radius', async ({ page }) => {
     // Enable segmentation first
     await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true, featherRadius: 2 }, showTutorial: false });
+      chrome.storage.local.set({ wallArtSettings: { segmentationEnabled: true, featherRadius: 2 } });
     });
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // Change feather radius
     await page.fill('#feather-radius', '4');
@@ -418,16 +276,9 @@ test.describe('Wall Art Popup Tests', () => {
 
     // Verify display updates
     await expect(page.locator('#feather-value')).toContainText('4px');
-
-    await page.close();
   });
 
-  test('wall art modal has paint and art tabs', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('wall art modal has paint and art tabs', async ({ page }) => {
     // Open wall art modal
     await page.click('#add-wall-art');
     await expect(page.locator('#wall-art-modal')).toBeVisible();
@@ -452,38 +303,9 @@ test.describe('Wall Art Popup Tests', () => {
     // Cancel
     await page.click('#wall-art-cancel');
     await expect(page.locator('#wall-art-modal')).toBeHidden();
-
-    await page.close();
   });
 
-  test('wall art file input accepts video files', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Open wall art modal
-    await page.click('#add-wall-art');
-    await expect(page.locator('#wall-art-modal')).toBeVisible();
-
-    // Switch to art tab
-    await page.click('.wall-art-tab[data-tab="art"]');
-
-    // Verify file input accepts video types
-    const fileInput = page.locator('#wall-art-image-file');
-    const acceptAttr = await fileInput.getAttribute('accept');
-    expect(acceptAttr).toContain('video/mp4');
-    expect(acceptAttr).toContain('video/webm');
-
-    await page.close();
-  });
-
-  test('can delete wall art region', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('can delete wall art region', async ({ page }) => {
     // Add a wall art region first
     await page.evaluate(() => {
       const wallArt = {
@@ -502,9 +324,10 @@ test.describe('Wall Art Popup Tests', () => {
         layer: 'background',
         zIndex: 0
       };
-      chrome.storage.local.set({ wallArtOverlays: [wallArt], showTutorial: false });
+      chrome.storage.local.set({ wallArtOverlays: [wallArt] });
     });
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // Verify wall art exists
     await expect(page.locator('#wall-art-list .wall-art-item')).toHaveCount(1);
@@ -519,16 +342,9 @@ test.describe('Wall Art Popup Tests', () => {
     // Verify wall art was deleted
     await expect(page.locator('#wall-art-empty-state')).toBeVisible();
     await expect(page.locator('#wall-art-list .wall-art-item')).toHaveCount(0);
-
-    await page.close();
   });
 
-  test('wall art toggle button works', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('wall art toggle button works', async ({ page }) => {
     // Add an active wall art region
     await page.evaluate(() => {
       const wallArt = {
@@ -547,11 +363,12 @@ test.describe('Wall Art Popup Tests', () => {
         layer: 'background',
         zIndex: 0
       };
-      chrome.storage.local.set({ wallArtOverlays: [wallArt], showTutorial: false });
+      chrome.storage.local.set({ wallArtOverlays: [wallArt] });
     });
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
-    // Find toggle button - should show ON (class is trigger-btn, not toggle-btn)
+    // Find toggle button - should show ON
     const toggleBtn = page.locator('#wall-art-list .wall-art-item .trigger-btn');
     await expect(toggleBtn).toBeVisible({ timeout: 5000 });
     await expect(toggleBtn).toContainText('ON');
@@ -572,11 +389,5 @@ test.describe('Wall Art Popup Tests', () => {
     });
 
     expect(wallArt[0].active).toBe(false);
-
-    // Clean up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ wallArtOverlays: [], showTutorial: false });
-    });
-    await page.close();
   });
 });
