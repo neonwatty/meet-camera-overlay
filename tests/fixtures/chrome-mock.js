@@ -4,6 +4,7 @@
  * Provides in-memory mocks of chrome.storage, chrome.runtime, etc.
  * for headless integration testing without loading the real extension.
  */
+/* global sessionStorage */
 
 (function() {
   // Use sessionStorage for persistence across page reloads within same test
