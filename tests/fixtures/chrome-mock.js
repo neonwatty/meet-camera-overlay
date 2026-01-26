@@ -312,8 +312,22 @@
 
     tabs: {
       query: (queryInfo, callback) => {
-        // Return mock active tab
-        const tabs = [{ id: 1, url: 'http://localhost:8080/mock-meet.html', active: true }];
+        // Filter tabs based on URL pattern
+        // If querying for meet.google.com, return empty (no real Meet tabs in test env)
+        let tabs = [];
+        if (queryInfo && queryInfo.url) {
+          const urlPattern = queryInfo.url;
+          // Don't return tabs for meet.google.com queries - no real Meet tabs exist
+          if (urlPattern.includes('meet.google.com')) {
+            tabs = [];
+          } else {
+            // For other queries, return mock tab
+            tabs = [{ id: 1, url: 'http://localhost:8080/mock-meet.html', active: true }];
+          }
+        } else {
+          // No URL filter - return mock active tab
+          tabs = [{ id: 1, url: 'http://localhost:8080/mock-meet.html', active: true }];
+        }
         if (callback) {
           setTimeout(() => callback(tabs), 0);
         }

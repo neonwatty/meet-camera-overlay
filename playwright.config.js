@@ -70,6 +70,9 @@ export default defineConfig({
         if (url.startsWith('/extension/')) {
           // Serve extension files from project root
           filePath = path.join('${extensionPath.replace(/\\/g, '\\\\')}', url.replace('/extension/', ''));
+        } else if (url.startsWith('/lib/')) {
+          // Serve lib files from project root
+          filePath = path.join('${extensionPath.replace(/\\/g, '\\\\')}', url);
         } else {
           // Serve test fixtures
           filePath = path.join('${extensionPath.replace(/\\/g, '\\\\')}', 'tests/fixtures', url === '/' ? 'mock-meet.html' : url);
