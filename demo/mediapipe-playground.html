@@ -875,6 +875,7 @@
       if (!model) return;
 
       state.currentModel = model;
+      state.vizMode = 0; // Reset viz mode when switching models
 
       // Update UI
       document.querySelectorAll('.model-item').forEach(item => {
@@ -893,8 +894,48 @@
       // Render viz options
       renderVizOptions(model);
 
-      // Update status
-      elements.modelStatusText.textContent = model.name;
+      // Update model status indicator
+      updateModelStatusDisplay();
+
+      // If camera is running, load the model for this view
+      if (state.isRunning) {
+        loadCurrentModel();
+      }
+    }
+
+    function updateModelStatusDisplay() {
+      const modelId = state.currentModel?.id;
+      let statusText = state.currentModel?.name || 'None';
+      let isLoaded = false;
+
+      // Check if the required model for this view is loaded
+      switch (modelId) {
+        case 'segmentation':
+          isLoaded = !!state.models.segmenter;
+          statusText += isLoaded ? ' ✓' : ' (not loaded)';
+          break;
+        case 'depth-estimation':
+          isLoaded = !!state.models.depthEstimator;
+          statusText += isLoaded ? ' ✓' : ' (not loaded)';
+          break;
+        case 'wall-detection':
+        case 'edge-detection':
+        case 'stabilization':
+          isLoaded = true; // CPU-based, always available
+          statusText += ' ✓';
+          break;
+        case 'combined':
+          const segLoaded = !!state.models.segmenter;
+          statusText += segLoaded ? ' (seg ✓)' : ' (seg pending)';
+          isLoaded = segLoaded;
+          break;
+        default:
+          isLoaded = true;
+      }
+
+      elements.modelStatusText.textContent = statusText;
+      elements.modelStatus.classList.remove('active', 'loading', 'error');
+      elements.modelStatus.classList.add(isLoaded ? 'active' : 'loading');
     }
 
     function renderSettings(model) {
@@ -1044,27 +1085,37 @@
     async function loadCurrentModel() {
       if (!state.currentModel) return;
 
+      const modelId = state.currentModel.id;
+      console.log(`[Model] Loading model for: ${modelId}`);
+
       elements.modelStatus.classList.remove('active', 'error');
       elements.modelStatus.classList.add('loading');
 
       try {
-        switch (state.currentModel.id) {
+        switch (modelId) {
           case 'segmentation':
             await loadSegmentationModel();
             break;
           case 'depth-estimation':
             await loadDepthModel();
             break;
+          case 'combined':
+            // Combined needs segmentation
+            await loadSegmentationModel();
+            break;
           // Other models don't need async loading
+          default:
+            console.log(`[Model] ${modelId} is CPU-based, no loading needed`);
         }
 
-        elements.modelStatus.classList.remove('loading');
-        elements.modelStatus.classList.add('active');
+        console.log(`[Model] ${modelId} ready`);
+        updateModelStatusDisplay();
       } catch (error) {
-        console.error('Model load error:', error);
+        console.error('[Model] Load error:', error);
         elements.modelStatus.classList.remove('loading');
         elements.modelStatus.classList.add('error');
         showError('Failed to load model: ' + error.message);
+        updateModelStatusDisplay();
       }
     }
 
@@ -1096,16 +1147,22 @@
     }
 
     async function loadDepthModel() {
-      if (state.models.depthEstimator) return;
+      if (state.models.depthEstimator) {
+        console.log('[Depth] Model already loaded');
+        return;
+      }
 
       const deviceSetting = state.settings['device'] || 'WebGPU (Fast)';
       const device = deviceSetting.includes('WebGPU') ? 'webgpu' : 'wasm';
 
+      console.log(`[Depth] Starting to load Depth Anything V2 with device: ${device}`);
       showLoading(`Loading Depth Anything V2 (${device.toUpperCase()})... This may take a moment on first load.`);
 
       try {
         // Dynamic import Transformers.js
+        console.log('[Depth] Importing Transformers.js...');
         const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
+        console.log('[Depth] Transformers.js imported successfully');
 
         // Configure for browser use
         env.allowLocalModels = false;
@@ -1115,13 +1172,16 @@
         let actualDevice = device;
         if (device === 'webgpu') {
           if (!navigator.gpu) {
-            console.warn('WebGPU not available, falling back to WASM');
+            console.warn('[Depth] WebGPU not available, falling back to WASM');
             actualDevice = 'wasm';
             showLoading('WebGPU not available. Loading with WASM (slower)...');
+          } else {
+            console.log('[Depth] WebGPU is available');
           }
         }
 
         // Load the depth estimation pipeline
+        console.log(`[Depth] Loading pipeline on ${actualDevice}... (this downloads ~27MB on first run)`);
         state.models.depthEstimator = await pipeline(
           'depth-estimation',
           'onnx-community/depth-anything-v2-small',
@@ -1131,10 +1191,10 @@
           }
         );
 
-        console.log('Depth model loaded successfully on', actualDevice);
+        console.log('[Depth] ✓ Model loaded successfully on', actualDevice);
         hideLoading();
       } catch (error) {
-        console.error('Depth model load error:', error);
+        console.error('[Depth] Load error:', error);
         hideLoading();
         throw new Error(`Failed to load depth model: ${error.message}`);
       }
