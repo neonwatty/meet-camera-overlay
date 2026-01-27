@@ -717,14 +717,16 @@
         id: 'depth-estimation',
         name: 'Depth Estimation',
         icon: '🌊',
-        status: 'potential',
-        description: 'Estimates depth/distance for each pixel using MiDaS model. Could enable 3D scene understanding.',
-        usage: 'POTENTIAL: Could identify wall planes by finding regions with consistent depth, enable proper occlusion, and improve stabilization.',
-        modelSize: '~25 MB',
+        status: 'current',
+        description: 'Real depth estimation using Depth Anything V2 Small model via Transformers.js. Estimates per-pixel depth.',
+        usage: 'Identifies wall planes by finding regions with consistent depth. Enables accurate wall detection by distinguishing surfaces at different distances.',
+        modelSize: '27 MB (INT8)',
         settings: [
-          { id: 'model-size', type: 'select', label: 'Model Size', options: ['Small (Fast)', 'Large (Accurate)'], default: 'Small (Fast)' }
+          { id: 'device', type: 'select', label: 'Device', options: ['WebGPU (Fast)', 'WASM (Compatible)'], default: 'WebGPU (Fast)' },
+          { id: 'update-interval', type: 'range', label: 'Update Every N Frames', min: 1, max: 60, step: 1, default: 15 },
+          { id: 'resolution-scale', type: 'range', label: 'Resolution Scale', min: 0.25, max: 1, step: 0.25, default: 0.5 }
         ],
-        vizOptions: ['Depth Map', 'Depth Contours', 'Near/Far Regions']
+        vizOptions: ['Depth Map', 'Depth Contours', 'Near/Far Regions', 'Wall Planes']
       },
       'stabilization': {
         id: 'stabilization',
@@ -1094,8 +1096,48 @@
     }
 
     async function loadDepthModel() {
-      // TODO: Implement MiDaS loading
-      showError('Depth estimation model not yet implemented');
+      if (state.models.depthEstimator) return;
+
+      const deviceSetting = state.settings['device'] || 'WebGPU (Fast)';
+      const device = deviceSetting.includes('WebGPU') ? 'webgpu' : 'wasm';
+
+      showLoading(`Loading Depth Anything V2 (${device.toUpperCase()})... This may take a moment on first load.`);
+
+      try {
+        // Dynamic import Transformers.js
+        const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
+
+        // Configure for browser use
+        env.allowLocalModels = false;
+        env.useBrowserCache = true;
+
+        // Check WebGPU availability
+        let actualDevice = device;
+        if (device === 'webgpu') {
+          if (!navigator.gpu) {
+            console.warn('WebGPU not available, falling back to WASM');
+            actualDevice = 'wasm';
+            showLoading('WebGPU not available. Loading with WASM (slower)...');
+          }
+        }
+
+        // Load the depth estimation pipeline
+        state.models.depthEstimator = await pipeline(
+          'depth-estimation',
+          'onnx-community/depth-anything-v2-small',
+          {
+            device: actualDevice,
+            dtype: actualDevice === 'webgpu' ? 'fp32' : 'q8'
+          }
+        );
+
+        console.log('Depth model loaded successfully on', actualDevice);
+        hideLoading();
+      } catch (error) {
+        console.error('Depth model load error:', error);
+        hideLoading();
+        throw new Error(`Failed to load depth model: ${error.message}`);
+      }
     }
 
     // ============================================
@@ -1688,49 +1730,167 @@
       return edges;
     }
 
+    // Cache for depth estimation results
+    const depthCache = {
+      frameCount: 0,
+      depthMap: null,
+      depthWidth: 0,
+      depthHeight: 0,
+      isProcessing: false,
+      lastInferenceTime: 0
+    };
+
     function processDepthEstimation() {
       ctx.drawImage(elements.webcam, 0, 0);
 
-      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
-      const depthMap = estimateDepthSimple(imageData);
-
+      const depthEstimator = state.models.depthEstimator;
+      const updateInterval = state.settings['update-interval'] ?? 15;
       const vizMode = state.currentModel.vizOptions[state.vizMode];
 
-      // Apply depth visualization
+      // Check if we should update the depth map
+      depthCache.frameCount++;
+      const shouldUpdate = (depthCache.frameCount >= updateInterval || !depthCache.depthMap)
+                           && !depthCache.isProcessing
+                           && depthEstimator;
+
+      if (shouldUpdate) {
+        depthCache.frameCount = 0;
+        runDepthEstimation();
+      }
+
+      // Render using cached depth map
+      if (depthCache.depthMap) {
+        renderDepthVisualization(vizMode);
+      } else if (!depthEstimator) {
+        // Show loading message if model not ready
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(10, elements.canvas.height - 60, 320, 50);
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Loading Depth Anything V2 model...', 20, elements.canvas.height - 40);
+        ctx.fillStyle = '#888';
+        ctx.fillText('First load downloads ~27MB model', 20, elements.canvas.height - 22);
+      }
+    }
+
+    async function runDepthEstimation() {
+      const depthEstimator = state.models.depthEstimator;
+      if (!depthEstimator || depthCache.isProcessing) return;
+
+      depthCache.isProcessing = true;
+      const startTime = performance.now();
+
+      try {
+        // Create a scaled-down canvas for faster inference
+        const scale = state.settings['resolution-scale'] ?? 0.5;
+        const scaledWidth = Math.round(elements.canvas.width * scale);
+        const scaledHeight = Math.round(elements.canvas.height * scale);
+
+        // Create offscreen canvas for scaling
+        const offscreen = new OffscreenCanvas(scaledWidth, scaledHeight);
+        const offCtx = offscreen.getContext('2d');
+        offCtx.drawImage(elements.webcam, 0, 0, scaledWidth, scaledHeight);
+
+        // Convert to blob for the model
+        const blob = await offscreen.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+
+        // Run depth estimation
+        const result = await depthEstimator(blob);
+
+        // Extract depth data from result
+        if (result && result.depth) {
+          const depthTensor = result.depth;
+          depthCache.depthMap = depthTensor.data;
+          depthCache.depthWidth = depthTensor.width;
+          depthCache.depthHeight = depthTensor.height;
+        }
+
+        depthCache.lastInferenceTime = performance.now() - startTime;
+      } catch (error) {
+        console.error('Depth estimation error:', error);
+      } finally {
+        depthCache.isProcessing = false;
+      }
+    }
+
+    function renderDepthVisualization(vizMode) {
+      const { depthMap, depthWidth, depthHeight, lastInferenceTime } = depthCache;
+      if (!depthMap) return;
+
+      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
       const pixels = imageData.data;
 
+      // Find min/max for normalization
+      let minDepth = Infinity, maxDepth = -Infinity;
       for (let i = 0; i < depthMap.length; i++) {
-        const depth = depthMap[i]; // 0 = near, 1 = far
-        const pixelIndex = i * 4;
+        minDepth = Math.min(minDepth, depthMap[i]);
+        maxDepth = Math.max(maxDepth, depthMap[i]);
+      }
+      const depthRange = maxDepth - minDepth || 1;
 
-        if (vizMode === 'Depth Map') {
-          // Color gradient: warm (near) to cool (far)
-          const hue = depth * 240; // 0 = red, 240 = blue
-          const rgb = hslToRgb(hue / 360, 0.8, 0.5);
-          pixels[pixelIndex] = rgb[0];
-          pixels[pixelIndex + 1] = rgb[1];
-          pixels[pixelIndex + 2] = rgb[2];
-        } else if (vizMode === 'Depth Contours') {
-          // Draw contour lines at depth intervals
-          const contourInterval = 0.1;
-          const contourValue = depth % contourInterval;
-          if (contourValue < 0.01 || contourValue > contourInterval - 0.01) {
-            pixels[pixelIndex] = 255;
-            pixels[pixelIndex + 1] = 255;
-            pixels[pixelIndex + 2] = 255;
-          }
-        } else if (vizMode === 'Near/Far Regions') {
-          // Highlight near (person) and far (wall) regions
-          if (depth < 0.4) {
-            // Near - highlight red
-            pixels[pixelIndex] = Math.min(255, pixels[pixelIndex] + 80);
-            pixels[pixelIndex + 1] = pixels[pixelIndex + 1] * 0.7;
-            pixels[pixelIndex + 2] = pixels[pixelIndex + 2] * 0.7;
-          } else if (depth > 0.7) {
-            // Far - highlight blue
-            pixels[pixelIndex] = pixels[pixelIndex] * 0.7;
-            pixels[pixelIndex + 1] = pixels[pixelIndex + 1] * 0.7;
-            pixels[pixelIndex + 2] = Math.min(255, pixels[pixelIndex + 2] + 80);
+      // Scale factors for mapping depth map to canvas
+      const scaleX = depthWidth / elements.canvas.width;
+      const scaleY = depthHeight / elements.canvas.height;
+
+      // Wall plane detection for "Wall Planes" viz mode
+      let wallPlanes = null;
+      if (vizMode === 'Wall Planes') {
+        wallPlanes = detectWallPlanes(depthMap, depthWidth, depthHeight, minDepth, maxDepth);
+      }
+
+      for (let y = 0; y < elements.canvas.height; y++) {
+        for (let x = 0; x < elements.canvas.width; x++) {
+          // Sample depth map (nearest neighbor)
+          const dx = Math.floor(x * scaleX);
+          const dy = Math.floor(y * scaleY);
+          const depthIdx = dy * depthWidth + dx;
+          const rawDepth = depthMap[depthIdx] || 0;
+
+          // Normalize depth to 0-1 (closer = lower value in Depth Anything)
+          const depth = (rawDepth - minDepth) / depthRange;
+
+          const pixelIndex = (y * elements.canvas.width + x) * 4;
+
+          if (vizMode === 'Depth Map') {
+            // Color gradient: red (near) to blue (far)
+            const hue = depth * 240;
+            const rgb = hslToRgb(hue / 360, 0.8, 0.5);
+            pixels[pixelIndex] = rgb[0];
+            pixels[pixelIndex + 1] = rgb[1];
+            pixels[pixelIndex + 2] = rgb[2];
+          } else if (vizMode === 'Depth Contours') {
+            // Draw contour lines
+            const contourInterval = 0.08;
+            const contourValue = depth % contourInterval;
+            if (contourValue < 0.008 || contourValue > contourInterval - 0.008) {
+              pixels[pixelIndex] = 255;
+              pixels[pixelIndex + 1] = 255;
+              pixels[pixelIndex + 2] = 255;
+            }
+          } else if (vizMode === 'Near/Far Regions') {
+            // Highlight near (person) and far (wall) regions
+            if (depth < 0.35) {
+              // Near - red tint
+              pixels[pixelIndex] = Math.min(255, pixels[pixelIndex] + 100);
+              pixels[pixelIndex + 1] = Math.floor(pixels[pixelIndex + 1] * 0.6);
+              pixels[pixelIndex + 2] = Math.floor(pixels[pixelIndex + 2] * 0.6);
+            } else if (depth > 0.65) {
+              // Far - blue tint
+              pixels[pixelIndex] = Math.floor(pixels[pixelIndex] * 0.6);
+              pixels[pixelIndex + 1] = Math.floor(pixels[pixelIndex + 1] * 0.6);
+              pixels[pixelIndex + 2] = Math.min(255, pixels[pixelIndex + 2] + 100);
+            }
+          } else if (vizMode === 'Wall Planes' && wallPlanes) {
+            // Color by wall plane membership
+            const planeId = wallPlanes[dy * depthWidth + dx];
+            if (planeId > 0) {
+              const planeHue = (planeId * 67) % 360; // Spread colors
+              const rgb = hslToRgb(planeHue / 360, 0.7, 0.5);
+              pixels[pixelIndex] = Math.floor(pixels[pixelIndex] * 0.4 + rgb[0] * 0.6);
+              pixels[pixelIndex + 1] = Math.floor(pixels[pixelIndex + 1] * 0.4 + rgb[1] * 0.6);
+              pixels[pixelIndex + 2] = Math.floor(pixels[pixelIndex + 2] * 0.4 + rgb[2] * 0.6);
+            }
           }
         }
       }
@@ -1738,48 +1898,67 @@
       ctx.putImageData(imageData, 0, 0);
 
       // Add info overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(10, elements.canvas.height - 60, 280, 50);
-      ctx.fillStyle = '#fbbf24';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(10, elements.canvas.height - 80, 300, 70);
+      ctx.fillStyle = '#4ade80';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('⚠️ Simulated depth (brightness-based)', 20, elements.canvas.height - 40);
+      ctx.fillText('Depth Anything V2 Small', 20, elements.canvas.height - 60);
       ctx.fillStyle = '#888';
-      ctx.fillText('Real MiDaS model would provide accurate depth', 20, elements.canvas.height - 22);
+      ctx.fillText(`Inference: ${lastInferenceTime.toFixed(0)}ms | Resolution: ${depthWidth}x${depthHeight}`, 20, elements.canvas.height - 42);
+      ctx.fillText(`Depth range: ${minDepth.toFixed(2)} - ${maxDepth.toFixed(2)}`, 20, elements.canvas.height - 24);
     }
 
-    // Simple depth estimation based on brightness and position
-    // This is a SIMULATION - real depth requires ML model like MiDaS
-    function estimateDepthSimple(imageData) {
-      const width = imageData.width;
-      const height = imageData.height;
-      const data = imageData.data;
-      const depthMap = new Float32Array(width * height);
+    // Detect flat wall planes from depth map
+    function detectWallPlanes(depthMap, width, height, minDepth, maxDepth) {
+      const depthRange = maxDepth - minDepth || 1;
+      const planes = new Int32Array(width * height);
+      const depthTolerance = depthRange * 0.05; // 5% of depth range
 
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const i = (y * width + x) * 4;
+      let planeId = 0;
+      const gridSize = 8;
+      const cellWidth = Math.floor(width / gridSize);
+      const cellHeight = Math.floor(height / gridSize);
 
-          // Use brightness as rough depth proxy (darker = further)
-          const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3 / 255;
+      // Analyze grid cells for consistent depth
+      for (let gy = 0; gy < gridSize; gy++) {
+        for (let gx = 0; gx < gridSize; gx++) {
+          const startX = gx * cellWidth;
+          const startY = gy * cellHeight;
 
-          // Add vertical gradient (top = further, bottom = closer - typical for rooms)
-          const verticalBias = y / height * 0.3;
+          // Sample depth values in this cell
+          let sumDepth = 0, count = 0;
+          for (let y = startY; y < startY + cellHeight && y < height; y += 2) {
+            for (let x = startX; x < startX + cellWidth && x < width; x += 2) {
+              sumDepth += depthMap[y * width + x];
+              count++;
+            }
+          }
+          const avgDepth = sumDepth / count;
 
-          // Center tends to be closer (person in center)
-          const centerX = Math.abs(x - width / 2) / (width / 2);
-          const centerY = Math.abs(y - height / 2) / (height / 2);
-          const centerBias = (centerX + centerY) / 2 * 0.2;
+          // Calculate variance
+          let variance = 0;
+          for (let y = startY; y < startY + cellHeight && y < height; y += 2) {
+            for (let x = startX; x < startX + cellWidth && x < width; x += 2) {
+              const diff = depthMap[y * width + x] - avgDepth;
+              variance += diff * diff;
+            }
+          }
+          variance = Math.sqrt(variance / count);
 
-          // Combine factors
-          let depth = (1 - brightness) * 0.5 + verticalBias + centerBias;
-          depth = Math.max(0, Math.min(1, depth));
-
-          depthMap[y * width + x] = depth;
+          // If low variance (flat surface), mark as wall plane
+          if (variance < depthTolerance) {
+            planeId++;
+            for (let y = startY; y < startY + cellHeight && y < height; y++) {
+              for (let x = startX; x < startX + cellWidth && x < width; x++) {
+                planes[y * width + x] = planeId;
+              }
+            }
+          }
         }
       }
 
-      return depthMap;
+      return planes;
     }
 
     // HSL to RGB helper
