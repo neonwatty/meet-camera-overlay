@@ -684,14 +684,18 @@
         name: 'Wall Detection',
         icon: '🧱',
         status: 'current',
-        description: 'Custom algorithm to detect uniform color regions that appear to be walls.',
-        usage: 'Helps users identify suitable wall areas for placing art. Analyzes color uniformity and excludes detected person regions.',
+        description: 'Smart wall detection combining uniform color, vertical position weighting, person mask, and ceiling boundary detection.',
+        usage: 'Helps users identify suitable wall areas for placing art. Uses multiple signals to distinguish walls from ceilings even when they are the same color.',
         modelSize: 'N/A (CPU)',
         settings: [
           { id: 'grid-size', type: 'range', label: 'Grid Size', min: 4, max: 16, step: 1, default: 8 },
-          { id: 'uniformity', type: 'range', label: 'Uniformity Threshold', min: 0, max: 50, step: 5, default: 25 }
+          { id: 'uniformity', type: 'range', label: 'Uniformity Threshold', min: 0, max: 50, step: 5, default: 25 },
+          { id: 'vertical-weight', type: 'range', label: 'Vertical Position Weight', min: 0, max: 1, step: 0.1, default: 0.5 },
+          { id: 'person-weight', type: 'range', label: 'Behind-Person Weight', min: 0, max: 1, step: 0.1, default: 0.3 },
+          { id: 'ceiling-detection', type: 'toggle', label: 'Ceiling Detection', default: true },
+          { id: 'ceiling-height', type: 'range', label: 'Ceiling Height (%)', min: 10, max: 50, step: 5, default: 25 }
         ],
-        vizOptions: ['Grid View', 'Detected Walls', 'Confidence Map']
+        vizOptions: ['Grid View', 'Detected Walls', 'Confidence Map', 'Factor Breakdown', 'Ceiling Boundary']
       },
       'edge-detection': {
         id: 'edge-detection',
@@ -1216,40 +1220,326 @@
 
     function processWallDetection() {
       ctx.drawImage(elements.webcam, 0, 0);
-      
+
       // Get image data for analysis
       const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
       const gridSize = state.settings['grid-size'] || 8;
       const uniformityThreshold = state.settings['uniformity'] || 25;
+      const verticalWeight = state.settings['vertical-weight'] ?? 0.5;
+      const personWeight = state.settings['person-weight'] ?? 0.3;
+      const ceilingDetectionEnabled = state.settings['ceiling-detection'] ?? true;
+      const ceilingHeightPercent = state.settings['ceiling-height'] ?? 25;
 
       const cellWidth = Math.floor(elements.canvas.width / gridSize);
       const cellHeight = Math.floor(elements.canvas.height / gridSize);
 
       const vizMode = state.currentModel.vizOptions[state.vizMode];
 
+      // Get person segmentation mask if available
+      let personMask = null;
+      if (state.models.segmenter && personWeight > 0) {
+        const result = state.models.segmenter.segmentForVideo(elements.webcam, performance.now());
+        if (result.categoryMask) {
+          personMask = result.categoryMask.getAsUint8Array();
+          result.categoryMask.close();
+        }
+      }
+
+      // Detect ceiling boundary using horizontal edge detection
+      let ceilingBoundaryY = 0;
+      if (ceilingDetectionEnabled) {
+        ceilingBoundaryY = detectCeilingBoundary(imageData, ceilingHeightPercent);
+      }
+
+      // Store cell scores for visualization
+      const cellScores = [];
+
       // Analyze each grid cell
       for (let gy = 0; gy < gridSize; gy++) {
+        const row = [];
         for (let gx = 0; gx < gridSize; gx++) {
           const x = gx * cellWidth;
           const y = gy * cellHeight;
+          const centerY = y + cellHeight / 2;
 
-          // Calculate color variance in cell
+          // 1. Color uniformity score (0-1, higher = more uniform)
           const { avgColor, variance } = analyzeCellColor(imageData, x, y, cellWidth, cellHeight);
-          const isUniform = variance < uniformityThreshold;
+          const uniformityScore = Math.max(0, 1 - variance / (uniformityThreshold * 2));
 
-          if (vizMode === 'Grid View') {
-            ctx.strokeStyle = isUniform ? 'rgba(74, 222, 128, 0.5)' : 'rgba(239, 68, 68, 0.3)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x, y, cellWidth, cellHeight);
-          } else if (vizMode === 'Detected Walls' && isUniform) {
-            ctx.fillStyle = `rgba(74, 222, 128, 0.3)`;
-            ctx.fillRect(x, y, cellWidth, cellHeight);
-          } else if (vizMode === 'Confidence Map') {
-            const confidence = Math.max(0, 1 - variance / 100);
-            ctx.fillStyle = `rgba(74, 222, 128, ${confidence * 0.5})`;
-            ctx.fillRect(x, y, cellWidth, cellHeight);
+          // 2. Vertical position score (0-1)
+          // Bell curve centered at vertical middle, penalizing top (ceiling) and bottom (floor)
+          const normalizedY = gy / gridSize;
+          const verticalScore = calculateVerticalScore(normalizedY, ceilingBoundaryY / elements.canvas.height);
+
+          // 3. Behind-person score (0-1)
+          // Favor cells that are horizontally adjacent to or behind the person
+          const personScore = personMask
+            ? calculatePersonProximityScore(personMask, x, y, cellWidth, cellHeight, elements.canvas.width)
+            : 0.5; // Neutral if no person detection
+
+          // 4. Ceiling penalty
+          const ceilingPenalty = (ceilingDetectionEnabled && centerY < ceilingBoundaryY) ? 0.2 : 1.0;
+
+          // Calculate combined wall score
+          const baseScore = uniformityScore;
+          const positionBonus = verticalScore * verticalWeight;
+          const personBonus = personScore * personWeight;
+
+          // Final score: base uniformity + position bonus + person bonus, with ceiling penalty
+          let wallScore = (baseScore * (1 - verticalWeight - personWeight) + positionBonus + personBonus) * ceilingPenalty;
+          wallScore = Math.max(0, Math.min(1, wallScore));
+
+          row.push({
+            x, y,
+            uniformityScore,
+            verticalScore,
+            personScore,
+            ceilingPenalty,
+            wallScore,
+            avgColor,
+            variance,
+            isWall: wallScore > 0.5
+          });
+        }
+        cellScores.push(row);
+      }
+
+      // Render based on visualization mode
+      renderWallDetectionViz(cellScores, vizMode, cellWidth, cellHeight, ceilingBoundaryY);
+    }
+
+    // Calculate vertical position score - bell curve favoring middle of frame
+    function calculateVerticalScore(normalizedY, ceilingY) {
+      // If above ceiling boundary, strongly penalize
+      if (normalizedY < ceilingY) {
+        return 0.1;
+      }
+
+      // Bell curve centered at 0.5 (middle of frame)
+      // Walls are typically in the middle vertical third
+      const center = 0.5;
+      const sigma = 0.3;
+      const score = Math.exp(-Math.pow(normalizedY - center, 2) / (2 * sigma * sigma));
+      return score;
+    }
+
+    // Calculate how close a cell is to the person (horizontally)
+    function calculatePersonProximityScore(personMask, cellX, cellY, cellWidth, cellHeight, canvasWidth) {
+      // Find person's horizontal extent
+      let personMinX = canvasWidth;
+      let personMaxX = 0;
+      let personFound = false;
+
+      // Sample the mask to find person boundaries
+      const maskWidth = Math.sqrt(personMask.length * (canvasWidth / elements.canvas.height));
+      const maskHeight = personMask.length / maskWidth;
+
+      for (let i = 0; i < personMask.length; i++) {
+        if (personMask[i] > 0) {
+          const px = (i % elements.canvas.width);
+          personMinX = Math.min(personMinX, px);
+          personMaxX = Math.max(personMaxX, px);
+          personFound = true;
+        }
+      }
+
+      if (!personFound) return 0.5; // No person detected
+
+      // Calculate cell center
+      const cellCenterX = cellX + cellWidth / 2;
+
+      // Check if cell overlaps with person (not a wall candidate)
+      const cellInPersonRegion = (cellCenterX >= personMinX && cellCenterX <= personMaxX);
+
+      // Check if any pixel in this cell is part of the person
+      let personPixelsInCell = 0;
+      let totalPixelsChecked = 0;
+      for (let py = cellY; py < cellY + cellHeight; py += 4) {
+        for (let px = cellX; px < cellX + cellWidth; px += 4) {
+          const idx = py * elements.canvas.width + px;
+          if (idx < personMask.length) {
+            totalPixelsChecked++;
+            if (personMask[idx] > 0) {
+              personPixelsInCell++;
+            }
           }
         }
+      }
+
+      const personRatio = totalPixelsChecked > 0 ? personPixelsInCell / totalPixelsChecked : 0;
+
+      // If cell contains person pixels, it's not a wall
+      if (personRatio > 0.1) return 0;
+
+      // Cells horizontally adjacent to person get higher scores (behind person)
+      const personCenterX = (personMinX + personMaxX) / 2;
+      const distanceFromPerson = Math.abs(cellCenterX - personCenterX);
+      const personWidth = personMaxX - personMinX;
+
+      // Score based on distance from person center (closer = higher score, but not overlapping)
+      if (distanceFromPerson < personWidth * 0.5) {
+        return 0.9; // Directly behind person
+      } else if (distanceFromPerson < personWidth) {
+        return 0.7; // Near person
+      } else {
+        return 0.4; // Far from person
+      }
+    }
+
+    // Detect ceiling boundary using horizontal edge detection
+    function detectCeilingBoundary(imageData, maxHeightPercent) {
+      const width = imageData.width;
+      const height = imageData.height;
+      const data = imageData.data;
+      const maxY = Math.floor(height * maxHeightPercent / 100);
+
+      // Look for strong horizontal edges in the top portion
+      let strongestEdgeY = 0;
+      let strongestEdgeStrength = 0;
+
+      // Convert to grayscale and detect horizontal edges
+      for (let y = 5; y < maxY; y++) {
+        let edgeStrength = 0;
+
+        // Sample across the width
+        for (let x = 10; x < width - 10; x += 5) {
+          // Vertical gradient (detect horizontal lines)
+          const above = ((y - 2) * width + x) * 4;
+          const below = ((y + 2) * width + x) * 4;
+
+          const grayAbove = (data[above] + data[above + 1] + data[above + 2]) / 3;
+          const grayBelow = (data[below] + data[below + 1] + data[below + 2]) / 3;
+
+          edgeStrength += Math.abs(grayAbove - grayBelow);
+        }
+
+        // Normalize by number of samples
+        edgeStrength /= Math.floor((width - 20) / 5);
+
+        if (edgeStrength > strongestEdgeStrength && edgeStrength > 15) {
+          strongestEdgeStrength = edgeStrength;
+          strongestEdgeY = y;
+        }
+      }
+
+      return strongestEdgeY;
+    }
+
+    // Render wall detection visualization
+    function renderWallDetectionViz(cellScores, vizMode, cellWidth, cellHeight, ceilingBoundaryY) {
+      for (let gy = 0; gy < cellScores.length; gy++) {
+        for (let gx = 0; gx < cellScores[gy].length; gx++) {
+          const cell = cellScores[gy][gx];
+          const { x, y, wallScore, uniformityScore, verticalScore, personScore, ceilingPenalty, isWall } = cell;
+
+          if (vizMode === 'Grid View') {
+            // Show grid with wall score coloring
+            const hue = wallScore * 120; // 0 = red, 120 = green
+            ctx.strokeStyle = `hsla(${hue}, 70%, 50%, 0.6)`;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+            // Show score number
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText((wallScore * 100).toFixed(0), x + cellWidth / 2, y + cellHeight / 2 + 4);
+          } else if (vizMode === 'Detected Walls') {
+            if (isWall) {
+              ctx.fillStyle = `rgba(74, 222, 128, ${0.2 + wallScore * 0.4})`;
+              ctx.fillRect(x, y, cellWidth, cellHeight);
+            }
+          } else if (vizMode === 'Confidence Map') {
+            ctx.fillStyle = `rgba(74, 222, 128, ${wallScore * 0.6})`;
+            ctx.fillRect(x, y, cellWidth, cellHeight);
+          } else if (vizMode === 'Factor Breakdown') {
+            // Show each factor as a stacked bar
+            const barHeight = cellHeight - 10;
+            const barWidth = (cellWidth - 10) / 4;
+            const barX = x + 5;
+            const barY = y + 5;
+
+            // Uniformity (blue)
+            ctx.fillStyle = `rgba(59, 130, 246, ${uniformityScore})`;
+            ctx.fillRect(barX, barY, barWidth - 2, barHeight);
+
+            // Vertical (yellow)
+            ctx.fillStyle = `rgba(250, 204, 21, ${verticalScore})`;
+            ctx.fillRect(barX + barWidth, barY, barWidth - 2, barHeight);
+
+            // Person (purple)
+            ctx.fillStyle = `rgba(168, 85, 247, ${personScore})`;
+            ctx.fillRect(barX + barWidth * 2, barY, barWidth - 2, barHeight);
+
+            // Ceiling penalty (red/green)
+            ctx.fillStyle = ceilingPenalty < 1 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(74, 222, 128, 0.5)';
+            ctx.fillRect(barX + barWidth * 3, barY, barWidth - 2, barHeight);
+          }
+        }
+      }
+
+      // Draw ceiling boundary line
+      if (vizMode === 'Ceiling Boundary' || vizMode === 'Factor Breakdown') {
+        if (ceilingBoundaryY > 0) {
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([10, 5]);
+          ctx.beginPath();
+          ctx.moveTo(0, ceilingBoundaryY);
+          ctx.lineTo(elements.canvas.width, ceilingBoundaryY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Label
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('Ceiling Boundary', 10, ceilingBoundaryY - 5);
+        }
+      }
+
+      // Draw legend for Factor Breakdown
+      if (vizMode === 'Factor Breakdown') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(10, elements.canvas.height - 110, 180, 100);
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'left';
+
+        const legendItems = [
+          { color: 'rgb(59, 130, 246)', label: 'Uniformity' },
+          { color: 'rgb(250, 204, 21)', label: 'Vertical Position' },
+          { color: 'rgb(168, 85, 247)', label: 'Person Proximity' },
+          { color: 'rgb(74, 222, 128)', label: 'Not Ceiling' }
+        ];
+
+        legendItems.forEach((item, i) => {
+          ctx.fillStyle = item.color;
+          ctx.fillRect(20, elements.canvas.height - 100 + i * 22, 12, 12);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(item.label, 40, elements.canvas.height - 90 + i * 22);
+        });
+      }
+
+      // Draw ceiling boundary visualization
+      if (vizMode === 'Ceiling Boundary') {
+        // Show the detected ceiling region
+        if (ceilingBoundaryY > 0) {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+          ctx.fillRect(0, 0, elements.canvas.width, ceilingBoundaryY);
+
+          ctx.fillStyle = 'rgba(74, 222, 128, 0.1)';
+          ctx.fillRect(0, ceilingBoundaryY, elements.canvas.width, elements.canvas.height - ceilingBoundaryY);
+        }
+
+        // Info
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(10, 10, 220, 50);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(`Ceiling boundary: ${ceilingBoundaryY}px`, 20, 30);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('Red = detected ceiling region', 20, 48);
       }
     }
 
@@ -1658,7 +1948,7 @@
       ctx.fillText('Toggle layers in Settings panel', 20, 92);
     }
 
-    // Simple wall detection for combined view
+    // Improved wall detection for combined view
     function detectWallsSimple(imageData) {
       const width = imageData.width;
       const height = imageData.height;
@@ -1668,10 +1958,14 @@
       const cellHeight = Math.floor(height / gridSize);
       const wallMask = new Array(width * height).fill(false);
 
+      // Detect ceiling boundary
+      const ceilingBoundaryY = detectCeilingBoundarySimple(imageData);
+
       for (let gy = 0; gy < gridSize; gy++) {
         for (let gx = 0; gx < gridSize; gx++) {
           const startX = gx * cellWidth;
           const startY = gy * cellHeight;
+          const centerY = startY + cellHeight / 2;
 
           // Calculate variance
           let totalR = 0, totalG = 0, totalB = 0, count = 0;
@@ -1699,8 +1993,21 @@
           }
           variance = Math.sqrt(variance / count);
 
-          // Mark as wall if uniform
-          if (variance < 25) {
+          // Calculate uniformity score
+          const uniformityScore = Math.max(0, 1 - variance / 50);
+
+          // Calculate vertical position score (bell curve)
+          const normalizedY = gy / gridSize;
+          const verticalScore = Math.exp(-Math.pow(normalizedY - 0.5, 2) / (2 * 0.3 * 0.3));
+
+          // Ceiling penalty
+          const ceilingPenalty = centerY < ceilingBoundaryY ? 0.3 : 1.0;
+
+          // Combined score
+          const wallScore = (uniformityScore * 0.6 + verticalScore * 0.4) * ceilingPenalty;
+
+          // Mark as wall if score is high enough
+          if (wallScore > 0.45) {
             for (let y = startY; y < startY + cellHeight && y < height; y++) {
               for (let x = startX; x < startX + cellWidth && x < width; x++) {
                 wallMask[y * width + x] = true;
@@ -1711,6 +2018,40 @@
       }
 
       return wallMask;
+    }
+
+    // Simple ceiling boundary detection for combined view
+    function detectCeilingBoundarySimple(imageData) {
+      const width = imageData.width;
+      const height = imageData.height;
+      const data = imageData.data;
+      const maxY = Math.floor(height * 0.25);
+
+      let strongestEdgeY = 0;
+      let strongestEdgeStrength = 0;
+
+      for (let y = 5; y < maxY; y++) {
+        let edgeStrength = 0;
+
+        for (let x = 10; x < width - 10; x += 5) {
+          const above = ((y - 2) * width + x) * 4;
+          const below = ((y + 2) * width + x) * 4;
+
+          const grayAbove = (data[above] + data[above + 1] + data[above + 2]) / 3;
+          const grayBelow = (data[below] + data[below + 1] + data[below + 2]) / 3;
+
+          edgeStrength += Math.abs(grayAbove - grayBelow);
+        }
+
+        edgeStrength /= Math.floor((width - 20) / 5);
+
+        if (edgeStrength > strongestEdgeStrength && edgeStrength > 15) {
+          strongestEdgeStrength = edgeStrength;
+          strongestEdgeY = y;
+        }
+      }
+
+      return strongestEdgeY;
     }
 
     // ============================================
