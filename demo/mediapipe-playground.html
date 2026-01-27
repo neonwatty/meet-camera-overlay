@@ -2072,9 +2072,13 @@
       // Get person mask if segmentation enabled
       const useSegmentation = state.settings['use-segmentation'] ?? true;
       let personMask = null;
+      let maskWidth = 0, maskHeight = 0;
       if (useSegmentation && state.models.segmenter) {
         const result = state.models.segmenter.segmentForVideo(elements.webcam, performance.now());
         if (result.categoryMask) {
+          // Get mask dimensions before getting array
+          maskWidth = result.categoryMask.width;
+          maskHeight = result.categoryMask.height;
           personMask = result.categoryMask.getAsUint8Array();
           result.categoryMask.close();
         }
@@ -2098,9 +2102,9 @@
         // Draw perspective transformed image
         drawPerspectiveQuadDemo(tempCtx, source, corners, subdivisions);
 
-        // Apply person mask if available
+        // Apply person mask if available (cuts out person so they appear in front)
         if (personMask) {
-          applyPersonMaskDemo(tempCtx, personMask);
+          applyPersonMaskDemo(tempCtx, personMask, maskWidth, maskHeight);
         }
 
         // Composite onto main canvas
@@ -2246,39 +2250,56 @@
       ctx.restore();
     }
 
-    function applyPersonMaskDemo(ctx, mask) {
+    function applyPersonMaskDemo(ctx, mask, maskWidth, maskHeight) {
       const canvas = ctx.canvas;
-      const width = canvas.width;
-      const height = canvas.height;
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
 
+      // Use provided dimensions or assume same as canvas
+      const mWidth = maskWidth || canvasWidth;
+      const mHeight = maskHeight || canvasHeight;
+
+      // Debug: log mask info once
+      if (!applyPersonMaskDemo._logged) {
+        console.log(`[Perspective] Mask: ${mask.length} values, dimensions: ${mWidth}x${mHeight}`);
+        console.log(`[Perspective] Canvas: ${canvasWidth}x${canvasHeight}`);
+        // Sample values
+        const sample = [...new Set(mask.slice(0, 1000))].sort((a,b) => a-b);
+        console.log('[Perspective] Unique mask values (sample):', sample);
+        applyPersonMaskDemo._logged = true;
+      }
+
+      // Create mask canvas at MASK dimensions
       const maskCanvas = document.createElement('canvas');
-      maskCanvas.width = width;
-      maskCanvas.height = height;
+      maskCanvas.width = mWidth;
+      maskCanvas.height = mHeight;
       const maskCtx = maskCanvas.getContext('2d');
 
-      // Create mask where person pixels are opaque (will be cut out)
-      // MediaPipe: mask[i] > 0 means person pixel
-      const maskImageData = maskCtx.createImageData(width, height);
+      // Convert category mask (Uint8Array of 0/1) to ImageData (RGBA)
+      const maskImageData = maskCtx.createImageData(mWidth, mHeight);
+
       for (let i = 0; i < mask.length; i++) {
+        // MediaPipe Tasks Vision: 0 = background, 1 = person
         const isPerson = mask[i] > 0;
-        // Person pixels get full alpha - these will be cut out from the art
-        const alpha = isPerson ? 255 : 0;
-        maskImageData.data[i * 4] = 255;     // R (white)
-        maskImageData.data[i * 4 + 1] = 255; // G
-        maskImageData.data[i * 4 + 2] = 255; // B
-        maskImageData.data[i * 4 + 3] = alpha; // A - only person pixels are opaque
+
+        // Make PERSON pixels opaque white - these will be cut out
+        // Make BACKGROUND pixels transparent - art will remain here
+        maskImageData.data[i * 4] = 255;       // R
+        maskImageData.data[i * 4 + 1] = 255;   // G
+        maskImageData.data[i * 4 + 2] = 255;   // B
+        maskImageData.data[i * 4 + 3] = isPerson ? 255 : 0; // A
       }
       maskCtx.putImageData(maskImageData, 0, 0);
 
-      // Blur for soft edges (feathering)
+      // Blur for soft edges (feathering around person outline)
       maskCtx.filter = 'blur(4px)';
       maskCtx.drawImage(maskCanvas, 0, 0);
       maskCtx.filter = 'none';
 
-      // destination-out: removes destination pixels where source is opaque
-      // So person areas (opaque in mask) get removed from the art
+      // destination-out: removes destination where source is opaque
+      // Draw mask SCALED to canvas size
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.drawImage(maskCanvas, 0, 0);
+      ctx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
       ctx.globalCompositeOperation = 'source-over';
     }
 
