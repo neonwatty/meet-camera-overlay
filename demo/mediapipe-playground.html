@@ -693,7 +693,8 @@
           { id: 'vertical-weight', type: 'range', label: 'Vertical Position Weight', min: 0, max: 1, step: 0.1, default: 0.5 },
           { id: 'person-weight', type: 'range', label: 'Behind-Person Weight', min: 0, max: 1, step: 0.1, default: 0.3 },
           { id: 'ceiling-detection', type: 'toggle', label: 'Ceiling Detection', default: true },
-          { id: 'ceiling-height', type: 'range', label: 'Ceiling Height (%)', min: 10, max: 50, step: 5, default: 25 }
+          { id: 'ceiling-height', type: 'range', label: 'Ceiling Height (%)', min: 10, max: 50, step: 5, default: 25 },
+          { id: 'update-interval', type: 'range', label: 'Update Every N Frames', min: 1, max: 15, step: 1, default: 5 }
         ],
         vizOptions: ['Grid View', 'Detected Walls', 'Confidence Map', 'Factor Breakdown', 'Ceiling Boundary']
       },
@@ -1218,40 +1219,73 @@
       }
     }
 
+    // Cache for wall detection results
+    const wallDetectionCache = {
+      frameCount: 0,
+      cellScores: null,
+      ceilingBoundaryY: 0,
+      personBounds: null
+    };
+
     function processWallDetection() {
       ctx.drawImage(elements.webcam, 0, 0);
 
-      // Get image data for analysis
-      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
       const gridSize = state.settings['grid-size'] || 8;
+      const updateInterval = state.settings['update-interval'] ?? 5;
+      const vizMode = state.currentModel.vizOptions[state.vizMode];
+
+      const cellWidth = Math.floor(elements.canvas.width / gridSize);
+      const cellHeight = Math.floor(elements.canvas.height / gridSize);
+
+      // Check if we should update the analysis (skip frames for performance)
+      wallDetectionCache.frameCount++;
+      const shouldUpdate = wallDetectionCache.frameCount >= updateInterval || !wallDetectionCache.cellScores;
+
+      if (shouldUpdate) {
+        wallDetectionCache.frameCount = 0;
+        updateWallDetectionAnalysis(gridSize, cellWidth, cellHeight);
+      }
+
+      // Always render using cached results
+      if (wallDetectionCache.cellScores) {
+        renderWallDetectionViz(
+          wallDetectionCache.cellScores,
+          vizMode,
+          cellWidth,
+          cellHeight,
+          wallDetectionCache.ceilingBoundaryY
+        );
+      }
+    }
+
+    function updateWallDetectionAnalysis(gridSize, cellWidth, cellHeight) {
+      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
       const uniformityThreshold = state.settings['uniformity'] || 25;
       const verticalWeight = state.settings['vertical-weight'] ?? 0.5;
       const personWeight = state.settings['person-weight'] ?? 0.3;
       const ceilingDetectionEnabled = state.settings['ceiling-detection'] ?? true;
       const ceilingHeightPercent = state.settings['ceiling-height'] ?? 25;
 
-      const cellWidth = Math.floor(elements.canvas.width / gridSize);
-      const cellHeight = Math.floor(elements.canvas.height / gridSize);
-
-      const vizMode = state.currentModel.vizOptions[state.vizMode];
-
-      // Get person segmentation mask if available
+      // Get person segmentation mask if available and weight > 0
       let personMask = null;
       if (state.models.segmenter && personWeight > 0) {
         const result = state.models.segmenter.segmentForVideo(elements.webcam, performance.now());
         if (result.categoryMask) {
           personMask = result.categoryMask.getAsUint8Array();
+          // Cache person bounds for reuse
+          wallDetectionCache.personBounds = findPersonBounds(personMask, elements.canvas.width);
           result.categoryMask.close();
         }
       }
 
-      // Detect ceiling boundary using horizontal edge detection
-      let ceilingBoundaryY = 0;
+      // Detect ceiling boundary (less frequently needed)
       if (ceilingDetectionEnabled) {
-        ceilingBoundaryY = detectCeilingBoundary(imageData, ceilingHeightPercent);
+        wallDetectionCache.ceilingBoundaryY = detectCeilingBoundary(imageData, ceilingHeightPercent);
+      } else {
+        wallDetectionCache.ceilingBoundaryY = 0;
       }
 
-      // Store cell scores for visualization
+      const ceilingBoundaryY = wallDetectionCache.ceilingBoundaryY;
       const cellScores = [];
 
       // Analyze each grid cell
@@ -1267,15 +1301,13 @@
           const uniformityScore = Math.max(0, 1 - variance / (uniformityThreshold * 2));
 
           // 2. Vertical position score (0-1)
-          // Bell curve centered at vertical middle, penalizing top (ceiling) and bottom (floor)
           const normalizedY = gy / gridSize;
           const verticalScore = calculateVerticalScore(normalizedY, ceilingBoundaryY / elements.canvas.height);
 
-          // 3. Behind-person score (0-1)
-          // Favor cells that are horizontally adjacent to or behind the person
+          // 3. Behind-person score (0-1) - use cached bounds
           const personScore = personMask
-            ? calculatePersonProximityScore(personMask, x, y, cellWidth, cellHeight, elements.canvas.width)
-            : 0.5; // Neutral if no person detection
+            ? calculatePersonProximityScoreFast(personMask, x, y, cellWidth, cellHeight, wallDetectionCache.personBounds)
+            : 0.5;
 
           // 4. Ceiling penalty
           const ceilingPenalty = (ceilingDetectionEnabled && centerY < ceilingBoundaryY) ? 0.2 : 1.0;
@@ -1285,7 +1317,6 @@
           const positionBonus = verticalScore * verticalWeight;
           const personBonus = personScore * personWeight;
 
-          // Final score: base uniformity + position bonus + person bonus, with ceiling penalty
           let wallScore = (baseScore * (1 - verticalWeight - personWeight) + positionBonus + personBonus) * ceilingPenalty;
           wallScore = Math.max(0, Math.min(1, wallScore));
 
@@ -1304,8 +1335,60 @@
         cellScores.push(row);
       }
 
-      // Render based on visualization mode
-      renderWallDetectionViz(cellScores, vizMode, cellWidth, cellHeight, ceilingBoundaryY);
+      wallDetectionCache.cellScores = cellScores;
+    }
+
+    // Pre-compute person bounds once per frame instead of per-cell
+    function findPersonBounds(personMask, canvasWidth) {
+      let minX = canvasWidth;
+      let maxX = 0;
+      let found = false;
+
+      // Sample every 8th pixel for speed
+      for (let i = 0; i < personMask.length; i += 8) {
+        if (personMask[i] > 0) {
+          const px = i % canvasWidth;
+          minX = Math.min(minX, px);
+          maxX = Math.max(maxX, px);
+          found = true;
+        }
+      }
+
+      return found ? { minX, maxX, centerX: (minX + maxX) / 2, width: maxX - minX } : null;
+    }
+
+    // Fast person proximity using pre-computed bounds
+    function calculatePersonProximityScoreFast(personMask, cellX, cellY, cellWidth, cellHeight, personBounds) {
+      if (!personBounds) return 0.5;
+
+      const cellCenterX = cellX + cellWidth / 2;
+
+      // Quick check if any person pixels in this cell (sample sparsely)
+      let personPixelsInCell = 0;
+      let totalPixelsChecked = 0;
+      for (let py = cellY; py < cellY + cellHeight; py += 8) {
+        for (let px = cellX; px < cellX + cellWidth; px += 8) {
+          const idx = py * elements.canvas.width + px;
+          if (idx < personMask.length) {
+            totalPixelsChecked++;
+            if (personMask[idx] > 0) personPixelsInCell++;
+          }
+        }
+      }
+
+      const personRatio = totalPixelsChecked > 0 ? personPixelsInCell / totalPixelsChecked : 0;
+      if (personRatio > 0.1) return 0; // Cell contains person
+
+      // Score based on distance from person
+      const distanceFromPerson = Math.abs(cellCenterX - personBounds.centerX);
+
+      if (distanceFromPerson < personBounds.width * 0.5) {
+        return 0.9; // Directly behind person
+      } else if (distanceFromPerson < personBounds.width) {
+        return 0.7; // Near person
+      } else {
+        return 0.4; // Far from person
+      }
     }
 
     // Calculate vertical position score - bell curve favoring middle of frame
@@ -1321,69 +1404,6 @@
       const sigma = 0.3;
       const score = Math.exp(-Math.pow(normalizedY - center, 2) / (2 * sigma * sigma));
       return score;
-    }
-
-    // Calculate how close a cell is to the person (horizontally)
-    function calculatePersonProximityScore(personMask, cellX, cellY, cellWidth, cellHeight, canvasWidth) {
-      // Find person's horizontal extent
-      let personMinX = canvasWidth;
-      let personMaxX = 0;
-      let personFound = false;
-
-      // Sample the mask to find person boundaries
-      const maskWidth = Math.sqrt(personMask.length * (canvasWidth / elements.canvas.height));
-      const maskHeight = personMask.length / maskWidth;
-
-      for (let i = 0; i < personMask.length; i++) {
-        if (personMask[i] > 0) {
-          const px = (i % elements.canvas.width);
-          personMinX = Math.min(personMinX, px);
-          personMaxX = Math.max(personMaxX, px);
-          personFound = true;
-        }
-      }
-
-      if (!personFound) return 0.5; // No person detected
-
-      // Calculate cell center
-      const cellCenterX = cellX + cellWidth / 2;
-
-      // Check if cell overlaps with person (not a wall candidate)
-      const cellInPersonRegion = (cellCenterX >= personMinX && cellCenterX <= personMaxX);
-
-      // Check if any pixel in this cell is part of the person
-      let personPixelsInCell = 0;
-      let totalPixelsChecked = 0;
-      for (let py = cellY; py < cellY + cellHeight; py += 4) {
-        for (let px = cellX; px < cellX + cellWidth; px += 4) {
-          const idx = py * elements.canvas.width + px;
-          if (idx < personMask.length) {
-            totalPixelsChecked++;
-            if (personMask[idx] > 0) {
-              personPixelsInCell++;
-            }
-          }
-        }
-      }
-
-      const personRatio = totalPixelsChecked > 0 ? personPixelsInCell / totalPixelsChecked : 0;
-
-      // If cell contains person pixels, it's not a wall
-      if (personRatio > 0.1) return 0;
-
-      // Cells horizontally adjacent to person get higher scores (behind person)
-      const personCenterX = (personMinX + personMaxX) / 2;
-      const distanceFromPerson = Math.abs(cellCenterX - personCenterX);
-      const personWidth = personMaxX - personMinX;
-
-      // Score based on distance from person center (closer = higher score, but not overlapping)
-      if (distanceFromPerson < personWidth * 0.5) {
-        return 0.9; // Directly behind person
-      } else if (distanceFromPerson < personWidth) {
-        return 0.7; // Near person
-      } else {
-        return 0.4; // Far from person
-      }
     }
 
     // Detect ceiling boundary using horizontal edge detection
