@@ -768,7 +768,7 @@
           { id: 'show-grid', type: 'toggle', label: 'Show Transform Grid', default: true },
           { id: 'opacity', type: 'range', label: 'Image Opacity', min: 0.1, max: 1, step: 0.1, default: 0.8 },
           { id: 'use-segmentation', type: 'toggle', label: 'Person Occlusion', default: true },
-          { id: 'pattern', type: 'select', label: 'Test Pattern', options: ['Checkerboard', 'Grid Lines', 'Sample Image', 'Gradient'], default: 'Checkerboard' }
+          { id: 'pattern', type: 'select', label: 'Image Source', options: ['Starry Night', 'Great Wave', 'Mona Lisa', 'Checkerboard', 'Grid Lines', 'Gradient', 'Upload Image...'], default: 'Starry Night' }
         ],
         vizOptions: ['Transformed Image', 'Wireframe', 'UV Mapping', 'Before/After']
       }
@@ -1844,7 +1844,18 @@
       corners: null,  // Will be initialized when model selected
       dragging: null, // Which corner is being dragged
       patternCanvas: null,
-      personMask: null
+      loadedImage: null,
+      currentPattern: null,
+      isLoadingImage: false,
+      personMask: null,
+      uploadInput: null
+    };
+
+    // Sample artwork URLs (public domain from Wikimedia Commons)
+    const sampleArtwork = {
+      'Starry Night': 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/800px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg',
+      'Great Wave': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/800px-Tsunami_by_hokusai_19th_century.jpg',
+      'Mona Lisa': 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/600px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg'
     };
 
     function initPerspectiveCorners() {
@@ -1857,6 +1868,119 @@
         bottomLeft: { x: width * 0.2, y: height * 0.8 },
         bottomRight: { x: width * 0.8, y: height * 0.8 }
       };
+    }
+
+    async function loadSampleArtwork(name) {
+      const url = sampleArtwork[name];
+      if (!url) return null;
+
+      perspectiveState.isLoadingImage = true;
+      console.log(`[Perspective] Loading artwork: ${name}`);
+
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          console.log(`[Perspective] Loaded ${name}: ${img.width}x${img.height}`);
+          perspectiveState.isLoadingImage = false;
+          resolve(img);
+        };
+        img.onerror = (e) => {
+          console.error(`[Perspective] Failed to load ${name}:`, e);
+          perspectiveState.isLoadingImage = false;
+          reject(e);
+        };
+        img.src = url;
+      });
+    }
+
+    function createUploadInput() {
+      if (perspectiveState.uploadInput) return perspectiveState.uploadInput;
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      input.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            console.log(`[Perspective] Loaded uploaded image: ${img.width}x${img.height}`);
+            perspectiveState.loadedImage = img;
+            perspectiveState.currentPattern = 'Upload Image...';
+            perspectiveState.patternCanvas = null; // Force regeneration
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      perspectiveState.uploadInput = input;
+      return input;
+    }
+
+    async function getPatternSource(pattern) {
+      // Check if we need to load/generate a new pattern
+      if (perspectiveState.currentPattern === pattern && perspectiveState.patternCanvas) {
+        return perspectiveState.patternCanvas;
+      }
+
+      // Handle Upload Image option
+      if (pattern === 'Upload Image...') {
+        if (perspectiveState.currentPattern !== pattern) {
+          // Trigger file upload
+          const input = createUploadInput();
+          input.click();
+          // Return existing pattern while waiting
+          if (perspectiveState.patternCanvas) {
+            return perspectiveState.patternCanvas;
+          }
+          // Generate placeholder
+          return generatePatternCanvas('Checkerboard', 400, 300);
+        }
+        // If we have a loaded image from upload, use it
+        if (perspectiveState.loadedImage) {
+          const canvas = document.createElement('canvas');
+          canvas.width = perspectiveState.loadedImage.width;
+          canvas.height = perspectiveState.loadedImage.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(perspectiveState.loadedImage, 0, 0);
+          perspectiveState.patternCanvas = canvas;
+          return canvas;
+        }
+      }
+
+      // Handle sample artwork
+      if (sampleArtwork[pattern]) {
+        try {
+          const img = await loadSampleArtwork(pattern);
+          if (img) {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            perspectiveState.patternCanvas = canvas;
+            perspectiveState.currentPattern = pattern;
+            perspectiveState.loadedImage = img;
+            return canvas;
+          }
+        } catch (e) {
+          console.error('[Perspective] Failed to load artwork, falling back to checkerboard');
+        }
+      }
+
+      // Generate pattern
+      const canvas = generatePatternCanvas(pattern, 400, 300);
+      perspectiveState.patternCanvas = canvas;
+      perspectiveState.currentPattern = pattern;
+      return canvas;
     }
 
     function generatePatternCanvas(pattern, width, height) {
@@ -1906,31 +2030,9 @@
         ctx.fillText('TR', width - 40, 30);
         ctx.fillText('BL', 10, height - 10);
         ctx.fillText('BR', width - 40, height - 10);
-      } else if (pattern === 'Sample Image') {
-        // Draw a sample "painting" frame
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = '#D2691E';
-        const border = 15;
-        ctx.fillRect(border, border, width - border * 2, height - border * 2);
-        // Inner "painting"
-        const innerGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
-        innerGradient.addColorStop(0, '#fef3c7');
-        innerGradient.addColorStop(0.5, '#fbbf24');
-        innerGradient.addColorStop(1, '#d97706');
-        ctx.fillStyle = innerGradient;
-        ctx.fillRect(border * 2, border * 2, width - border * 4, height - border * 4);
-        // Add some "art"
-        ctx.fillStyle = '#1e40af';
-        ctx.beginPath();
-        ctx.arc(width * 0.3, height * 0.4, 40, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#dc2626';
-        ctx.beginPath();
-        ctx.arc(width * 0.6, height * 0.5, 50, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#059669';
-        ctx.fillRect(width * 0.5, height * 0.6, 80, 60);
+      } else {
+        // Default to checkerboard for unknown patterns
+        return generatePatternCanvas('Checkerboard', width, height);
       }
 
       return canvas;
@@ -1945,11 +2047,22 @@
         initPerspectiveCorners();
       }
 
-      // Generate pattern canvas if needed
-      const pattern = state.settings['pattern'] || 'Checkerboard';
-      if (!perspectiveState.patternCanvas || perspectiveState.patternCanvas.dataset.pattern !== pattern) {
-        perspectiveState.patternCanvas = generatePatternCanvas(pattern, 400, 300);
-        perspectiveState.patternCanvas.dataset.pattern = pattern;
+      // Get pattern/image source
+      const pattern = state.settings['pattern'] || 'Starry Night';
+
+      // Handle pattern changes - trigger async load if needed
+      if (perspectiveState.currentPattern !== pattern && !perspectiveState.isLoadingImage) {
+        // Start loading new pattern
+        getPatternSource(pattern).then(canvas => {
+          perspectiveState.patternCanvas = canvas;
+        }).catch(e => {
+          console.error('[Perspective] Pattern load error:', e);
+        });
+      }
+
+      // Use checkerboard as fallback while loading
+      if (!perspectiveState.patternCanvas) {
+        perspectiveState.patternCanvas = generatePatternCanvas('Checkerboard', 400, 300);
       }
 
       // Get person mask if segmentation enabled
@@ -2270,28 +2383,40 @@
     function drawPerspectiveInfo(ctx, corners) {
       const width = elements.canvas.width;
       const height = elements.canvas.height;
+      const pattern = state.settings['pattern'] || 'Starry Night';
+      const imgWidth = perspectiveState.patternCanvas?.width || 0;
+      const imgHeight = perspectiveState.patternCanvas?.height || 0;
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillRect(10, height - 100, 280, 90);
+      ctx.fillRect(10, height - 115, 280, 105);
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'left';
 
       ctx.fillStyle = '#818cf8';
-      ctx.fillText('Perspective Transform Demo', 20, height - 82);
+      ctx.fillText('Perspective Transform Demo', 20, height - 97);
+
+      // Show current image
+      ctx.fillStyle = perspectiveState.isLoadingImage ? '#fbbf24' : '#4ade80';
+      const statusText = perspectiveState.isLoadingImage ? 'Loading...' : `${pattern} (${imgWidth}x${imgHeight})`;
+      ctx.fillText(statusText, 20, height - 80);
 
       ctx.fillStyle = '#888';
-      ctx.fillText('Drag corners to warp the image. Uses triangle', 20, height - 64);
-      ctx.fillText('mesh subdivision with bilinear interpolation.', 20, height - 50);
+      ctx.fillText('Drag corners to warp the image onto any quad.', 20, height - 63);
 
       // Show coordinates
       ctx.fillStyle = '#f472b6';
-      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 32);
+      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 45);
       ctx.fillStyle = '#818cf8';
-      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 32);
+      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 45);
       ctx.fillStyle = '#34d399';
-      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 18);
+      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 28);
       ctx.fillStyle = '#fbbf24';
-      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 18);
+      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 28);
+
+      // Instructions
+      ctx.fillStyle = '#666';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('Change image in Settings panel →', 20, height - 12);
     }
 
     // Mouse handlers for dragging corners
