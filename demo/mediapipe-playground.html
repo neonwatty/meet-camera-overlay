@@ -684,19 +684,21 @@
         name: 'Wall Detection',
         icon: '🧱',
         status: 'current',
-        description: 'Smart wall detection combining uniform color, vertical position weighting, person mask, and ceiling boundary detection.',
-        usage: 'Helps users identify suitable wall areas for placing art. Uses multiple signals to distinguish walls from ceilings even when they are the same color.',
-        modelSize: 'N/A (CPU)',
+        description: 'Smart wall detection combining depth, color uniformity, vertical position, person mask, and ceiling detection.',
+        usage: 'Helps users identify suitable wall areas for placing art. Uses depth data (when available) to find flat surfaces at consistent distances.',
+        modelSize: 'N/A + Depth model',
         settings: [
           { id: 'grid-size', type: 'range', label: 'Grid Size', min: 4, max: 16, step: 1, default: 8 },
           { id: 'uniformity', type: 'range', label: 'Uniformity Threshold', min: 0, max: 50, step: 5, default: 25 },
-          { id: 'vertical-weight', type: 'range', label: 'Vertical Position Weight', min: 0, max: 1, step: 0.1, default: 0.5 },
-          { id: 'person-weight', type: 'range', label: 'Behind-Person Weight', min: 0, max: 1, step: 0.1, default: 0.3 },
+          { id: 'vertical-weight', type: 'range', label: 'Vertical Position Weight', min: 0, max: 1, step: 0.1, default: 0.4 },
+          { id: 'person-weight', type: 'range', label: 'Behind-Person Weight', min: 0, max: 1, step: 0.1, default: 0.2 },
+          { id: 'depth-weight', type: 'range', label: 'Depth Weight', min: 0, max: 1, step: 0.1, default: 0.4 },
+          { id: 'depth-update-interval', type: 'range', label: 'Depth Update (frames)', min: 15, max: 120, step: 15, default: 45 },
           { id: 'ceiling-detection', type: 'toggle', label: 'Ceiling Detection', default: true },
           { id: 'ceiling-height', type: 'range', label: 'Ceiling Height (%)', min: 10, max: 50, step: 5, default: 25 },
-          { id: 'update-interval', type: 'range', label: 'Update Every N Frames', min: 1, max: 15, step: 1, default: 5 }
+          { id: 'update-interval', type: 'range', label: 'Fast Update (frames)', min: 1, max: 15, step: 1, default: 3 }
         ],
-        vizOptions: ['Grid View', 'Detected Walls', 'Confidence Map', 'Factor Breakdown', 'Ceiling Boundary']
+        vizOptions: ['Smart Detection', 'Depth + Color', 'Factor Breakdown', 'Depth Flatness', 'Raw Factors']
       },
       'edge-detection': {
         id: 'edge-detection',
@@ -1099,6 +1101,14 @@
           case 'depth-estimation':
             await loadDepthModel();
             break;
+          case 'wall-detection':
+            // Wall detection benefits from both segmentation and depth
+            console.log('[Model] Wall detection: loading segmentation...');
+            await loadSegmentationModel();
+            // Start loading depth in background (don't await - it's slow)
+            console.log('[Model] Wall detection: starting depth load in background...');
+            loadDepthModel().catch(e => console.warn('[Model] Depth load failed:', e));
+            break;
           case 'combined':
             // Combined needs segmentation
             await loadSegmentationModel();
@@ -1324,22 +1334,39 @@
     // Cache for wall detection results
     const wallDetectionCache = {
       frameCount: 0,
+      depthFrameCount: 0,
       cellScores: null,
       ceilingBoundaryY: 0,
-      personBounds: null
+      personBounds: null,
+      // Depth-derived data (updated less frequently)
+      depthScores: null,      // Per-cell depth scores
+      depthFlatness: null,    // Per-cell flatness (low variance = flat)
+      depthDistance: null,    // Per-cell normalized distance
+      isUpdatingDepth: false
     };
 
     function processWallDetection() {
       ctx.drawImage(elements.webcam, 0, 0);
 
       const gridSize = state.settings['grid-size'] || 8;
-      const updateInterval = state.settings['update-interval'] ?? 5;
+      const updateInterval = state.settings['update-interval'] ?? 3;
+      const depthUpdateInterval = state.settings['depth-update-interval'] ?? 45;
       const vizMode = state.currentModel.vizOptions[state.vizMode];
 
       const cellWidth = Math.floor(elements.canvas.width / gridSize);
       const cellHeight = Math.floor(elements.canvas.height / gridSize);
 
-      // Check if we should update the analysis (skip frames for performance)
+      // Check if we should update depth analysis (slow, infrequent)
+      wallDetectionCache.depthFrameCount++;
+      const depthWeight = state.settings['depth-weight'] ?? 0.4;
+      if (depthWeight > 0 &&
+          wallDetectionCache.depthFrameCount >= depthUpdateInterval &&
+          !wallDetectionCache.isUpdatingDepth) {
+        wallDetectionCache.depthFrameCount = 0;
+        updateDepthAnalysis(gridSize);
+      }
+
+      // Check if we should update fast analysis
       wallDetectionCache.frameCount++;
       const shouldUpdate = wallDetectionCache.frameCount >= updateInterval || !wallDetectionCache.cellScores;
 
@@ -1350,37 +1377,146 @@
 
       // Always render using cached results
       if (wallDetectionCache.cellScores) {
-        renderWallDetectionViz(
+        renderSmartWallViz(
           wallDetectionCache.cellScores,
           vizMode,
           cellWidth,
-          cellHeight,
-          wallDetectionCache.ceilingBoundaryY
+          cellHeight
         );
+      }
+    }
+
+    // Update depth-based analysis (runs infrequently)
+    async function updateDepthAnalysis(gridSize) {
+      const depthEstimator = state.models.depthEstimator;
+      if (!depthEstimator || wallDetectionCache.isUpdatingDepth) return;
+
+      wallDetectionCache.isUpdatingDepth = true;
+      console.log('[WallDetect] Updating depth analysis...');
+
+      try {
+        // Get depth map
+        const tempCanvas = document.createElement('canvas');
+        const scale = 0.5;
+        tempCanvas.width = Math.round(elements.canvas.width * scale);
+        tempCanvas.height = Math.round(elements.canvas.height * scale);
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(elements.webcam, 0, 0, tempCanvas.width, tempCanvas.height);
+
+        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
+        const result = await depthEstimator(dataUrl);
+
+        if (result && result.predicted_depth) {
+          const depthTensor = result.predicted_depth;
+          const depthData = depthTensor.data;
+          const depthWidth = depthTensor.dims[1];
+          const depthHeight = depthTensor.dims[0];
+
+          // Find depth range
+          let minDepth = Infinity, maxDepth = -Infinity;
+          for (let i = 0; i < depthData.length; i++) {
+            minDepth = Math.min(minDepth, depthData[i]);
+            maxDepth = Math.max(maxDepth, depthData[i]);
+          }
+          const depthRange = maxDepth - minDepth || 1;
+
+          // Calculate per-cell depth scores
+          const cellWidth = Math.floor(depthWidth / gridSize);
+          const cellHeight = Math.floor(depthHeight / gridSize);
+
+          const depthScores = [];
+          const depthFlatness = [];
+          const depthDistance = [];
+
+          for (let gy = 0; gy < gridSize; gy++) {
+            const rowScores = [];
+            const rowFlatness = [];
+            const rowDistance = [];
+
+            for (let gx = 0; gx < gridSize; gx++) {
+              const startX = gx * cellWidth;
+              const startY = gy * cellHeight;
+
+              // Sample depth values in this cell
+              let sumDepth = 0, count = 0;
+              const samples = [];
+              for (let dy = 0; dy < cellHeight; dy += 2) {
+                for (let dx = 0; dx < cellWidth; dx += 2) {
+                  const idx = (startY + dy) * depthWidth + (startX + dx);
+                  if (idx < depthData.length) {
+                    const d = depthData[idx];
+                    samples.push(d);
+                    sumDepth += d;
+                    count++;
+                  }
+                }
+              }
+
+              const avgDepth = count > 0 ? sumDepth / count : 0;
+              const normalizedDepth = (avgDepth - minDepth) / depthRange;
+
+              // Calculate variance (flatness indicator)
+              let variance = 0;
+              for (const s of samples) {
+                variance += (s - avgDepth) ** 2;
+              }
+              variance = count > 0 ? Math.sqrt(variance / count) / depthRange : 1;
+
+              // Flatness score: low variance = flat surface = good for wall
+              const flatnessScore = Math.max(0, 1 - variance * 10);
+
+              // Distance score: further = more likely wall (not person)
+              // Walls are typically in the 0.5-0.9 normalized depth range
+              const distanceScore = normalizedDepth > 0.3 ?
+                Math.min(1, (normalizedDepth - 0.3) / 0.5) : 0;
+
+              // Combined depth score
+              const depthScore = flatnessScore * 0.6 + distanceScore * 0.4;
+
+              rowScores.push(depthScore);
+              rowFlatness.push(flatnessScore);
+              rowDistance.push(normalizedDepth);
+            }
+
+            depthScores.push(rowScores);
+            depthFlatness.push(rowFlatness);
+            depthDistance.push(rowDistance);
+          }
+
+          wallDetectionCache.depthScores = depthScores;
+          wallDetectionCache.depthFlatness = depthFlatness;
+          wallDetectionCache.depthDistance = depthDistance;
+
+          console.log('[WallDetect] Depth analysis complete');
+        }
+      } catch (error) {
+        console.error('[WallDetect] Depth analysis error:', error);
+      } finally {
+        wallDetectionCache.isUpdatingDepth = false;
       }
     }
 
     function updateWallDetectionAnalysis(gridSize, cellWidth, cellHeight) {
       const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
       const uniformityThreshold = state.settings['uniformity'] || 25;
-      const verticalWeight = state.settings['vertical-weight'] ?? 0.5;
-      const personWeight = state.settings['person-weight'] ?? 0.3;
+      const verticalWeight = state.settings['vertical-weight'] ?? 0.4;
+      const personWeight = state.settings['person-weight'] ?? 0.2;
+      const depthWeight = state.settings['depth-weight'] ?? 0.4;
       const ceilingDetectionEnabled = state.settings['ceiling-detection'] ?? true;
       const ceilingHeightPercent = state.settings['ceiling-height'] ?? 25;
 
-      // Get person segmentation mask if available and weight > 0
+      // Get person segmentation mask if available
       let personMask = null;
       if (state.models.segmenter && personWeight > 0) {
         const result = state.models.segmenter.segmentForVideo(elements.webcam, performance.now());
         if (result.categoryMask) {
           personMask = result.categoryMask.getAsUint8Array();
-          // Cache person bounds for reuse
           wallDetectionCache.personBounds = findPersonBounds(personMask, elements.canvas.width);
           result.categoryMask.close();
         }
       }
 
-      // Detect ceiling boundary (less frequently needed)
+      // Detect ceiling boundary
       if (ceilingDetectionEnabled) {
         wallDetectionCache.ceilingBoundaryY = detectCeilingBoundary(imageData, ceilingHeightPercent);
       } else {
@@ -1389,6 +1525,12 @@
 
       const ceilingBoundaryY = wallDetectionCache.ceilingBoundaryY;
       const cellScores = [];
+      const hasDepthData = wallDetectionCache.depthScores !== null;
+
+      // Normalize weights
+      let totalWeight = verticalWeight + personWeight;
+      if (hasDepthData) totalWeight += depthWeight;
+      const uniformityWeight = Math.max(0.1, 1 - totalWeight);
 
       // Analyze each grid cell
       for (let gy = 0; gy < gridSize; gy++) {
@@ -1398,28 +1540,49 @@
           const y = gy * cellHeight;
           const centerY = y + cellHeight / 2;
 
-          // 1. Color uniformity score (0-1, higher = more uniform)
+          // 1. Color uniformity score
           const { avgColor, variance } = analyzeCellColor(imageData, x, y, cellWidth, cellHeight);
           const uniformityScore = Math.max(0, 1 - variance / (uniformityThreshold * 2));
 
-          // 2. Vertical position score (0-1)
+          // 2. Vertical position score
           const normalizedY = gy / gridSize;
           const verticalScore = calculateVerticalScore(normalizedY, ceilingBoundaryY / elements.canvas.height);
 
-          // 3. Behind-person score (0-1) - use cached bounds
+          // 3. Person proximity score
           const personScore = personMask
             ? calculatePersonProximityScoreFast(personMask, x, y, cellWidth, cellHeight, wallDetectionCache.personBounds)
             : 0.5;
 
-          // 4. Ceiling penalty
+          // 4. Depth score (from cached depth analysis)
+          let depthScore = 0.5; // Neutral if no depth data
+          let depthFlatness = 0;
+          let depthDistance = 0;
+          if (hasDepthData && wallDetectionCache.depthScores[gy]) {
+            depthScore = wallDetectionCache.depthScores[gy][gx] ?? 0.5;
+            depthFlatness = wallDetectionCache.depthFlatness[gy]?.[gx] ?? 0;
+            depthDistance = wallDetectionCache.depthDistance[gy]?.[gx] ?? 0;
+          }
+
+          // 5. Ceiling penalty
           const ceilingPenalty = (ceilingDetectionEnabled && centerY < ceilingBoundaryY) ? 0.2 : 1.0;
 
           // Calculate combined wall score
-          const baseScore = uniformityScore;
-          const positionBonus = verticalScore * verticalWeight;
-          const personBonus = personScore * personWeight;
-
-          let wallScore = (baseScore * (1 - verticalWeight - personWeight) + positionBonus + personBonus) * ceilingPenalty;
+          let wallScore;
+          if (hasDepthData) {
+            wallScore = (
+              uniformityScore * uniformityWeight +
+              verticalScore * verticalWeight +
+              personScore * personWeight +
+              depthScore * depthWeight
+            ) * ceilingPenalty;
+          } else {
+            // Fallback without depth
+            wallScore = (
+              uniformityScore * (uniformityWeight + depthWeight) +
+              verticalScore * verticalWeight +
+              personScore * personWeight
+            ) * ceilingPenalty;
+          }
           wallScore = Math.max(0, Math.min(1, wallScore));
 
           row.push({
@@ -1427,10 +1590,14 @@
             uniformityScore,
             verticalScore,
             personScore,
+            depthScore,
+            depthFlatness,
+            depthDistance,
             ceilingPenalty,
             wallScore,
             avgColor,
             variance,
+            hasDepthData,
             isWall: wallScore > 0.5
           });
         }
@@ -1547,121 +1714,174 @@
       return strongestEdgeY;
     }
 
-    // Render wall detection visualization
-    function renderWallDetectionViz(cellScores, vizMode, cellWidth, cellHeight, ceilingBoundaryY) {
+    // Render smart wall detection visualization
+    function renderSmartWallViz(cellScores, vizMode, cellWidth, cellHeight) {
+      const hasDepthData = cellScores[0]?.[0]?.hasDepthData;
+      const ceilingBoundaryY = wallDetectionCache.ceilingBoundaryY;
+
       for (let gy = 0; gy < cellScores.length; gy++) {
         for (let gx = 0; gx < cellScores[gy].length; gx++) {
           const cell = cellScores[gy][gx];
-          const { x, y, wallScore, uniformityScore, verticalScore, personScore, ceilingPenalty, isWall } = cell;
+          const { x, y, wallScore, uniformityScore, verticalScore, personScore, depthScore, depthFlatness, depthDistance, isWall } = cell;
 
-          if (vizMode === 'Grid View') {
-            // Show grid with wall score coloring
-            const hue = wallScore * 120; // 0 = red, 120 = green
-            ctx.strokeStyle = `hsla(${hue}, 70%, 50%, 0.6)`;
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, cellWidth, cellHeight);
-
-            // Show score number
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText((wallScore * 100).toFixed(0), x + cellWidth / 2, y + cellHeight / 2 + 4);
-          } else if (vizMode === 'Detected Walls') {
+          if (vizMode === 'Smart Detection') {
+            // Main view: highlight detected walls with confidence
             if (isWall) {
-              ctx.fillStyle = `rgba(74, 222, 128, ${0.2 + wallScore * 0.4})`;
+              ctx.fillStyle = `rgba(74, 222, 128, ${0.15 + wallScore * 0.45})`;
+              ctx.fillRect(x, y, cellWidth, cellHeight);
+
+              // Border for high confidence
+              if (wallScore > 0.7) {
+                ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + 1, y + 1, cellWidth - 2, cellHeight - 2);
+              }
+            }
+          } else if (vizMode === 'Depth + Color') {
+            // Show depth influence vs color uniformity
+            if (hasDepthData) {
+              // Blue = depth score, Green = uniformity score
+              const r = 0;
+              const g = Math.floor(uniformityScore * 200);
+              const b = Math.floor(depthScore * 200);
+              ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
+              ctx.fillRect(x, y, cellWidth, cellHeight);
+            } else {
+              // No depth - just show uniformity in green
+              ctx.fillStyle = `rgba(0, ${Math.floor(uniformityScore * 200)}, 0, 0.4)`;
               ctx.fillRect(x, y, cellWidth, cellHeight);
             }
-          } else if (vizMode === 'Confidence Map') {
-            ctx.fillStyle = `rgba(74, 222, 128, ${wallScore * 0.6})`;
-            ctx.fillRect(x, y, cellWidth, cellHeight);
           } else if (vizMode === 'Factor Breakdown') {
-            // Show each factor as a stacked bar
-            const barHeight = cellHeight - 10;
-            const barWidth = (cellWidth - 10) / 4;
-            const barX = x + 5;
-            const barY = y + 5;
+            // Show all 5 factors as bars
+            const numFactors = hasDepthData ? 5 : 4;
+            const barHeight = cellHeight - 6;
+            const barWidth = (cellWidth - 6) / numFactors;
+            const barX = x + 3;
+            const barY = y + 3;
 
             // Uniformity (blue)
             ctx.fillStyle = `rgba(59, 130, 246, ${uniformityScore})`;
-            ctx.fillRect(barX, barY, barWidth - 2, barHeight);
+            ctx.fillRect(barX, barY, barWidth - 1, barHeight);
 
             // Vertical (yellow)
             ctx.fillStyle = `rgba(250, 204, 21, ${verticalScore})`;
-            ctx.fillRect(barX + barWidth, barY, barWidth - 2, barHeight);
+            ctx.fillRect(barX + barWidth, barY, barWidth - 1, barHeight);
 
             // Person (purple)
             ctx.fillStyle = `rgba(168, 85, 247, ${personScore})`;
-            ctx.fillRect(barX + barWidth * 2, barY, barWidth - 2, barHeight);
+            ctx.fillRect(barX + barWidth * 2, barY, barWidth - 1, barHeight);
 
-            // Ceiling penalty (red/green)
-            ctx.fillStyle = ceilingPenalty < 1 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(74, 222, 128, 0.5)';
-            ctx.fillRect(barX + barWidth * 3, barY, barWidth - 2, barHeight);
+            // Depth (cyan) - if available
+            if (hasDepthData) {
+              ctx.fillStyle = `rgba(34, 211, 238, ${depthScore})`;
+              ctx.fillRect(barX + barWidth * 3, barY, barWidth - 1, barHeight);
+
+              // Final score (green)
+              ctx.fillStyle = `rgba(74, 222, 128, ${wallScore})`;
+              ctx.fillRect(barX + barWidth * 4, barY, barWidth - 1, barHeight);
+            } else {
+              // Final score (green)
+              ctx.fillStyle = `rgba(74, 222, 128, ${wallScore})`;
+              ctx.fillRect(barX + barWidth * 3, barY, barWidth - 1, barHeight);
+            }
+          } else if (vizMode === 'Depth Flatness') {
+            // Show depth flatness (how flat/planar the surface is)
+            if (hasDepthData) {
+              const hue = depthFlatness * 120; // Red = not flat, Green = flat
+              ctx.fillStyle = `hsla(${hue}, 70%, 50%, 0.5)`;
+              ctx.fillRect(x, y, cellWidth, cellHeight);
+
+              // Show distance as text
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+              ctx.font = '9px monospace';
+              ctx.textAlign = 'center';
+              ctx.fillText((depthDistance * 100).toFixed(0), x + cellWidth / 2, y + cellHeight / 2 + 3);
+            } else {
+              ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+              ctx.fillRect(x, y, cellWidth, cellHeight);
+            }
+          } else if (vizMode === 'Raw Factors') {
+            // Grid with all scores as text
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+
+            const lines = [
+              `U:${(uniformityScore * 100).toFixed(0)}`,
+              `V:${(verticalScore * 100).toFixed(0)}`,
+              `P:${(personScore * 100).toFixed(0)}`,
+              hasDepthData ? `D:${(depthScore * 100).toFixed(0)}` : 'D:--',
+              `=${(wallScore * 100).toFixed(0)}`
+            ];
+
+            lines.forEach((line, i) => {
+              ctx.fillText(line, x + 2, y + 10 + i * 9);
+            });
           }
         }
       }
 
-      // Draw ceiling boundary line
-      if (vizMode === 'Ceiling Boundary' || vizMode === 'Factor Breakdown') {
-        if (ceilingBoundaryY > 0) {
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([10, 5]);
-          ctx.beginPath();
-          ctx.moveTo(0, ceilingBoundaryY);
-          ctx.lineTo(elements.canvas.width, ceilingBoundaryY);
-          ctx.stroke();
-          ctx.setLineDash([]);
+      // Draw info panel
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillRect(10, elements.canvas.height - 130, 220, 120);
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'left';
 
-          // Label
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-          ctx.font = '12px sans-serif';
-          ctx.textAlign = 'left';
-          ctx.fillText('Ceiling Boundary', 10, ceilingBoundaryY - 5);
-        }
-      }
+      // Title
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText('Smart Wall Detection', 20, elements.canvas.height - 112);
 
-      // Draw legend for Factor Breakdown
+      // Depth status
+      ctx.fillStyle = hasDepthData ? '#22d3ee' : '#fbbf24';
+      ctx.fillText(hasDepthData ? '✓ Depth data active' : '⏳ Depth loading...', 20, elements.canvas.height - 94);
+
+      // Legend based on mode
       if (vizMode === 'Factor Breakdown') {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-        ctx.fillRect(10, elements.canvas.height - 110, 180, 100);
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'left';
-
         const legendItems = [
           { color: 'rgb(59, 130, 246)', label: 'Uniformity' },
-          { color: 'rgb(250, 204, 21)', label: 'Vertical Position' },
-          { color: 'rgb(168, 85, 247)', label: 'Person Proximity' },
-          { color: 'rgb(74, 222, 128)', label: 'Not Ceiling' }
+          { color: 'rgb(250, 204, 21)', label: 'Vertical' },
+          { color: 'rgb(168, 85, 247)', label: 'Person' },
+          { color: 'rgb(34, 211, 238)', label: 'Depth' },
+          { color: 'rgb(74, 222, 128)', label: 'Final' }
         ];
 
         legendItems.forEach((item, i) => {
           ctx.fillStyle = item.color;
-          ctx.fillRect(20, elements.canvas.height - 100 + i * 22, 12, 12);
+          ctx.fillRect(20 + (i % 3) * 70, elements.canvas.height - 75 + Math.floor(i / 3) * 18, 10, 10);
           ctx.fillStyle = '#fff';
-          ctx.fillText(item.label, 40, elements.canvas.height - 90 + i * 22);
+          ctx.font = '9px sans-serif';
+          ctx.fillText(item.label, 33 + (i % 3) * 70, elements.canvas.height - 66 + Math.floor(i / 3) * 18);
         });
+      } else if (vizMode === 'Depth + Color') {
+        ctx.fillStyle = '#888';
+        ctx.fillText('Green = Color uniformity', 20, elements.canvas.height - 75);
+        ctx.fillText('Blue = Depth score', 20, elements.canvas.height - 58);
+        ctx.fillText('Cyan = Both high (good wall)', 20, elements.canvas.height - 41);
+      } else if (vizMode === 'Depth Flatness') {
+        ctx.fillStyle = '#888';
+        ctx.fillText('Green = Flat surface (low depth variance)', 20, elements.canvas.height - 75);
+        ctx.fillText('Red = Uneven surface', 20, elements.canvas.height - 58);
+        ctx.fillText('Numbers = Relative distance', 20, elements.canvas.height - 41);
+      } else {
+        ctx.fillStyle = '#888';
+        ctx.fillText('Green overlay = Detected wall region', 20, elements.canvas.height - 75);
+        ctx.fillText('Brighter = Higher confidence', 20, elements.canvas.height - 58);
       }
 
-      // Draw ceiling boundary visualization
-      if (vizMode === 'Ceiling Boundary') {
-        // Show the detected ceiling region
-        if (ceilingBoundaryY > 0) {
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-          ctx.fillRect(0, 0, elements.canvas.width, ceilingBoundaryY);
-
-          ctx.fillStyle = 'rgba(74, 222, 128, 0.1)';
-          ctx.fillRect(0, ceilingBoundaryY, elements.canvas.width, elements.canvas.height - ceilingBoundaryY);
-        }
-
-        // Info
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(10, 10, 220, 50);
-        ctx.fillStyle = '#fff';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(`Ceiling boundary: ${ceilingBoundaryY}px`, 20, 30);
-        ctx.fillStyle = '#888';
-        ctx.font = '10px sans-serif';
-        ctx.fillText('Red = detected ceiling region', 20, 48);
+      // Ceiling boundary
+      if (ceilingBoundaryY > 0) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(0, ceilingBoundaryY);
+        ctx.lineTo(elements.canvas.width, ceilingBoundaryY);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
 
