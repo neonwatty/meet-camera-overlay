@@ -2280,14 +2280,14 @@
 
       for (let i = 0; i < mask.length; i++) {
         // MediaPipe Tasks Vision: 0 = background, 1 = person
-        const isPerson = mask[i] > 0;
+        // We want art on BACKGROUND, not on person
+        // So make BACKGROUND opaque (keep art), PERSON transparent (remove art)
+        const isBackground = mask[i] === 0;
 
-        // Make PERSON pixels opaque white - these will be cut out
-        // Make BACKGROUND pixels transparent - art will remain here
         maskImageData.data[i * 4] = 255;       // R
         maskImageData.data[i * 4 + 1] = 255;   // G
         maskImageData.data[i * 4 + 2] = 255;   // B
-        maskImageData.data[i * 4 + 3] = isPerson ? 255 : 0; // A
+        maskImageData.data[i * 4 + 3] = isBackground ? 255 : 0; // A - background opaque, person transparent
       }
       maskCtx.putImageData(maskImageData, 0, 0);
 
@@ -2296,9 +2296,9 @@
       maskCtx.drawImage(maskCanvas, 0, 0);
       maskCtx.filter = 'none';
 
-      // destination-out: removes destination where source is opaque
-      // Draw mask SCALED to canvas size
-      ctx.globalCompositeOperation = 'destination-out';
+      // destination-in: KEEPS destination where source is opaque
+      // Art is kept where background is (mask opaque), removed where person is (mask transparent)
+      ctx.globalCompositeOperation = 'destination-in';
       ctx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
       ctx.globalCompositeOperation = 'source-over';
     }
