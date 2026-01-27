@@ -764,9 +764,10 @@
         usage: 'This is the core technique for making wall art appear correctly on angled walls. Place 4 markers on the wall, and images will be perspective-corrected to match.',
         modelSize: 'N/A (CPU)',
         settings: [
-          { id: 'subdivisions', type: 'range', label: 'Mesh Subdivisions', min: 2, max: 16, step: 2, default: 8 },
+          { id: 'subdivisions', type: 'range', label: 'Mesh Subdivisions', min: 4, max: 32, step: 2, default: 16 },
           { id: 'show-grid', type: 'toggle', label: 'Show Transform Grid', default: true },
           { id: 'opacity', type: 'range', label: 'Image Opacity', min: 0.1, max: 1, step: 0.1, default: 0.8 },
+          { id: 'zoom', type: 'range', label: 'Image Zoom', min: 0.25, max: 4, step: 0.25, default: 1 },
           { id: 'use-segmentation', type: 'toggle', label: 'Person Occlusion', default: true },
           { id: 'pattern', type: 'select', label: 'Image Source', options: ['Starry Night', 'Great Wave', 'Mona Lisa', 'Checkerboard', 'Grid Lines', 'Gradient', 'Upload Image...'], default: 'Starry Night' }
         ],
@@ -2085,8 +2086,9 @@
       }
 
       const vizMode = state.currentModel.vizOptions[state.vizMode];
-      const subdivisions = state.settings['subdivisions'] || 8;
+      const subdivisions = state.settings['subdivisions'] || 16;
       const opacity = state.settings['opacity'] ?? 0.8;
+      const zoom = state.settings['zoom'] ?? 1;
       const showGrid = state.settings['show-grid'] ?? true;
 
       const corners = perspectiveState.corners;
@@ -2100,7 +2102,7 @@
         const tempCtx = tempCanvas.getContext('2d');
 
         // Draw perspective transformed image
-        drawPerspectiveQuadDemo(tempCtx, source, corners, subdivisions);
+        drawPerspectiveQuadDemo(tempCtx, source, corners, subdivisions, zoom);
 
         // Apply person mask if available (cuts out person so they appear in front)
         if (personMask) {
@@ -2159,14 +2161,24 @@
       drawPerspectiveInfo(ctx, corners);
     }
 
-    function drawPerspectiveQuadDemo(ctx, source, corners, subdivisions) {
+    function drawPerspectiveQuadDemo(ctx, source, corners, subdivisions, zoom = 1) {
       const { topLeft, topRight, bottomLeft, bottomRight } = corners;
       const srcWidth = source.width;
       const srcHeight = source.height;
 
-      // Get pan offset (as percentage of source dimensions)
+      // Get pan offset (in pixels)
       const panX = perspectiveState.panOffset.x;
       const panY = perspectiveState.panOffset.y;
+
+      // Calculate the visible portion of the source image based on zoom
+      // zoom > 1 means we see less of the image (zoomed in)
+      // zoom < 1 means we see more of the image (zoomed out, with potential tiling)
+      const visibleWidth = srcWidth / zoom;
+      const visibleHeight = srcHeight / zoom;
+
+      // Center the visible region, then apply pan offset
+      const offsetX = (srcWidth - visibleWidth) / 2 + panX;
+      const offsetY = (srcHeight - visibleHeight) / 2 + panY;
 
       for (let row = 0; row < subdivisions; row++) {
         for (let col = 0; col < subdivisions; col++) {
@@ -2175,12 +2187,11 @@
           const u1 = (col + 1) / subdivisions;
           const v1 = (row + 1) / subdivisions;
 
-          // Source coordinates with pan offset
-          // Pan is in pixels, we apply it to shift which part of the image is shown
-          const sx0 = u0 * srcWidth + panX;
-          const sy0 = v0 * srcHeight + panY;
-          const sx1 = u1 * srcWidth + panX;
-          const sy1 = v1 * srcHeight + panY;
+          // Source coordinates with zoom and pan
+          const sx0 = offsetX + u0 * visibleWidth;
+          const sy0 = offsetY + v0 * visibleHeight;
+          const sx1 = offsetX + u1 * visibleWidth;
+          const sy1 = offsetY + v1 * visibleHeight;
 
           // Skip if completely outside source bounds
           if (sx1 < 0 || sy1 < 0 || sx0 > srcWidth || sy0 > srcHeight) {
@@ -2224,6 +2235,7 @@
     function drawTexturedTriangleDemo(ctx, source, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
       ctx.save();
 
+      // Clip to destination triangle
       ctx.beginPath();
       ctx.moveTo(dx0, dy0);
       ctx.lineTo(dx1, dy1);
@@ -2231,20 +2243,35 @@
       ctx.closePath();
       ctx.clip();
 
-      const denom = (sx0 * (sy2 - sy1) - sx1 * sy2 + sx2 * sy1 + (sx1 - sx2) * sy0);
-      if (Math.abs(denom) < 0.001) {
+      // Calculate affine transform that maps source triangle to destination triangle
+      // We need to find matrix M such that M * [sx, sy, 1]^T = [dx, dy, 1]^T
+      //
+      // The transform is: dx = a*sx + c*sy + e
+      //                   dy = b*sx + d*sy + f
+      //
+      // Solving the system of equations for the 3 point pairs:
+
+      // Source matrix (augmented with 1s for affine)
+      const srcDet = (sx0 - sx2) * (sy1 - sy2) - (sx1 - sx2) * (sy0 - sy2);
+
+      if (Math.abs(srcDet) < 0.0001) {
         ctx.restore();
         return;
       }
 
-      const m11 = -(sy0 * (dx2 - dx1) - sy1 * dx2 + sy2 * dx1 + (sy1 - sy2) * dx0) / denom;
-      const m12 = (sy0 * (dy2 - dy1) - sy1 * dy2 + sy2 * dy1 + (sy1 - sy2) * dy0) / denom;
-      const m21 = (sx0 * (dx2 - dx1) - sx1 * dx2 + sx2 * dx1 + (sx1 - sx2) * dx0) / denom;
-      const m22 = -(sx0 * (dy2 - dy1) - sx1 * dy2 + sy2 * dy1 + (sx1 - sx2) * dy0) / denom;
-      const m31 = (sx0 * (sy2 * dx1 - sy1 * dx2) + sy0 * (sx1 * dx2 - sx2 * dx1) + (sx2 * sy1 - sx1 * sy2) * dx0) / denom;
-      const m32 = -(sx0 * (sy2 * dy1 - sy1 * dy2) + sy0 * (sx1 * dy2 - sx2 * dy1) + (sx2 * sy1 - sx1 * sy2) * dy0) / denom;
+      // Compute transform coefficients using Cramer's rule
+      const a = ((dx0 - dx2) * (sy1 - sy2) - (dx1 - dx2) * (sy0 - sy2)) / srcDet;
+      const b = ((dy0 - dy2) * (sy1 - sy2) - (dy1 - dy2) * (sy0 - sy2)) / srcDet;
+      const c = ((sx0 - sx2) * (dx1 - dx2) - (sx1 - sx2) * (dx0 - dx2)) / srcDet;
+      const d = ((sx0 - sx2) * (dy1 - dy2) - (sx1 - sx2) * (dy0 - dy2)) / srcDet;
+      const e = dx0 - a * sx0 - c * sy0;
+      const f = dy0 - b * sx0 - d * sy0;
 
-      ctx.transform(m11, m12, m21, m22, m31, m32);
+      // ctx.transform(a, b, c, d, e, f) where:
+      // a = horizontal scaling, b = vertical skewing
+      // c = horizontal skewing, d = vertical scaling
+      // e = horizontal translation, f = vertical translation
+      ctx.transform(a, b, c, d, e, f);
       ctx.drawImage(source, 0, 0);
 
       ctx.restore();
@@ -2263,50 +2290,71 @@
       if (!applyPersonMaskDemo._logged) {
         console.log(`[Perspective] Mask: ${mask.length} values, dimensions: ${mWidth}x${mHeight}`);
         console.log(`[Perspective] Canvas: ${canvasWidth}x${canvasHeight}`);
-        // Sample values and count
-        const sample = [...new Set(mask.slice(0, 10000))].sort((a,b) => a-b);
-        console.log('[Perspective] Unique mask values:', sample);
-        // Count occurrences
-        let count0 = 0, countNon0 = 0;
-        for (let i = 0; i < Math.min(mask.length, 100000); i++) {
-          if (mask[i] === 0) count0++; else countNon0++;
-        }
-        console.log(`[Perspective] Value counts (first 100k): 0=${count0}, non-zero=${countNon0}`);
-        console.log(`[Perspective] Interpretation: non-zero (${countNon0}) = background, 0 (${count0}) = person`);
+        // Sample ALL unique values
+        const allValues = new Set();
+        for (let i = 0; i < mask.length; i++) allValues.add(mask[i]);
+        console.log('[Perspective] ALL unique mask values:', [...allValues].sort((a,b) => a-b));
         applyPersonMaskDemo._logged = true;
       }
 
-      // Create mask canvas at MASK dimensions
-      const maskCanvas = document.createElement('canvas');
-      maskCanvas.width = mWidth;
-      maskCanvas.height = mHeight;
-      const maskCtx = maskCanvas.getContext('2d');
+      // SIMPLE APPROACH: Get artwork pixels and set alpha directly based on mask
+      // No composite operations - just manipulate pixels directly
 
-      // Convert category mask (Uint8Array of 0/1) to ImageData (RGBA)
-      const maskImageData = maskCtx.createImageData(mWidth, mHeight);
+      // If mask dimensions match canvas, we can work directly
+      if (mWidth === canvasWidth && mHeight === canvasHeight) {
+        const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+        const pixels = imageData.data;
 
-      for (let i = 0; i < mask.length; i++) {
-        // Testing: flip interpretation - maybe 0 = person, non-zero = background
-        // We want art on BACKGROUND only
-        const isBackground = mask[i] > 0;  // Non-zero = background
+        for (let i = 0; i < mask.length; i++) {
+          // INVERTED: 0 = person, 255 = background (opposite of typical convention)
+          // We want to make person pixels TRANSPARENT so video shows through
+          const isPerson = mask[i] === 0;
+          if (isPerson) {
+            pixels[i * 4 + 3] = 0; // Set alpha to 0 (transparent) for person pixels
+          }
+        }
 
-        maskImageData.data[i * 4] = 255;       // R
-        maskImageData.data[i * 4 + 1] = 255;   // G
-        maskImageData.data[i * 4 + 2] = 255;   // B
-        maskImageData.data[i * 4 + 3] = isBackground ? 255 : 0; // A - background opaque, person transparent
+        ctx.putImageData(imageData, 0, 0);
+      } else {
+        // Need to scale mask to match canvas dimensions
+        // Create scaled mask first
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = mWidth;
+        maskCanvas.height = mHeight;
+        const maskCtx = maskCanvas.getContext('2d');
+
+        const maskImageData = maskCtx.createImageData(mWidth, mHeight);
+        for (let i = 0; i < mask.length; i++) {
+          // INVERTED: 0 = person, 255 = background
+          const isPerson = mask[i] === 0;
+          maskImageData.data[i * 4] = isPerson ? 255 : 0;
+          maskImageData.data[i * 4 + 1] = isPerson ? 255 : 0;
+          maskImageData.data[i * 4 + 2] = isPerson ? 255 : 0;
+          maskImageData.data[i * 4 + 3] = 255;
+        }
+        maskCtx.putImageData(maskImageData, 0, 0);
+
+        // Scale to canvas size
+        const scaledCanvas = document.createElement('canvas');
+        scaledCanvas.width = canvasWidth;
+        scaledCanvas.height = canvasHeight;
+        const scaledCtx = scaledCanvas.getContext('2d');
+        scaledCtx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
+        const scaledMask = scaledCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+
+        // Now apply to artwork
+        const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+        const pixels = imageData.data;
+
+        for (let i = 0; i < canvasWidth * canvasHeight; i++) {
+          // Scaled mask: white (255) = person area, make artwork transparent there
+          if (scaledMask.data[i * 4] > 128) {
+            pixels[i * 4 + 3] = 0;
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
       }
-      maskCtx.putImageData(maskImageData, 0, 0);
-
-      // Blur for soft edges (feathering around person outline)
-      maskCtx.filter = 'blur(4px)';
-      maskCtx.drawImage(maskCanvas, 0, 0);
-      maskCtx.filter = 'none';
-
-      // destination-in: KEEPS destination where source is opaque
-      // Art is kept where background is (mask opaque), removed where person is (mask transparent)
-      ctx.globalCompositeOperation = 'destination-in';
-      ctx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
-      ctx.globalCompositeOperation = 'source-over';
     }
 
     function drawWireframeMesh(ctx, corners, subdivisions) {
@@ -2437,45 +2485,41 @@
       const panY = Math.round(perspectiveState.panOffset.y);
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillRect(10, height - 130, 280, 120);
+      ctx.fillRect(10, height - 140, 300, 130);
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'left';
 
       ctx.fillStyle = '#818cf8';
-      ctx.fillText('Perspective Transform Demo', 20, height - 112);
+      ctx.fillText('Perspective Transform Demo', 20, height - 124);
 
       // Show current image
       ctx.fillStyle = perspectiveState.isLoadingImage ? '#fbbf24' : '#4ade80';
       const statusText = perspectiveState.isLoadingImage ? 'Loading...' : `${pattern} (${imgWidth}x${imgHeight})`;
-      ctx.fillText(statusText, 20, height - 95);
+      ctx.fillText(statusText, 20, height - 108);
 
-      // Show pan offset
+      // Show zoom and pan
+      const zoom = state.settings['zoom'] ?? 1;
       ctx.fillStyle = '#60a5fa';
-      ctx.fillText(`Pan: (${panX}, ${panY})`, 200, height - 95);
+      ctx.fillText(`Zoom: ${zoom.toFixed(2)}x | Pan: (${panX}, ${panY})`, 20, height - 92);
 
       ctx.fillStyle = '#888';
-      ctx.fillText('Corners: drag handles | Image: drag inside quad', 20, height - 78);
+      ctx.fillText('Drag corners | Drag to pan | Scroll to zoom | Dbl-click reset', 20, height - 76);
 
       // Show coordinates
       ctx.fillStyle = '#f472b6';
-      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 58);
+      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 56);
       ctx.fillStyle = '#818cf8';
-      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 58);
+      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 56);
       ctx.fillStyle = '#34d399';
-      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 41);
+      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 40);
       ctx.fillStyle = '#fbbf24';
-      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 41);
+      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 40);
 
       // Segmentation status
       const segEnabled = state.settings['use-segmentation'] ?? true;
       const segReady = !!state.models.segmenter;
       ctx.fillStyle = segEnabled && segReady ? '#4ade80' : (segEnabled ? '#fbbf24' : '#666');
-      ctx.fillText(segEnabled ? (segReady ? '✓ Person occlusion active' : '⏳ Loading segmentation...') : 'Person occlusion disabled', 20, height - 24);
-
-      // Instructions
-      ctx.fillStyle = '#666';
-      ctx.font = '10px sans-serif';
-      ctx.fillText('Settings panel → change image, toggle occlusion', 20, height - 10);
+      ctx.fillText(segEnabled ? (segReady ? '✓ Person occlusion active' : '⏳ Loading segmentation...') : 'Person occlusion disabled', 20, height - 22);
     }
 
     // Check if point is inside quadrilateral using cross product method
@@ -2500,6 +2544,32 @@
     function setupPerspectiveMouseHandlers() {
       const canvas = elements.canvas;
       const handleRadius = 15;
+
+      // Double-click inside quad to reset pan and zoom
+      canvas.addEventListener('dblclick', (e) => {
+        if (state.currentModel?.id !== 'perspective-transform') return;
+        if (!perspectiveState.corners) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        if (isPointInQuad({ x, y }, perspectiveState.corners)) {
+          // Reset pan and zoom
+          perspectiveState.panOffset = { x: 0, y: 0 };
+          state.settings['zoom'] = 1;
+
+          // Update zoom slider UI
+          const zoomSlider = document.getElementById('setting-zoom');
+          if (zoomSlider) {
+            zoomSlider.value = 1;
+            const valueDisplay = zoomSlider.nextElementSibling;
+            if (valueDisplay) valueDisplay.textContent = '1.00';
+          }
+        }
+      });
 
       canvas.addEventListener('mousedown', (e) => {
         if (state.currentModel?.id !== 'perspective-transform') return;
@@ -2596,6 +2666,42 @@
           elements.canvas.style.cursor = 'default';
         }
       });
+
+      // Mouse wheel zoom when hovering over the quad
+      canvas.addEventListener('wheel', (e) => {
+        if (state.currentModel?.id !== 'perspective-transform') return;
+        if (!perspectiveState.corners) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // Only zoom if mouse is inside the quad
+        if (isPointInQuad({ x, y }, perspectiveState.corners)) {
+          e.preventDefault();
+
+          // Get current zoom from settings
+          const currentZoom = state.settings['zoom'] ?? 1;
+          const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1; // Scroll down = zoom out, scroll up = zoom in
+          const newZoom = Math.max(0.25, Math.min(4, currentZoom + zoomDelta));
+
+          // Update the setting
+          state.settings['zoom'] = newZoom;
+
+          // Update the slider UI if it exists
+          const zoomSlider = document.getElementById('setting-zoom');
+          if (zoomSlider) {
+            zoomSlider.value = newZoom;
+            // Update the value display
+            const valueDisplay = zoomSlider.nextElementSibling;
+            if (valueDisplay) {
+              valueDisplay.textContent = newZoom.toFixed(2);
+            }
+          }
+        }
+      }, { passive: false });
     }
 
     // Initialize mouse handlers
