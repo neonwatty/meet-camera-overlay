@@ -18,9 +18,7 @@
     "knip": "knip"
   },
   "dependencies": {
-    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
-    "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow-models/body-segmentation": "^1.0.2"
+    "@mediapipe/tasks-vision": "^0.10.21"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

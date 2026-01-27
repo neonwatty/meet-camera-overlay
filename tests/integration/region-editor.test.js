@@ -1,72 +1,31 @@
-import { test, expect, chromium } from '@playwright/test';
-import path from 'path';
-
-const extensionPath = path.resolve(process.cwd());
-const testVideoPath = path.resolve(process.cwd(), 'tests/fixtures/videos/test-background.y4m');
-const isCI = !!process.env.CI;
-const videoDir = path.resolve(process.cwd(), 'test-results/videos');
+import { test, expect } from '@playwright/test';
 
 /**
  * Region Editor Mock Meet Tests
  * Test the WallRegionEditor overlay component on the mock meet page
+ * These tests run headless using the mock-meet.html page which loads WallRegionEditor directly
  */
 test.describe('Region Editor Overlay Tests', () => {
-  let context;
+  test.beforeEach(async ({ page }) => {
+    // Navigate to mock meet page which loads WallRegionEditor via script tag
+    await page.goto('http://localhost:8080/mock-meet.html');
 
-  test.beforeAll(async () => {
-    context = await chromium.launchPersistentContext('', {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        `--use-file-for-fake-video-capture=${testVideoPath}`,
-        '--no-first-run',
-        '--disable-gpu',
-        '--enable-webgl',
-        '--use-gl=swiftshader',
-      ],
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 }
-      }
-    });
-  });
-
-  test.afterAll(async () => {
-    if (context) {
-      await context.close();
-    }
-  });
-
-  test('WallRegionEditor is loaded on mock meet page', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available (loaded via script tag)
+    // Wait for WallRegionEditor to be available
     await page.waitForFunction(() => {
       return typeof window.WallRegionEditor !== 'undefined';
     }, { timeout: 10000 });
+  });
 
+  test('WallRegionEditor is loaded on mock meet page', async ({ page }) => {
     // Check if WallRegionEditor is available
     const hasEditor = await page.evaluate(() => {
       return typeof window.WallRegionEditor !== 'undefined';
     });
 
     expect(hasEditor).toBe(true);
-    await page.close();
   });
 
-  test('editor overlay appears on show message', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('editor overlay appears on show message', async ({ page }) => {
     // Show the region editor
     await page.evaluate(() => {
       window.__mockMeet.showRegionEditor({
@@ -91,19 +50,9 @@ test.describe('Region Editor Overlay Tests', () => {
       return window.__mockMeet.isEditorActive();
     });
     expect(isActive).toBe(true);
-
-    await page.close();
   });
 
-  test('corner handles are visible', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('corner handles are visible', async ({ page }) => {
     // Show the region editor
     await page.evaluate(() => {
       window.__mockMeet.showRegionEditor();
@@ -124,19 +73,9 @@ test.describe('Region Editor Overlay Tests', () => {
     expect(canvasInfo).not.toBeNull();
     expect(canvasInfo.width).toBeGreaterThan(0);
     expect(canvasInfo.height).toBeGreaterThan(0);
-
-    await page.close();
   });
 
-  test('can get current region from editor', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('can get current region from editor', async ({ page }) => {
     const testRegion = {
       topLeft: { x: 15, y: 15 },
       topRight: { x: 85, y: 15 },
@@ -161,19 +100,9 @@ test.describe('Region Editor Overlay Tests', () => {
     expect(region.topLeft.y).toBe(15);
     expect(region.bottomRight.x).toBe(85);
     expect(region.bottomRight.y).toBe(85);
-
-    await page.close();
   });
 
-  test('save button persists region and closes editor', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('save button persists region and closes editor', async ({ page }) => {
     const testRegion = {
       topLeft: { x: 25, y: 25 },
       topRight: { x: 75, y: 25 },
@@ -210,19 +139,9 @@ test.describe('Region Editor Overlay Tests', () => {
     });
     expect(savedRegion).not.toBeNull();
     expect(savedRegion.topLeft.x).toBe(25);
-
-    await page.close();
   });
 
-  test('cancel button closes editor without saving', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('cancel button closes editor without saving', async ({ page }) => {
     // Clear any previous saved region
     await page.evaluate(() => {
       window.__mockMeet.lastSavedRegion = null;
@@ -256,19 +175,9 @@ test.describe('Region Editor Overlay Tests', () => {
       return window.__mockMeet.lastSavedRegion;
     });
     expect(savedRegion).toBeNull();
-
-    await page.close();
   });
 
-  test('escape key cancels editing', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('escape key cancels editing', async ({ page }) => {
     // Show the region editor
     await page.evaluate(() => {
       window.__mockMeet.showRegionEditor();
@@ -289,19 +198,9 @@ test.describe('Region Editor Overlay Tests', () => {
       return window.__mockMeet.isEditorVisible();
     });
     expect(isVisible).toBe(false);
-
-    await page.close();
   });
 
-  test('can drag corner to resize region', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('can drag corner to resize region', async ({ page }) => {
     // Show the region editor with a known region
     await page.evaluate(() => {
       window.__mockMeet.showRegionEditor({
@@ -333,19 +232,9 @@ test.describe('Region Editor Overlay Tests', () => {
     // Top-left corner should have moved (exact value depends on canvas size)
     expect(updatedRegion.topLeft.x).toBeGreaterThan(initialRegion.topLeft.x);
     expect(updatedRegion.topLeft.y).toBeGreaterThan(initialRegion.topLeft.y);
-
-    await page.close();
   });
 
-  test('hide message closes editor', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('hide message closes editor', async ({ page }) => {
     // Show the region editor
     await page.evaluate(() => {
       window.__mockMeet.showRegionEditor();
@@ -374,19 +263,9 @@ test.describe('Region Editor Overlay Tests', () => {
       return window.__mockMeet.isEditorVisible();
     });
     expect(isVisibleAfter).toBe(false);
-
-    await page.close();
   });
 
-  test('region updates are emitted during drag', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
-
-    // Wait for WallRegionEditor to be available
-    await page.waitForFunction(() => {
-      return typeof window.WallRegionEditor !== 'undefined';
-    }, { timeout: 10000 });
-
+  test('region updates are emitted during drag', async ({ page }) => {
     // Clear any previous update
     await page.evaluate(() => {
       window.__mockMeet.lastUpdatedRegion = null;
@@ -420,79 +299,33 @@ test.describe('Region Editor Overlay Tests', () => {
     });
     expect(updatedRegion).not.toBeNull();
     expect(updatedRegion.bottomRight.x).toBeLessThan(80);
-
-    await page.close();
   });
 });
 
 /**
  * Region Editor Popup Tests
  * Test the "Edit on Video" button in the extension popup
+ * These tests run headless using popup-test.html with mocked Chrome APIs
  */
 test.describe('Region Editor Popup Tests', () => {
-  test.skip(isCI, 'Extension popup tests are skipped in CI - run locally');
+  test.beforeEach(async ({ page }) => {
+    // Load popup test page with Chrome mocks
+    await page.goto('http://localhost:8080/popup-test.html');
 
-  let context;
-  let extensionId;
+    // Wait for popup to load
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
-  test.beforeAll(async () => {
-    context = await chromium.launchPersistentContext('', {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        `--use-file-for-fake-video-capture=${testVideoPath}`,
-        '--no-first-run',
-        '--enable-webgl',
-        '--use-gl=swiftshader',
-      ],
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 }
-      }
-    });
-
-    // Get extension ID
-    const page = await context.newPage();
-    await page.goto('chrome://extensions');
-    await page.waitForTimeout(1000);
-
-    extensionId = await page.evaluate(() => {
-      const manager = document.querySelector('extensions-manager');
-      if (manager?.shadowRoot) {
-        const itemsList = manager.shadowRoot.querySelector('extensions-item-list');
-        if (itemsList?.shadowRoot) {
-          const item = itemsList.shadowRoot.querySelector('extensions-item');
-          return item?.id || null;
-        }
-      }
-      return null;
-    });
-
-    await page.close();
-    console.log('Extension ID:', extensionId);
-  });
-
-  test.afterAll(async () => {
-    if (context) {
-      await context.close();
-    }
-  });
-
-  test('Edit on Video button is visible in wall art modal', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear tutorial flag
+    // Reset mock state
     await page.evaluate(() => {
-      chrome.storage.local.set({ showTutorial: false });
+      window.__resetChromeMock();
     });
-    await page.reload();
 
+    // Reload to apply clean state
+    await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
+  });
+
+  test('Edit on Video button is visible in wall art modal', async ({ page }) => {
     // Open wall art modal
     await page.click('#add-wall-art');
     await expect(page.locator('#wall-art-modal')).toBeVisible();
@@ -500,47 +333,21 @@ test.describe('Region Editor Popup Tests', () => {
     // Verify Edit on Video button exists
     await expect(page.locator('#edit-region-on-video')).toBeVisible();
     await expect(page.locator('#edit-region-on-video')).toContainText('Edit on Video');
-
-    await page.close();
   });
 
-  test('Edit on Video button shows error when no Meet tab', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear tutorial flag
-    await page.evaluate(() => {
-      chrome.storage.local.set({ showTutorial: false });
-    });
-    await page.reload();
-
+  test('Edit on Video button shows error when no Meet tab', async ({ page }) => {
     // Open wall art modal
     await page.click('#add-wall-art');
     await expect(page.locator('#wall-art-modal')).toBeVisible();
 
-    // Click Edit on Video button (no Meet tab open)
+    // Click Edit on Video button (no Meet tab open - mock returns empty)
     await page.click('#edit-region-on-video');
 
     // Should show error status
     await expect(page.locator('#status')).toContainText('Open Google Meet first');
-
-    await page.close();
   });
 
-  test('region canvas shows in wall art modal', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear tutorial flag
-    await page.evaluate(() => {
-      chrome.storage.local.set({ showTutorial: false });
-    });
-    await page.reload();
-
+  test('region canvas shows in wall art modal', async ({ page }) => {
     // Open wall art modal
     await page.click('#add-wall-art');
     await expect(page.locator('#wall-art-modal')).toBeVisible();
@@ -559,7 +366,5 @@ test.describe('Region Editor Popup Tests', () => {
 
     expect(canvasInfo.width).toBe(320);
     expect(canvasInfo.height).toBe(180);
-
-    await page.close();
   });
 });

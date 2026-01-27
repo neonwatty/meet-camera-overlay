@@ -1,54 +1,19 @@
-import { test, expect, chromium } from '@playwright/test';
-import path from 'path';
-
-const extensionPath = path.resolve(process.cwd());
-const isCI = !!process.env.CI;
-const videoDir = path.resolve(process.cwd(), 'test-results/videos');
+import { test, expect } from '@playwright/test';
 
 /**
- * Mock Meet Page Tests - These work reliably in CI
+ * Mock Meet Page Tests
  * Tests the mock page that simulates Meet's camera behavior
  */
 test.describe('Mock Meet Page Tests', () => {
-  let context;
-
-  test.beforeAll(async () => {
-    context = await chromium.launchPersistentContext('', {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        '--no-first-run',
-        '--disable-gpu',
-      ],
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 }
-      }
-    });
-  });
-
-  test.afterAll(async () => {
-    if (context) {
-      await context.close();
-    }
-  });
-
-  test('mock meet page loads', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('mock meet page loads', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     await expect(page.locator('h1')).toContainText('Mock Google Meet');
     await expect(page.locator('#start-btn')).toBeVisible();
-
-    await page.close();
   });
 
-  test('mock meet can start camera with fake device', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('mock meet can start camera with fake device', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Start camera
     await page.click('#start-btn');
@@ -63,13 +28,10 @@ test.describe('Mock Meet Page Tests', () => {
 
     // Stop camera
     await page.click('#stop-btn');
-
-    await page.close();
   });
 
-  test('camera stream is properly created', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('camera stream is properly created', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Start camera
     await page.click('#start-btn');
@@ -96,12 +58,10 @@ test.describe('Mock Meet Page Tests', () => {
     expect(streamInfo.trackEnabled).toBe(true);
 
     await page.click('#stop-btn');
-    await page.close();
   });
 
-  test('overlay updates with opacity are received', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('overlay updates with opacity are received', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     // Send overlay update with opacity
     const testOverlay = {
@@ -132,13 +92,10 @@ test.describe('Mock Meet Page Tests', () => {
     expect(receivedOverlays[0].opacity).toBe(0.75);
     expect(receivedOverlays[0].x).toBe(10);
     expect(receivedOverlays[0].y).toBe(20);
-
-    await page.close();
   });
 
-  test('multiple overlays with varying opacities are handled', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('multiple overlays with varying opacities are handled', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     const testOverlays = [
       { id: 'full', src: 'data:image/png;base64,xxx', x: 0, y: 0, width: 20, height: 20, opacity: 1, name: 'Full' },
@@ -160,13 +117,10 @@ test.describe('Mock Meet Page Tests', () => {
     expect(receivedOverlays.find(o => o.id === 'full').opacity).toBe(1);
     expect(receivedOverlays.find(o => o.id === 'half').opacity).toBe(0.5);
     expect(receivedOverlays.find(o => o.id === 'quarter').opacity).toBe(0.25);
-
-    await page.close();
   });
 
-  test('overlays with layer and zIndex fields are received', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('overlays with layer and zIndex fields are received', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     const testOverlays = [
       { id: 'bg1', src: 'data:image/png;base64,xxx', x: 0, y: 0, width: 100, height: 100, opacity: 1, name: 'Background 1', layer: 'background', zIndex: 0, category: 'user' },
@@ -198,13 +152,10 @@ test.describe('Mock Meet Page Tests', () => {
     const fg2 = receivedOverlays.find(o => o.id === 'fg2');
     expect(fg2.layer).toBe('foreground');
     expect(fg2.zIndex).toBe(1);
-
-    await page.close();
   });
 
-  test('effect overlays are received with active state', async () => {
-    const page = await context.newPage();
-    await page.goto('http://localhost:8080/tests/fixtures/mock-meet.html');
+  test('effect overlays are received with active state', async ({ page }) => {
+    await page.goto('http://localhost:8080/mock-meet.html');
 
     const testOverlays = [
       { id: 'effect1', src: 'data:image/gif;base64,xxx', x: 0, y: 0, width: 100, height: 100, opacity: 1, name: 'Fire Effect', type: 'effect', active: false, layer: 'background', zIndex: 0 },
@@ -229,88 +180,37 @@ test.describe('Mock Meet Page Tests', () => {
 
     const standard = receivedOverlays.find(o => o.id === 'standard1');
     expect(standard.type).toBe('standard');
-
-    await page.close();
   });
 });
 
 /**
- * Extension Popup Tests - Only run locally, skipped in CI
- * CI environments have issues with chrome://extensions shadow DOM
+ * Extension Popup Tests - Using mocked Chrome APIs
+ * Tests the popup UI functionality with in-memory storage
  */
 test.describe('Extension Popup Tests', () => {
-  test.skip(isCI, 'Extension popup tests are skipped in CI - run locally');
+  test.beforeEach(async ({ page }) => {
+    // Load popup test page with Chrome mocks
+    await page.goto('http://localhost:8080/popup-test.html');
 
-  let context;
-  let extensionId;
+    // Wait for popup to load
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
-  test.beforeAll(async () => {
-    context = await chromium.launchPersistentContext('', {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        '--no-first-run',
-      ],
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 }
-      }
+    // Reset mock state
+    await page.evaluate(() => {
+      window.__resetChromeMock();
     });
 
-    // Get extension ID from chrome://extensions page
-    const page = await context.newPage();
-    await page.goto('chrome://extensions');
-    await page.waitForTimeout(1000);
-
-    extensionId = await page.evaluate(() => {
-      const manager = document.querySelector('extensions-manager');
-      if (manager?.shadowRoot) {
-        const itemsList = manager.shadowRoot.querySelector('extensions-item-list');
-        if (itemsList?.shadowRoot) {
-          const item = itemsList.shadowRoot.querySelector('extensions-item');
-          return item?.id || null;
-        }
-      }
-      return null;
-    });
-
-    await page.close();
-    console.log('Extension ID:', extensionId);
+    // Reload to apply clean state
+    await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
   });
 
-  test.afterAll(async () => {
-    if (context) {
-      await context.close();
-    }
-  });
-
-  test('popup loads correctly', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('popup loads correctly', async ({ page }) => {
     await expect(page.locator('h1')).toContainText('Camera Overlay');
     await expect(page.locator('#add-overlay')).toBeVisible();
-
-    await page.close();
   });
 
-  test('can add and delete an overlay with confirmation', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear existing overlays
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('can add and delete an overlay with confirmation', async ({ page }) => {
     // Add overlay
     await page.click('#add-overlay');
     await expect(page.locator('#add-modal')).toBeVisible();
@@ -331,22 +231,10 @@ test.describe('Extension Popup Tests', () => {
     await page.waitForTimeout(500);
 
     await expect(page.locator('#user-empty-state')).toBeVisible();
-
-    await page.close();
   });
 
-  test('can cancel delete confirmation', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add an overlay
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('can cancel delete confirmation', async ({ page }) => {
+    // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
     await page.click('#confirm-add');
@@ -360,36 +248,9 @@ test.describe('Extension Popup Tests', () => {
     // Overlay should still exist
     await expect(page.locator('#confirm-modal')).toBeHidden();
     await expect(page.locator('.overlay-item')).toHaveCount(1);
-
-    // Clean up
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('preview page loads', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/preview.html`);
-
-    await expect(page.locator('#start-btn')).toBeVisible();
-
-    await page.close();
-  });
-
-  test('layer toggle switches overlay between foreground and background', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear any existing overlays first
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('layer toggle switches overlay between foreground and background', async ({ page }) => {
     // Add an overlay
     await page.click('#add-overlay');
     await expect(page.locator('#add-modal')).toBeVisible();
@@ -405,7 +266,6 @@ test.describe('Extension Popup Tests', () => {
     await expect(frontBtn).toHaveClass(/active/);
 
     // Click Back button to switch to background
-    // Use JavaScript click to bypass any overlay/intercept issues and ensure handler runs
     const backBtn = page.locator('.layer-toggle .layer-btn[data-layer="background"]');
     await backBtn.evaluate(el => el.click());
 
@@ -415,25 +275,9 @@ test.describe('Extension Popup Tests', () => {
 
     // Verify status message
     await expect(page.locator('#status')).toContainText('background');
-
-    // Clean up - confirm deletion
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('duplicate button creates a copy of overlay', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear any existing overlays first
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('duplicate button creates a copy of overlay', async ({ page }) => {
     // Add an overlay
     await page.click('#add-overlay');
     const testDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -454,27 +298,9 @@ test.describe('Extension Popup Tests', () => {
 
     // Verify status message
     await expect(page.locator('#status')).toContainText('duplicated');
-
-    // Clean up - confirm deletions
-    await page.click('.overlay-item:first-child .delete-btn');
-    await page.click('#confirm-ok');
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('My Overlays section shows user overlays', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear any existing overlays first
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('My Overlays section shows user overlays', async ({ page }) => {
     // Initially should show empty state
     await expect(page.locator('#user-empty-state')).toBeVisible();
     await expect(page.locator('#user-overlay-list .overlay-item')).toHaveCount(0);
@@ -491,25 +317,9 @@ test.describe('Extension Popup Tests', () => {
 
     // Bundled section should remain hidden (no bundled overlays)
     await expect(page.locator('#bundled-section')).toBeHidden();
-
-    // Clean up - confirm deletion
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('drag handle is visible for reordering', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add two overlays
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('drag handle is visible for reordering', async ({ page }) => {
     // Add first overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
@@ -528,21 +338,9 @@ test.describe('Extension Popup Tests', () => {
     // Verify items are draggable
     const firstItem = page.locator('.overlay-item').first();
     await expect(firstItem).toHaveAttribute('draggable', 'true');
-
-    // Clean up - confirm deletions
-    await page.click('.overlay-item:first-child .delete-btn');
-    await page.click('#confirm-ok');
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('add effect button opens modal with effect hint', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('add effect button opens modal with effect hint', async ({ page }) => {
     // Click add effect button
     await page.click('#add-effect');
 
@@ -554,22 +352,10 @@ test.describe('Extension Popup Tests', () => {
     // Cancel
     await page.click('#cancel-add');
     await expect(page.locator('#add-modal')).toBeHidden();
-
-    await page.close();
   });
 
-  test('undo restores deleted overlay with Ctrl+Z', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add an overlay
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('undo restores deleted overlay with Ctrl+Z', async ({ page }) => {
+    // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
     await page.click('#confirm-add');
@@ -584,25 +370,10 @@ test.describe('Extension Popup Tests', () => {
     await page.keyboard.press('Control+z');
     await expect(page.locator('.overlay-item')).toHaveCount(1);
     await expect(page.locator('#status')).toContainText('Undid');
-
-    // Clean up
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('redo restores action after undo with Ctrl+Y', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add an overlay
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('redo restores action after undo with Ctrl+Y', async ({ page }) => {
+    // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
     await page.click('#confirm-add');
@@ -616,25 +387,10 @@ test.describe('Extension Popup Tests', () => {
     await page.keyboard.press('Control+y');
     await expect(page.locator('.overlay-item')).toHaveCount(1);
     await expect(page.locator('#status')).toContainText('Redid');
-
-    // Clean up
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('Escape closes confirmation modal', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add an overlay
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('Escape closes confirmation modal', async ({ page }) => {
+    // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
     await page.click('#confirm-add');
@@ -649,25 +405,10 @@ test.describe('Extension Popup Tests', () => {
 
     // Overlay should still exist
     await expect(page.locator('.overlay-item')).toHaveCount(1);
-
-    // Clean up
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('clicking overlay item selects it with visual feedback', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add an overlay
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('clicking overlay item selects it with visual feedback', async ({ page }) => {
+    // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
     await page.click('#confirm-add');
@@ -677,25 +418,10 @@ test.describe('Extension Popup Tests', () => {
 
     // Should have selected class
     await expect(page.locator('.overlay-item')).toHaveClass(/selected/);
-
-    // Clean up
-    await page.click('.overlay-item .delete-btn');
-    await page.click('#confirm-ok');
-    await page.close();
   });
 
-  test('Delete key removes selected overlay', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear and add an overlay
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('Delete key removes selected overlay', async ({ page }) => {
+    // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
     await page.click('#confirm-add');
@@ -713,22 +439,9 @@ test.describe('Extension Popup Tests', () => {
     // Confirm
     await page.click('#confirm-ok');
     await expect(page.locator('.overlay-item')).toHaveCount(0);
-
-    await page.close();
   });
 
-  test('undo after add removes the overlay', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear overlays
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('undo after add removes the overlay', async ({ page }) => {
     // Add an overlay
     await page.click('#add-overlay');
     await page.fill('#image-url', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
@@ -739,40 +452,20 @@ test.describe('Extension Popup Tests', () => {
     await page.keyboard.press('Control+z');
     await expect(page.locator('.overlay-item')).toHaveCount(0);
     await expect(page.locator('#status')).toContainText('Undid add');
-
-    await page.close();
   });
 
-  test('shows error when nothing to undo', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
-    // Clear overlays and any undo state by reloading
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.reload();
-
+  test('shows error when nothing to undo', async ({ page }) => {
     // Try to undo with nothing to undo
     await page.keyboard.press('Control+z');
     await expect(page.locator('#status')).toContainText('Nothing to undo');
-
-    await page.close();
   });
 
-  test('bundled effects section appears when bundled effects exist', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('bundled effects section appears when bundled effects exist', async ({ page }) => {
     // Add a bundled effect to storage
     await page.evaluate(() => {
       const bundledEffect = {
         id: 'bundled-test',
-        src: 'chrome-extension://test/assets/effects/test.gif',
+        src: 'http://localhost:8080/extension/assets/effects/test.gif',
         x: 0, y: 0, width: 100, height: 100,
         opacity: 1,
         type: 'effect',
@@ -783,33 +476,25 @@ test.describe('Extension Popup Tests', () => {
         zIndex: 0,
         createdAt: Date.now()
       };
-      chrome.storage.local.set({ overlays: [bundledEffect], showTutorial: false });
+      chrome.storage.local.set({ overlays: [bundledEffect] });
     });
+
+    // Reload to pick up storage changes
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // Bundled section should be visible
     await expect(page.locator('#bundled-section')).toBeVisible();
     await expect(page.locator('#bundled-section h2')).toContainText('Bundled Effects');
     await expect(page.locator('#bundled-overlay-list .overlay-item')).toHaveCount(1);
-
-    // Clean up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.close();
   });
 
-  test('bundled effects have trigger button for activation', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('bundled effects have trigger button for activation', async ({ page }) => {
     // Add a bundled effect
     await page.evaluate(() => {
       const bundledEffect = {
         id: 'bundled-test-2',
-        src: 'chrome-extension://test/assets/effects/test.gif',
+        src: 'http://localhost:8080/extension/assets/effects/test.gif',
         x: 0, y: 0, width: 100, height: 100,
         opacity: 1,
         type: 'effect',
@@ -820,28 +505,19 @@ test.describe('Extension Popup Tests', () => {
         zIndex: 0,
         createdAt: Date.now()
       };
-      chrome.storage.local.set({ overlays: [bundledEffect], showTutorial: false });
+      chrome.storage.local.set({ overlays: [bundledEffect] });
     });
+
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // Check trigger button exists and shows OFF state
     const triggerBtn = page.locator('#bundled-overlay-list .trigger-btn');
     await expect(triggerBtn).toBeVisible();
     await expect(triggerBtn).toContainText('OFF');
-
-    // Clean up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.close();
   });
 
-  test('bundled and user overlays display in separate sections', async () => {
-    test.skip(!extensionId, 'Could not get extension ID');
-
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
-
+  test('bundled and user overlays display in separate sections', async ({ page }) => {
     // Add both bundled and user overlays
     await page.evaluate(() => {
       const overlays = [
@@ -859,7 +535,7 @@ test.describe('Extension Popup Tests', () => {
         },
         {
           id: 'bundled-aura-1',
-          src: 'chrome-extension://test/assets/effects/blue.gif',
+          src: 'http://localhost:8080/extension/assets/effects/blue.gif',
           x: 0, y: 0, width: 100, height: 100,
           opacity: 1,
           type: 'effect',
@@ -871,9 +547,11 @@ test.describe('Extension Popup Tests', () => {
           createdAt: Date.now()
         }
       ];
-      chrome.storage.local.set({ overlays, showTutorial: false });
+      chrome.storage.local.set({ overlays });
     });
+
     await page.reload();
+    await page.waitForFunction(() => window.__popupLoaded === true, { timeout: 10000 });
 
     // User overlay in user section
     await expect(page.locator('#user-overlay-list .overlay-item')).toHaveCount(1);
@@ -882,11 +560,5 @@ test.describe('Extension Popup Tests', () => {
     // Bundled overlay in bundled section
     await expect(page.locator('#bundled-overlay-list .overlay-item')).toHaveCount(1);
     await expect(page.locator('#bundled-overlay-list .overlay-item .name')).toContainText('Blue Aura');
-
-    // Clean up
-    await page.evaluate(() => {
-      chrome.storage.local.set({ overlays: [], showTutorial: false });
-    });
-    await page.close();
   });
 });
