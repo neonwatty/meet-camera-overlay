@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaPipe & Vision Models Playground</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: #16213e;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 500;
+      color: #e94560;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #666;
+    }
+
+    .status-dot.active {
+      background: #4ade80;
+    }
+
+    .status-dot.loading {
+      background: #fbbf24;
+      animation: pulse 1s infinite;
+    }
+
+    .status-dot.error {
+      background: #ef4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Main Layout */
+    .main-container {
+      display: flex;
+      height: calc(100vh - 60px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: #16213e;
+      border-right: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .sidebar-section h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    /* Model Selector */
+    .model-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .model-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+      gap: 10px;
+    }
+
+    .model-item:hover {
+      background: rgba(233, 69, 96, 0.1);
+    }
+
+    .model-item.active {
+      background: rgba(233, 69, 96, 0.2);
+      border: 1px solid #e94560;
+    }
+
+    .model-item.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .model-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: #0f3460;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .model-info {
+      flex: 1;
+    }
+
+    .model-name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .model-status {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .model-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .model-badge.current {
+      background: #4ade80;
+      color: #000;
+    }
+
+    .model-badge.potential {
+      background: #fbbf24;
+      color: #000;
+    }
+
+    /* Settings Panel */
+    .settings-group {
+      margin-bottom: 16px;
+    }
+
+    .settings-group label {
+      display: block;
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+
+    .settings-group select,
+    .settings-group input[type="range"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #0f3460;
+      background: #1a1a2e;
+      color: #eee;
+      font-size: 13px;
+    }
+
+    .settings-group input[type="range"] {
+      padding: 0;
+      height: 6px;
+      -webkit-appearance: none;
+      background: #0f3460;
+    }
+
+    .settings-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #e94560;
+      cursor: pointer;
+    }
+
+    .range-value {
+      font-size: 12px;
+      color: #e94560;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0f3460;
+      border-radius: 22px;
+      transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: #eee;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: #e94560;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(18px);
+    }
+
+    /* Video Area */
+    .video-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 16px;
+    }
+
+    .video-container {
+      position: relative;
+      flex: 1;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-container video,
+    .video-container canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    #webcam {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #output-canvas {
+      position: relative;
+      z-index: 1;
+    }
+
+    .video-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .overlay-stat {
+      background: rgba(0, 0, 0, 0.7);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    .overlay-stat.fps {
+      color: #4ade80;
+    }
+
+    .overlay-stat.inference {
+      color: #fbbf24;
+    }
+
+    .video-placeholder {
+      text-align: center;
+      color: #666;
+    }
+
+    .video-placeholder-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+      background: #16213e;
+      border-radius: 8px;
+    }
+
+    .control-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-btn.primary {
+      background: #e94560;
+      color: white;
+    }
+
+    .control-btn.primary:hover {
+      background: #d63d56;
+    }
+
+    .control-btn.secondary {
+      background: #0f3460;
+      color: #eee;
+    }
+
+    .control-btn.secondary:hover {
+      background: #1a4a7a;
+    }
+
+    .control-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Info Panel */
+    .info-panel {
+      width: 320px;
+      background: #16213e;
+      border-left: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .info-section {
+      padding: 16px;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .info-section h3 {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: #e94560;
+    }
+
+    .info-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #aaa;
+    }
+
+    .info-text p {
+      margin-bottom: 12px;
+    }
+
+    /* Performance Metrics */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .metric-card {
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #e94560;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    /* Visualization Options */
+    .viz-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .viz-option {
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .viz-option:hover {
+      border-color: #e94560;
+    }
+
+    .viz-option.active {
+      background: #e94560;
+      border-color: #e94560;
+      color: white;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(26, 26, 46, 0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 24px;
+      z-index: 1000;
+    }
+
+    .loading-overlay.hidden {
+      display: none;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid #0f3460;
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 14px;
+      color: #888;
+    }
+
+    /* Error Toast */
+    .error-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ef4444;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 1001;
+      display: none;
+    }
+
+    .error-toast.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading models...</div>
+  </div>
+
+  <!-- Error Toast -->
+  <div id="error-toast" class="error-toast"></div>
+
+  <!-- Header -->
+  <header class="header">
+    <h1>Vision Models Playground</h1>
+    <div class="header-status">
+      <div class="status-item">
+        <span class="status-dot" id="camera-status"></span>
+        <span>Camera</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot" id="model-status"></span>
+        <span id="model-status-text">No model</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="main-container">
+    <!-- Sidebar: Model Selection -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h3>Models</h3>
+        <div class="model-list" id="model-list">
+          <!-- Models will be populated by JS -->
+        </div>
+      </div>
+
+      <div class="sidebar-section" id="model-settings">
+        <h3>Settings</h3>
+        <div id="settings-content">
+          <p style="font-size: 12px; color: #666;">Select a model to see settings</p>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Visualization</h3>
+        <div class="viz-options" id="viz-options">
+          <!-- Visualization options populated by JS -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Video Area -->
+    <main class="video-area">
+      <div class="video-container" id="video-container">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="output-canvas"></canvas>
+        <div class="video-overlay">
+          <div class="overlay-stat fps" id="fps-display">-- FPS</div>
+          <div class="overlay-stat inference" id="inference-display">-- ms</div>
+        </div>
+        <div class="video-placeholder" id="video-placeholder">
+          <div class="video-placeholder-icon">📷</div>
+          <p>Click "Start Camera" to begin</p>
+        </div>
+      </div>
+
+      <div class="controls-bar">
+        <button class="control-btn primary" id="start-btn">
+          <span>▶</span> Start Camera
+        </button>
+        <button class="control-btn secondary" id="stop-btn" disabled>
+          <span>⏹</span> Stop
+        </button>
+        <button class="control-btn secondary" id="screenshot-btn" disabled>
+          <span>📸</span> Screenshot
+        </button>
+      </div>
+    </main>
+
+    <!-- Info Panel -->
+    <aside class="info-panel">
+      <div class="info-section">
+        <h3>Performance</h3>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-value" id="metric-fps">--</div>
+            <div class="metric-label">FPS</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="metric-inference">--</div>
+            <div class="metric-label">Inference (ms)</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="metric-resolution">--</div>
+            <div class="metric-label">Resolution</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="metric-model-size">--</div>
+            <div class="metric-label">Model Size</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3 id="info-title">About</h3>
+        <div class="info-text" id="info-content">
+          <p>Select a model from the sidebar to see details about what it does and how it's used in the extension.</p>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3>Usage in Extension</h3>
+        <div class="info-text" id="usage-content">
+          <p>Information about how the selected model is used (or could be used) in the Meet Camera Overlay extension.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    // ============================================
+    // Model Registry
+    // ============================================
+    const MODELS = {
+      'segmentation': {
+        id: 'segmentation',
+        name: 'Image Segmenter',
+        icon: '👤',
+        status: 'current',
+        description: 'Separates people from background using MediaPipe Selfie Segmentation.',
+        usage: 'Used to render wall art BEHIND the person. The segmentation mask determines which pixels belong to the person vs background.',
+        modelSize: '~256 KB',
+        settings: [
+          { id: 'model-type', type: 'select', label: 'Model Type', options: ['Landscape', 'General'], default: 'Landscape' },
+          { id: 'threshold', type: 'range', label: 'Confidence Threshold', min: 0, max: 1, step: 0.05, default: 0.5 }
+        ],
+        vizOptions: ['Mask Only', 'Colored Overlay', 'Background Blur', 'Background Replace']
+      },
+      'wall-detection': {
+        id: 'wall-detection',
+        name: 'Wall Detection',
+        icon: '🧱',
+        status: 'current',
+        description: 'Custom algorithm to detect uniform color regions that appear to be walls.',
+        usage: 'Helps users identify suitable wall areas for placing art. Analyzes color uniformity and excludes detected person regions.',
+        modelSize: 'N/A (CPU)',
+        settings: [
+          { id: 'grid-size', type: 'range', label: 'Grid Size', min: 4, max: 16, step: 1, default: 8 },
+          { id: 'uniformity', type: 'range', label: 'Uniformity Threshold', min: 0, max: 50, step: 5, default: 25 }
+        ],
+        vizOptions: ['Grid View', 'Detected Walls', 'Confidence Map']
+      },
+      'edge-detection': {
+        id: 'edge-detection',
+        name: 'Edge Detection',
+        icon: '📐',
+        status: 'current',
+        description: 'Detects edges and lines in the video frame for snapping wall art boundaries.',
+        usage: 'Allows wall art region corners to snap to detected edges like wall corners, shelves, and door frames.',
+        modelSize: 'N/A (CPU)',
+        settings: [
+          { id: 'threshold', type: 'range', label: 'Detection Threshold', min: 10, max: 100, step: 5, default: 40 },
+          { id: 'blur-radius', type: 'range', label: 'Blur Radius', min: 0, max: 5, step: 1, default: 1 },
+          { id: 'min-length', type: 'range', label: 'Min Line Length', min: 5, max: 50, step: 5, default: 15 }
+        ],
+        vizOptions: ['All Edges', 'Strong Edges Only', 'Edge Angles']
+      },
+      'depth-estimation': {
+        id: 'depth-estimation',
+        name: 'Depth Estimation',
+        icon: '🌊',
+        status: 'potential',
+        description: 'Estimates depth/distance for each pixel using MiDaS model. Could enable 3D scene understanding.',
+        usage: 'POTENTIAL: Could identify wall planes by finding regions with consistent depth, enable proper occlusion, and improve stabilization.',
+        modelSize: '~25 MB',
+        settings: [
+          { id: 'model-size', type: 'select', label: 'Model Size', options: ['Small (Fast)', 'Large (Accurate)'], default: 'Small (Fast)' }
+        ],
+        vizOptions: ['Depth Map', 'Depth Contours', 'Near/Far Regions']
+      },
+      'stabilization': {
+        id: 'stabilization',
+        name: 'Stabilization',
+        icon: '🎯',
+        status: 'comparison',
+        description: 'Compare different approaches to keeping wall art stable when the camera or person moves.',
+        usage: 'Current: Simple smoothing (jiggle compensator). Future: Feature tracking could lock art to actual wall position.',
+        modelSize: 'N/A',
+        settings: [
+          { id: 'mode', type: 'select', label: 'Stabilization Mode', options: ['None', 'Current (Smoothing)', 'Feature Tracking (Demo)'], default: 'Current (Smoothing)' },
+          { id: 'smoothing', type: 'range', label: 'Smoothing Factor', min: 0, max: 1, step: 0.1, default: 0.7 }
+        ],
+        vizOptions: ['Position Trail', 'Jitter Graph', 'Side-by-Side']
+      },
+      'combined': {
+        id: 'combined',
+        name: 'Combined Pipeline',
+        icon: '🔗',
+        status: 'demo',
+        description: 'See all models working together in the full wall art rendering pipeline.',
+        usage: 'Demonstrates how segmentation, wall detection, and edge detection work together for wall art placement.',
+        modelSize: 'Multiple',
+        settings: [
+          { id: 'show-segmentation', type: 'toggle', label: 'Show Segmentation', default: true },
+          { id: 'show-walls', type: 'toggle', label: 'Show Wall Detection', default: true },
+          { id: 'show-edges', type: 'toggle', label: 'Show Edges', default: false }
+        ],
+        vizOptions: ['Full Pipeline', 'Layers View']
+      }
+    };
+
+    // ============================================
+    // App State
+    // ============================================
+    const state = {
+      currentModel: null,
+      isRunning: false,
+      stream: null,
+      animationId: null,
+      fps: 0,
+      inferenceTime: 0,
+      frameCount: 0,
+      lastFpsUpdate: 0,
+      settings: {},
+      vizMode: 0,
+      models: {
+        segmenter: null,
+        depthEstimator: null
+      }
+    };
+
+    // ============================================
+    // DOM Elements
+    // ============================================
+    const elements = {
+      loadingOverlay: document.getElementById('loading-overlay'),
+      errorToast: document.getElementById('error-toast'),
+      cameraStatus: document.getElementById('camera-status'),
+      modelStatus: document.getElementById('model-status'),
+      modelStatusText: document.getElementById('model-status-text'),
+      modelList: document.getElementById('model-list'),
+      settingsContent: document.getElementById('settings-content'),
+      vizOptions: document.getElementById('viz-options'),
+      videoContainer: document.getElementById('video-container'),
+      webcam: document.getElementById('webcam'),
+      canvas: document.getElementById('output-canvas'),
+      videoPlaceholder: document.getElementById('video-placeholder'),
+      fpsDisplay: document.getElementById('fps-display'),
+      inferenceDisplay: document.getElementById('inference-display'),
+      startBtn: document.getElementById('start-btn'),
+      stopBtn: document.getElementById('stop-btn'),
+      screenshotBtn: document.getElementById('screenshot-btn'),
+      metricFps: document.getElementById('metric-fps'),
+      metricInference: document.getElementById('metric-inference'),
+      metricResolution: document.getElementById('metric-resolution'),
+      metricModelSize: document.getElementById('metric-model-size'),
+      infoTitle: document.getElementById('info-title'),
+      infoContent: document.getElementById('info-content'),
+      usageContent: document.getElementById('usage-content')
+    };
+
+    const ctx = elements.canvas.getContext('2d');
+
+    // ============================================
+    // Initialize
+    // ============================================
+    function init() {
+      renderModelList();
+      setupEventListeners();
+      hideLoading();
+      selectModel('segmentation');
+    }
+
+    function renderModelList() {
+      elements.modelList.innerHTML = Object.values(MODELS).map(model => `
+        <div class="model-item" data-model="${model.id}">
+          <div class="model-icon">${model.icon}</div>
+          <div class="model-info">
+            <div class="model-name">${model.name}</div>
+            <div class="model-status">${getStatusText(model.status)}</div>
+          </div>
+          <span class="model-badge ${model.status}">${model.status}</span>
+        </div>
+      `).join('');
+    }
+
+    function getStatusText(status) {
+      switch (status) {
+        case 'current': return 'In use';
+        case 'potential': return 'Could add';
+        case 'comparison': return 'Compare';
+        case 'demo': return 'Demo';
+        default: return status;
+      }
+    }
+
+    function setupEventListeners() {
+      // Model selection
+      elements.modelList.addEventListener('click', (e) => {
+        const modelItem = e.target.closest('.model-item');
+        if (modelItem) {
+          selectModel(modelItem.dataset.model);
+        }
+      });
+
+      // Camera controls
+      elements.startBtn.addEventListener('click', startCamera);
+      elements.stopBtn.addEventListener('click', stopCamera);
+      elements.screenshotBtn.addEventListener('click', takeScreenshot);
+
+      // Visualization options
+      elements.vizOptions.addEventListener('click', (e) => {
+        if (e.target.classList.contains('viz-option')) {
+          const index = parseInt(e.target.dataset.index);
+          setVizMode(index);
+        }
+      });
+    }
+
+    // ============================================
+    // Model Selection
+    // ============================================
+    function selectModel(modelId) {
+      const model = MODELS[modelId];
+      if (!model) return;
+
+      state.currentModel = model;
+
+      // Update UI
+      document.querySelectorAll('.model-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.model === modelId);
+      });
+
+      // Update info panel
+      elements.infoTitle.textContent = model.name;
+      elements.infoContent.innerHTML = `<p>${model.description}</p>`;
+      elements.usageContent.innerHTML = `<p>${model.usage}</p>`;
+      elements.metricModelSize.textContent = model.modelSize;
+
+      // Render settings
+      renderSettings(model);
+
+      // Render viz options
+      renderVizOptions(model);
+
+      // Update status
+      elements.modelStatusText.textContent = model.name;
+    }
+
+    function renderSettings(model) {
+      if (!model.settings || model.settings.length === 0) {
+        elements.settingsContent.innerHTML = '<p style="font-size: 12px; color: #666;">No settings for this model</p>';
+        return;
+      }
+
+      elements.settingsContent.innerHTML = model.settings.map(setting => {
+        if (setting.type === 'select') {
+          return `
+            <div class="settings-group">
+              <label>${setting.label}</label>
+              <select id="setting-${setting.id}" data-setting="${setting.id}">
+                ${setting.options.map(opt => `<option value="${opt}" ${opt === setting.default ? 'selected' : ''}>${opt}</option>`).join('')}
+              </select>
+            </div>
+          `;
+        } else if (setting.type === 'range') {
+          const value = state.settings[setting.id] ?? setting.default;
+          return `
+            <div class="settings-group">
+              <label>${setting.label}</label>
+              <input type="range" id="setting-${setting.id}" data-setting="${setting.id}"
+                min="${setting.min}" max="${setting.max}" step="${setting.step}" value="${value}">
+              <div class="range-value" id="value-${setting.id}">${value}</div>
+            </div>
+          `;
+        } else if (setting.type === 'toggle') {
+          const checked = state.settings[setting.id] ?? setting.default;
+          return `
+            <div class="toggle-row">
+              <span class="toggle-label">${setting.label}</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-${setting.id}" data-setting="${setting.id}" ${checked ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          `;
+        }
+        return '';
+      }).join('');
+
+      // Add event listeners for settings
+      elements.settingsContent.querySelectorAll('input, select').forEach(input => {
+        input.addEventListener('input', (e) => {
+          const settingId = e.target.dataset.setting;
+          let value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+          if (e.target.type === 'range') {
+            value = parseFloat(value);
+            const valueDisplay = document.getElementById(`value-${settingId}`);
+            if (valueDisplay) valueDisplay.textContent = value;
+          }
+          state.settings[settingId] = value;
+        });
+      });
+    }
+
+    function renderVizOptions(model) {
+      if (!model.vizOptions || model.vizOptions.length === 0) {
+        elements.vizOptions.innerHTML = '<p style="font-size: 12px; color: #666;">No options</p>';
+        return;
+      }
+
+      elements.vizOptions.innerHTML = model.vizOptions.map((opt, i) => `
+        <div class="viz-option ${i === state.vizMode ? 'active' : ''}" data-index="${i}">${opt}</div>
+      `).join('');
+    }
+
+    function setVizMode(index) {
+      state.vizMode = index;
+      document.querySelectorAll('.viz-option').forEach((opt, i) => {
+        opt.classList.toggle('active', i === index);
+      });
+    }
+
+    // ============================================
+    // Camera
+    // ============================================
+    async function startCamera() {
+      try {
+        showLoading('Starting camera...');
+        
+        state.stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+        });
+
+        elements.webcam.srcObject = state.stream;
+        await elements.webcam.play();
+
+        // Set canvas size
+        elements.canvas.width = elements.webcam.videoWidth;
+        elements.canvas.height = elements.webcam.videoHeight;
+
+        // Update UI
+        elements.videoPlaceholder.style.display = 'none';
+        elements.cameraStatus.classList.add('active');
+        elements.startBtn.disabled = true;
+        elements.stopBtn.disabled = false;
+        elements.screenshotBtn.disabled = false;
+
+        // Update resolution metric
+        elements.metricResolution.textContent = `${elements.webcam.videoWidth}x${elements.webcam.videoHeight}`;
+
+        state.isRunning = true;
+        hideLoading();
+
+        // Load model if needed
+        await loadCurrentModel();
+
+        // Start render loop
+        requestAnimationFrame(renderLoop);
+
+      } catch (error) {
+        console.error('Camera error:', error);
+        showError('Failed to access camera: ' + error.message);
+        hideLoading();
+      }
+    }
+
+    function stopCamera() {
+      state.isRunning = false;
+
+      if (state.animationId) {
+        cancelAnimationFrame(state.animationId);
+      }
+
+      if (state.stream) {
+        state.stream.getTracks().forEach(track => track.stop());
+        state.stream = null;
+      }
+
+      elements.webcam.srcObject = null;
+      elements.videoPlaceholder.style.display = 'flex';
+      elements.cameraStatus.classList.remove('active');
+      elements.startBtn.disabled = false;
+      elements.stopBtn.disabled = true;
+      elements.screenshotBtn.disabled = true;
+
+      // Clear canvas
+      ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+    }
+
+    // ============================================
+    // Model Loading
+    // ============================================
+    async function loadCurrentModel() {
+      if (!state.currentModel) return;
+
+      elements.modelStatus.classList.remove('active', 'error');
+      elements.modelStatus.classList.add('loading');
+
+      try {
+        switch (state.currentModel.id) {
+          case 'segmentation':
+            await loadSegmentationModel();
+            break;
+          case 'depth-estimation':
+            await loadDepthModel();
+            break;
+          // Other models don't need async loading
+        }
+
+        elements.modelStatus.classList.remove('loading');
+        elements.modelStatus.classList.add('active');
+      } catch (error) {
+        console.error('Model load error:', error);
+        elements.modelStatus.classList.remove('loading');
+        elements.modelStatus.classList.add('error');
+        showError('Failed to load model: ' + error.message);
+      }
+    }
+
+    async function loadSegmentationModel() {
+      if (state.models.segmenter) return;
+
+      showLoading('Loading MediaPipe Image Segmenter...');
+
+      // Dynamic import MediaPipe Tasks Vision
+      const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/+esm');
+      
+      const { ImageSegmenter, FilesetResolver } = vision;
+
+      const wasmFileset = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+
+      state.models.segmenter = await ImageSegmenter.createFromOptions(wasmFileset, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO',
+        outputCategoryMask: true,
+        outputConfidenceMasks: false
+      });
+
+      hideLoading();
+    }
+
+    async function loadDepthModel() {
+      // TODO: Implement MiDaS loading
+      showError('Depth estimation model not yet implemented');
+    }
+
+    // ============================================
+    // Render Loop
+    // ============================================
+    let lastFrameTime = 0;
+
+    function renderLoop(timestamp) {
+      if (!state.isRunning) return;
+
+      state.animationId = requestAnimationFrame(renderLoop);
+
+      // Calculate FPS
+      state.frameCount++;
+      if (timestamp - state.lastFpsUpdate >= 1000) {
+        state.fps = state.frameCount;
+        state.frameCount = 0;
+        state.lastFpsUpdate = timestamp;
+        updateMetrics();
+      }
+
+      // Run inference
+      const startTime = performance.now();
+      processFrame();
+      state.inferenceTime = performance.now() - startTime;
+    }
+
+    function processFrame() {
+      if (!state.currentModel) {
+        // Just draw video
+        ctx.drawImage(elements.webcam, 0, 0);
+        return;
+      }
+
+      switch (state.currentModel.id) {
+        case 'segmentation':
+          processSegmentation();
+          break;
+        case 'wall-detection':
+          processWallDetection();
+          break;
+        case 'edge-detection':
+          processEdgeDetection();
+          break;
+        case 'depth-estimation':
+          processDepthEstimation();
+          break;
+        case 'stabilization':
+          processStabilization();
+          break;
+        case 'combined':
+          processCombined();
+          break;
+        default:
+          ctx.drawImage(elements.webcam, 0, 0);
+      }
+    }
+
+    // ============================================
+    // Model Processing Functions
+    // ============================================
+    function processSegmentation() {
+      const segmenter = state.models.segmenter;
+      
+      if (!segmenter) {
+        ctx.drawImage(elements.webcam, 0, 0);
+        return;
+      }
+
+      // Run segmentation
+      const result = segmenter.segmentForVideo(elements.webcam, performance.now());
+      
+      // Draw base video
+      ctx.drawImage(elements.webcam, 0, 0);
+
+      if (result.categoryMask) {
+        const mask = result.categoryMask;
+        const maskData = mask.getAsUint8Array();
+        const width = mask.width;
+        const height = mask.height;
+
+        // Create ImageData for mask visualization
+        const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
+        const pixels = imageData.data;
+
+        // Apply visualization based on mode
+        const vizMode = state.currentModel.vizOptions[state.vizMode];
+
+        for (let i = 0; i < maskData.length; i++) {
+          const isPerson = maskData[i] > 0;
+          const pixelIndex = i * 4;
+
+          if (vizMode === 'Mask Only') {
+            pixels[pixelIndex] = isPerson ? 255 : 0;
+            pixels[pixelIndex + 1] = isPerson ? 255 : 0;
+            pixels[pixelIndex + 2] = isPerson ? 255 : 0;
+          } else if (vizMode === 'Colored Overlay') {
+            if (isPerson) {
+              pixels[pixelIndex] = Math.min(255, pixels[pixelIndex] + 50);
+              pixels[pixelIndex + 2] = Math.max(0, pixels[pixelIndex + 2] - 50);
+            }
+          } else if (vizMode === 'Background Blur') {
+            // Simplified blur effect - just darken background
+            if (!isPerson) {
+              pixels[pixelIndex] = pixels[pixelIndex] * 0.3;
+              pixels[pixelIndex + 1] = pixels[pixelIndex + 1] * 0.3;
+              pixels[pixelIndex + 2] = pixels[pixelIndex + 2] * 0.3;
+            }
+          } else if (vizMode === 'Background Replace') {
+            if (!isPerson) {
+              // Replace with solid color
+              pixels[pixelIndex] = 30;
+              pixels[pixelIndex + 1] = 30;
+              pixels[pixelIndex + 2] = 60;
+            }
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        mask.close();
+      }
+    }
+
+    function processWallDetection() {
+      ctx.drawImage(elements.webcam, 0, 0);
+      
+      // Get image data for analysis
+      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
+      const gridSize = state.settings['grid-size'] || 8;
+      const uniformityThreshold = state.settings['uniformity'] || 25;
+
+      const cellWidth = Math.floor(elements.canvas.width / gridSize);
+      const cellHeight = Math.floor(elements.canvas.height / gridSize);
+
+      const vizMode = state.currentModel.vizOptions[state.vizMode];
+
+      // Analyze each grid cell
+      for (let gy = 0; gy < gridSize; gy++) {
+        for (let gx = 0; gx < gridSize; gx++) {
+          const x = gx * cellWidth;
+          const y = gy * cellHeight;
+
+          // Calculate color variance in cell
+          const { avgColor, variance } = analyzeCellColor(imageData, x, y, cellWidth, cellHeight);
+          const isUniform = variance < uniformityThreshold;
+
+          if (vizMode === 'Grid View') {
+            ctx.strokeStyle = isUniform ? 'rgba(74, 222, 128, 0.5)' : 'rgba(239, 68, 68, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, cellWidth, cellHeight);
+          } else if (vizMode === 'Detected Walls' && isUniform) {
+            ctx.fillStyle = `rgba(74, 222, 128, 0.3)`;
+            ctx.fillRect(x, y, cellWidth, cellHeight);
+          } else if (vizMode === 'Confidence Map') {
+            const confidence = Math.max(0, 1 - variance / 100);
+            ctx.fillStyle = `rgba(74, 222, 128, ${confidence * 0.5})`;
+            ctx.fillRect(x, y, cellWidth, cellHeight);
+          }
+        }
+      }
+    }
+
+    function analyzeCellColor(imageData, startX, startY, width, height) {
+      let totalR = 0, totalG = 0, totalB = 0;
+      let count = 0;
+
+      const sampleStep = 4; // Sample every 4th pixel for performance
+
+      for (let y = startY; y < startY + height && y < imageData.height; y += sampleStep) {
+        for (let x = startX; x < startX + width && x < imageData.width; x += sampleStep) {
+          const i = (y * imageData.width + x) * 4;
+          totalR += imageData.data[i];
+          totalG += imageData.data[i + 1];
+          totalB += imageData.data[i + 2];
+          count++;
+        }
+      }
+
+      const avgR = totalR / count;
+      const avgG = totalG / count;
+      const avgB = totalB / count;
+
+      // Calculate variance
+      let variance = 0;
+      for (let y = startY; y < startY + height && y < imageData.height; y += sampleStep) {
+        for (let x = startX; x < startX + width && x < imageData.width; x += sampleStep) {
+          const i = (y * imageData.width + x) * 4;
+          const diffR = imageData.data[i] - avgR;
+          const diffG = imageData.data[i + 1] - avgG;
+          const diffB = imageData.data[i + 2] - avgB;
+          variance += (diffR * diffR + diffG * diffG + diffB * diffB) / 3;
+        }
+      }
+      variance = Math.sqrt(variance / count);
+
+      return {
+        avgColor: { r: avgR, g: avgG, b: avgB },
+        variance
+      };
+    }
+
+    function processEdgeDetection() {
+      ctx.drawImage(elements.webcam, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
+      const threshold = state.settings['threshold'] || 40;
+      const minLength = state.settings['min-length'] || 15;
+
+      // Simple Sobel edge detection
+      const edges = detectEdgesSobel(imageData, threshold);
+
+      const vizMode = state.currentModel.vizOptions[state.vizMode];
+
+      ctx.strokeStyle = '#e94560';
+      ctx.lineWidth = 2;
+
+      edges.forEach(edge => {
+        if (vizMode === 'Strong Edges Only' && edge.strength < threshold * 1.5) return;
+        
+        ctx.beginPath();
+        ctx.moveTo(edge.x1, edge.y1);
+        ctx.lineTo(edge.x2, edge.y2);
+        
+        if (vizMode === 'Edge Angles') {
+          // Color by angle
+          const hue = (edge.angle + 180) / 360 * 255;
+          ctx.strokeStyle = `hsl(${hue}, 80%, 60%)`;
+        }
+        
+        ctx.stroke();
+      });
+    }
+
+    function detectEdgesSobel(imageData, threshold) {
+      const width = imageData.width;
+      const height = imageData.height;
+      const data = imageData.data;
+      const edges = [];
+
+      // Convert to grayscale and apply Sobel
+      const gray = new Float32Array(width * height);
+      for (let i = 0; i < data.length; i += 4) {
+        gray[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      }
+
+      // Sobel kernels
+      const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+      const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+      // Find edge points
+      const step = 8; // Sample every 8 pixels
+      for (let y = 1; y < height - 1; y += step) {
+        for (let x = 1; x < width - 1; x += step) {
+          let gx = 0, gy = 0;
+          
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              const idx = (y + ky) * width + (x + kx);
+              const kidx = (ky + 1) * 3 + (kx + 1);
+              gx += gray[idx] * sobelX[kidx];
+              gy += gray[idx] * sobelY[kidx];
+            }
+          }
+
+          const magnitude = Math.sqrt(gx * gx + gy * gy);
+          
+          if (magnitude > threshold) {
+            const angle = Math.atan2(gy, gx) * 180 / Math.PI;
+            const length = 15;
+            const dx = Math.cos(angle * Math.PI / 180) * length;
+            const dy = Math.sin(angle * Math.PI / 180) * length;
+            
+            edges.push({
+              x1: x - dx / 2,
+              y1: y - dy / 2,
+              x2: x + dx / 2,
+              y2: y + dy / 2,
+              strength: magnitude,
+              angle: angle
+            });
+          }
+        }
+      }
+
+      return edges;
+    }
+
+    function processDepthEstimation() {
+      ctx.drawImage(elements.webcam, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
+      const depthMap = estimateDepthSimple(imageData);
+
+      const vizMode = state.currentModel.vizOptions[state.vizMode];
+
+      // Apply depth visualization
+      const pixels = imageData.data;
+
+      for (let i = 0; i < depthMap.length; i++) {
+        const depth = depthMap[i]; // 0 = near, 1 = far
+        const pixelIndex = i * 4;
+
+        if (vizMode === 'Depth Map') {
+          // Color gradient: warm (near) to cool (far)
+          const hue = depth * 240; // 0 = red, 240 = blue
+          const rgb = hslToRgb(hue / 360, 0.8, 0.5);
+          pixels[pixelIndex] = rgb[0];
+          pixels[pixelIndex + 1] = rgb[1];
+          pixels[pixelIndex + 2] = rgb[2];
+        } else if (vizMode === 'Depth Contours') {
+          // Draw contour lines at depth intervals
+          const contourInterval = 0.1;
+          const contourValue = depth % contourInterval;
+          if (contourValue < 0.01 || contourValue > contourInterval - 0.01) {
+            pixels[pixelIndex] = 255;
+            pixels[pixelIndex + 1] = 255;
+            pixels[pixelIndex + 2] = 255;
+          }
+        } else if (vizMode === 'Near/Far Regions') {
+          // Highlight near (person) and far (wall) regions
+          if (depth < 0.4) {
+            // Near - highlight red
+            pixels[pixelIndex] = Math.min(255, pixels[pixelIndex] + 80);
+            pixels[pixelIndex + 1] = pixels[pixelIndex + 1] * 0.7;
+            pixels[pixelIndex + 2] = pixels[pixelIndex + 2] * 0.7;
+          } else if (depth > 0.7) {
+            // Far - highlight blue
+            pixels[pixelIndex] = pixels[pixelIndex] * 0.7;
+            pixels[pixelIndex + 1] = pixels[pixelIndex + 1] * 0.7;
+            pixels[pixelIndex + 2] = Math.min(255, pixels[pixelIndex + 2] + 80);
+          }
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Add info overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(10, elements.canvas.height - 60, 280, 50);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('⚠️ Simulated depth (brightness-based)', 20, elements.canvas.height - 40);
+      ctx.fillStyle = '#888';
+      ctx.fillText('Real MiDaS model would provide accurate depth', 20, elements.canvas.height - 22);
+    }
+
+    // Simple depth estimation based on brightness and position
+    // This is a SIMULATION - real depth requires ML model like MiDaS
+    function estimateDepthSimple(imageData) {
+      const width = imageData.width;
+      const height = imageData.height;
+      const data = imageData.data;
+      const depthMap = new Float32Array(width * height);
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4;
+
+          // Use brightness as rough depth proxy (darker = further)
+          const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3 / 255;
+
+          // Add vertical gradient (top = further, bottom = closer - typical for rooms)
+          const verticalBias = y / height * 0.3;
+
+          // Center tends to be closer (person in center)
+          const centerX = Math.abs(x - width / 2) / (width / 2);
+          const centerY = Math.abs(y - height / 2) / (height / 2);
+          const centerBias = (centerX + centerY) / 2 * 0.2;
+
+          // Combine factors
+          let depth = (1 - brightness) * 0.5 + verticalBias + centerBias;
+          depth = Math.max(0, Math.min(1, depth));
+
+          depthMap[y * width + x] = depth;
+        }
+      }
+
+      return depthMap;
+    }
+
+    // HSL to RGB helper
+    function hslToRgb(h, s, l) {
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    }
+
+    function processStabilization() {
+      ctx.drawImage(elements.webcam, 0, 0);
+
+      // Draw a test pattern to demonstrate stabilization
+      const mode = state.settings['mode'] || 'Current (Smoothing)';
+      const smoothing = state.settings['smoothing'] || 0.7;
+
+      // Simulated "detected" position with jitter
+      const baseX = elements.canvas.width / 2;
+      const baseY = elements.canvas.height / 2;
+      const jitter = 5;
+      const rawX = baseX + (Math.random() - 0.5) * jitter * 2;
+      const rawY = baseY + (Math.random() - 0.5) * jitter * 2;
+
+      // Apply stabilization based on mode
+      let displayX, displayY;
+      
+      if (!state.stabilization) {
+        state.stabilization = { x: baseX, y: baseY, trail: [] };
+      }
+
+      if (mode === 'None') {
+        displayX = rawX;
+        displayY = rawY;
+      } else if (mode === 'Current (Smoothing)') {
+        state.stabilization.x = state.stabilization.x * smoothing + rawX * (1 - smoothing);
+        state.stabilization.y = state.stabilization.y * smoothing + rawY * (1 - smoothing);
+        displayX = state.stabilization.x;
+        displayY = state.stabilization.y;
+      } else {
+        // Feature tracking simulation - more stable
+        state.stabilization.x = state.stabilization.x * 0.95 + rawX * 0.05;
+        state.stabilization.y = state.stabilization.y * 0.95 + rawY * 0.05;
+        displayX = state.stabilization.x;
+        displayY = state.stabilization.y;
+      }
+
+      // Track trail
+      state.stabilization.trail.push({ x: displayX, y: displayY });
+      if (state.stabilization.trail.length > 60) {
+        state.stabilization.trail.shift();
+      }
+
+      const vizMode = state.currentModel.vizOptions[state.vizMode];
+
+      // Draw based on viz mode
+      if (vizMode === 'Position Trail') {
+        // Draw trail
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(233, 69, 96, 0.5)';
+        ctx.lineWidth = 2;
+        state.stabilization.trail.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.stroke();
+      }
+
+      // Draw test art (rectangle)
+      const artWidth = 200;
+      const artHeight = 150;
+      ctx.strokeStyle = '#e94560';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(displayX - artWidth / 2, displayY - artHeight / 2, artWidth, artHeight);
+      
+      ctx.fillStyle = 'rgba(233, 69, 96, 0.2)';
+      ctx.fillRect(displayX - artWidth / 2, displayY - artHeight / 2, artWidth, artHeight);
+
+      // Label
+      ctx.fillStyle = '#fff';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Mode: ${mode}`, displayX, displayY);
+    }
+
+    function processCombined() {
+      const showSegmentation = state.settings['show-segmentation'] ?? true;
+      const showWalls = state.settings['show-walls'] ?? true;
+      const showEdges = state.settings['show-edges'] ?? false;
+
+      // Draw base video
+      ctx.drawImage(elements.webcam, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
+      const pixels = imageData.data;
+
+      // 1. Segmentation (if model loaded and enabled)
+      let segmentationMask = null;
+      if (showSegmentation && state.models.segmenter) {
+        const result = state.models.segmenter.segmentForVideo(elements.webcam, performance.now());
+        if (result.categoryMask) {
+          segmentationMask = result.categoryMask.getAsUint8Array();
+          result.categoryMask.close();
+        }
+      }
+
+      // 2. Wall Detection
+      let wallMask = null;
+      if (showWalls) {
+        wallMask = detectWallsSimple(imageData);
+      }
+
+      // Apply combined visualization
+      for (let i = 0; i < pixels.length / 4; i++) {
+        const pixelIndex = i * 4;
+        const isPerson = segmentationMask ? segmentationMask[i] > 0 : false;
+        const isWall = wallMask ? wallMask[i] : false;
+
+        if (isPerson) {
+          // Person - subtle red tint
+          pixels[pixelIndex] = Math.min(255, pixels[pixelIndex] + 30);
+        } else if (isWall) {
+          // Wall region - green tint
+          pixels[pixelIndex + 1] = Math.min(255, pixels[pixelIndex + 1] + 40);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // 3. Edge Detection overlay
+      if (showEdges) {
+        const threshold = 40;
+        const freshImageData = ctx.getImageData(0, 0, elements.canvas.width, elements.canvas.height);
+        const edges = detectEdgesSobel(freshImageData, threshold);
+
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+        ctx.lineWidth = 1;
+        edges.forEach(edge => {
+          ctx.beginPath();
+          ctx.moveTo(edge.x1, edge.y1);
+          ctx.lineTo(edge.x2, edge.y2);
+          ctx.stroke();
+        });
+      }
+
+      // Draw legend
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(10, 10, 200, 90);
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'left';
+
+      ctx.fillStyle = '#e94560';
+      ctx.fillRect(20, 25, 12, 12);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('Person (Segmentation)', 40, 35);
+
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(20, 45, 12, 12);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('Wall Region', 40, 55);
+
+      if (showEdges) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(20, 65, 12, 12);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Detected Edges', 40, 75);
+      }
+
+      ctx.fillStyle = '#888';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('Toggle layers in Settings panel', 20, 92);
+    }
+
+    // Simple wall detection for combined view
+    function detectWallsSimple(imageData) {
+      const width = imageData.width;
+      const height = imageData.height;
+      const data = imageData.data;
+      const gridSize = 8;
+      const cellWidth = Math.floor(width / gridSize);
+      const cellHeight = Math.floor(height / gridSize);
+      const wallMask = new Array(width * height).fill(false);
+
+      for (let gy = 0; gy < gridSize; gy++) {
+        for (let gx = 0; gx < gridSize; gx++) {
+          const startX = gx * cellWidth;
+          const startY = gy * cellHeight;
+
+          // Calculate variance
+          let totalR = 0, totalG = 0, totalB = 0, count = 0;
+          for (let y = startY; y < startY + cellHeight && y < height; y += 4) {
+            for (let x = startX; x < startX + cellWidth && x < width; x += 4) {
+              const i = (y * width + x) * 4;
+              totalR += data[i];
+              totalG += data[i + 1];
+              totalB += data[i + 2];
+              count++;
+            }
+          }
+
+          const avgR = totalR / count, avgG = totalG / count, avgB = totalB / count;
+          let variance = 0;
+
+          for (let y = startY; y < startY + cellHeight && y < height; y += 4) {
+            for (let x = startX; x < startX + cellWidth && x < width; x += 4) {
+              const i = (y * width + x) * 4;
+              const diffR = data[i] - avgR;
+              const diffG = data[i + 1] - avgG;
+              const diffB = data[i + 2] - avgB;
+              variance += (diffR * diffR + diffG * diffG + diffB * diffB) / 3;
+            }
+          }
+          variance = Math.sqrt(variance / count);
+
+          // Mark as wall if uniform
+          if (variance < 25) {
+            for (let y = startY; y < startY + cellHeight && y < height; y++) {
+              for (let x = startX; x < startX + cellWidth && x < width; x++) {
+                wallMask[y * width + x] = true;
+              }
+            }
+          }
+        }
+      }
+
+      return wallMask;
+    }
+
+    // ============================================
+    // UI Helpers
+    // ============================================
+    function updateMetrics() {
+      elements.fpsDisplay.textContent = `${state.fps} FPS`;
+      elements.inferenceDisplay.textContent = `${state.inferenceTime.toFixed(1)} ms`;
+      elements.metricFps.textContent = state.fps;
+      elements.metricInference.textContent = state.inferenceTime.toFixed(1);
+    }
+
+    function showLoading(text = 'Loading...') {
+      elements.loadingOverlay.querySelector('.loading-text').textContent = text;
+      elements.loadingOverlay.classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      elements.loadingOverlay.classList.add('hidden');
+    }
+
+    function showError(message) {
+      elements.errorToast.textContent = message;
+      elements.errorToast.classList.add('visible');
+      setTimeout(() => {
+        elements.errorToast.classList.remove('visible');
+      }, 5000);
+    }
+
+    function takeScreenshot() {
+      const link = document.createElement('a');
+      link.download = `vision-playground-${Date.now()}.png`;
+      link.href = elements.canvas.toDataURL();
+      link.click();
+    }
+
+    // ============================================
+    // Start
+    // ============================================
+    init();
+  </script>
+</body>
+</html>
