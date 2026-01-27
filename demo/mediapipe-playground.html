@@ -754,6 +754,23 @@
           { id: 'show-edges', type: 'toggle', label: 'Show Edges', default: false }
         ],
         vizOptions: ['Full Pipeline', 'Layers View']
+      },
+      'perspective-transform': {
+        id: 'perspective-transform',
+        name: 'Perspective Transform',
+        icon: '🖼️',
+        status: 'demo',
+        description: 'Interactive demo of perspective/homography transform. Drag 4 corners to warp an image onto any quadrilateral.',
+        usage: 'This is the core technique for making wall art appear correctly on angled walls. Place 4 markers on the wall, and images will be perspective-corrected to match.',
+        modelSize: 'N/A (CPU)',
+        settings: [
+          { id: 'subdivisions', type: 'range', label: 'Mesh Subdivisions', min: 2, max: 16, step: 2, default: 8 },
+          { id: 'show-grid', type: 'toggle', label: 'Show Transform Grid', default: true },
+          { id: 'opacity', type: 'range', label: 'Image Opacity', min: 0.1, max: 1, step: 0.1, default: 0.8 },
+          { id: 'use-segmentation', type: 'toggle', label: 'Person Occlusion', default: true },
+          { id: 'pattern', type: 'select', label: 'Test Pattern', options: ['Checkerboard', 'Grid Lines', 'Sample Image', 'Gradient'], default: 'Checkerboard' }
+        ],
+        vizOptions: ['Transformed Image', 'Wireframe', 'UV Mapping', 'Before/After']
       }
     };
 
@@ -919,6 +936,7 @@
         case 'wall-detection':
         case 'edge-detection':
         case 'stabilization':
+        case 'perspective-transform':
           isLoaded = true; // CPU-based, always available
           statusText += ' ✓';
           break;
@@ -1109,6 +1127,11 @@
             // Combined needs segmentation
             await loadSegmentationModel();
             break;
+          case 'perspective-transform':
+            // Perspective transform can optionally use segmentation for person occlusion
+            console.log('[Model] Perspective transform: loading segmentation for occlusion...');
+            await loadSegmentationModel();
+            break;
           // Other models don't need async loading
           default:
             console.log(`[Model] ${modelId} is CPU-based, no loading needed`);
@@ -1256,6 +1279,9 @@
           break;
         case 'combined':
           processCombined();
+          break;
+        case 'perspective-transform':
+          processPerspectiveTransform();
           break;
         default:
           ctx.drawImage(elements.webcam, 0, 0);
@@ -1810,6 +1836,544 @@
         ctx.fillText('Yellow = Inferred edge', 140, height - 46);
       }
     }
+
+    // ============================================
+    // Perspective Transform Demo
+    // ============================================
+    const perspectiveState = {
+      corners: null,  // Will be initialized when model selected
+      dragging: null, // Which corner is being dragged
+      patternCanvas: null,
+      personMask: null
+    };
+
+    function initPerspectiveCorners() {
+      const width = elements.canvas.width;
+      const height = elements.canvas.height;
+      // Default to a slightly inset rectangle
+      perspectiveState.corners = {
+        topLeft: { x: width * 0.2, y: height * 0.2 },
+        topRight: { x: width * 0.8, y: height * 0.2 },
+        bottomLeft: { x: width * 0.2, y: height * 0.8 },
+        bottomRight: { x: width * 0.8, y: height * 0.8 }
+      };
+    }
+
+    function generatePatternCanvas(pattern, width, height) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      if (pattern === 'Checkerboard') {
+        const cellSize = Math.max(20, Math.min(width, height) / 8);
+        for (let y = 0; y < height; y += cellSize) {
+          for (let x = 0; x < width; x += cellSize) {
+            const isWhite = ((Math.floor(x / cellSize) + Math.floor(y / cellSize)) % 2) === 0;
+            ctx.fillStyle = isWhite ? '#ffffff' : '#2563eb';
+            ctx.fillRect(x, y, cellSize, cellSize);
+          }
+        }
+      } else if (pattern === 'Grid Lines') {
+        ctx.fillStyle = '#1e3a5f';
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 2;
+        const spacing = Math.max(20, Math.min(width, height) / 10);
+        for (let x = 0; x <= width; x += spacing) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= height; y += spacing) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+      } else if (pattern === 'Gradient') {
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#f472b6');
+        gradient.addColorStop(0.5, '#818cf8');
+        gradient.addColorStop(1, '#34d399');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+        // Add corner labels
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText('TL', 10, 30);
+        ctx.fillText('TR', width - 40, 30);
+        ctx.fillText('BL', 10, height - 10);
+        ctx.fillText('BR', width - 40, height - 10);
+      } else if (pattern === 'Sample Image') {
+        // Draw a sample "painting" frame
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#D2691E';
+        const border = 15;
+        ctx.fillRect(border, border, width - border * 2, height - border * 2);
+        // Inner "painting"
+        const innerGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
+        innerGradient.addColorStop(0, '#fef3c7');
+        innerGradient.addColorStop(0.5, '#fbbf24');
+        innerGradient.addColorStop(1, '#d97706');
+        ctx.fillStyle = innerGradient;
+        ctx.fillRect(border * 2, border * 2, width - border * 4, height - border * 4);
+        // Add some "art"
+        ctx.fillStyle = '#1e40af';
+        ctx.beginPath();
+        ctx.arc(width * 0.3, height * 0.4, 40, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(width * 0.6, height * 0.5, 50, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#059669';
+        ctx.fillRect(width * 0.5, height * 0.6, 80, 60);
+      }
+
+      return canvas;
+    }
+
+    function processPerspectiveTransform() {
+      // Draw webcam first
+      ctx.drawImage(elements.webcam, 0, 0);
+
+      // Initialize corners if needed
+      if (!perspectiveState.corners) {
+        initPerspectiveCorners();
+      }
+
+      // Generate pattern canvas if needed
+      const pattern = state.settings['pattern'] || 'Checkerboard';
+      if (!perspectiveState.patternCanvas || perspectiveState.patternCanvas.dataset.pattern !== pattern) {
+        perspectiveState.patternCanvas = generatePatternCanvas(pattern, 400, 300);
+        perspectiveState.patternCanvas.dataset.pattern = pattern;
+      }
+
+      // Get person mask if segmentation enabled
+      const useSegmentation = state.settings['use-segmentation'] ?? true;
+      let personMask = null;
+      if (useSegmentation && state.models.segmenter) {
+        const result = state.models.segmenter.segmentForVideo(elements.webcam, performance.now());
+        if (result.categoryMask) {
+          personMask = result.categoryMask.getAsUint8Array();
+          result.categoryMask.close();
+        }
+      }
+
+      const vizMode = state.currentModel.vizOptions[state.vizMode];
+      const subdivisions = state.settings['subdivisions'] || 8;
+      const opacity = state.settings['opacity'] ?? 0.8;
+      const showGrid = state.settings['show-grid'] ?? true;
+
+      const corners = perspectiveState.corners;
+      const source = perspectiveState.patternCanvas;
+
+      if (vizMode === 'Transformed Image' || vizMode === 'Before/After') {
+        // Create temp canvas for the transformed image
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = elements.canvas.width;
+        tempCanvas.height = elements.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Draw perspective transformed image
+        drawPerspectiveQuadDemo(tempCtx, source, corners, subdivisions);
+
+        // Apply person mask if available
+        if (personMask) {
+          applyPersonMaskDemo(tempCtx, personMask);
+        }
+
+        // Composite onto main canvas
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.globalAlpha = 1;
+
+        // For before/after, show original on left side
+        if (vizMode === 'Before/After') {
+          const midX = elements.canvas.width / 2;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, midX, elements.canvas.height);
+          ctx.clip();
+          ctx.drawImage(elements.webcam, 0, 0);
+          // Draw the source image unwarped in top-left
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(source, 20, 20, 150, 112);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(20, 20, 150, 112);
+          ctx.restore();
+
+          // Draw divider
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(midX, 0);
+          ctx.lineTo(midX, elements.canvas.height);
+          ctx.stroke();
+
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 14px sans-serif';
+          ctx.fillText('ORIGINAL', 20, elements.canvas.height - 20);
+          ctx.fillText('TRANSFORMED', midX + 20, elements.canvas.height - 20);
+        }
+      } else if (vizMode === 'Wireframe') {
+        // Draw just the wireframe mesh
+        drawWireframeMesh(ctx, corners, subdivisions);
+      } else if (vizMode === 'UV Mapping') {
+        // Show UV coordinates as colors
+        drawUVMapping(ctx, corners, subdivisions);
+      }
+
+      // Draw corner handles and grid overlay
+      if (showGrid && vizMode !== 'Wireframe') {
+        drawCornerHandles(ctx, corners);
+      }
+
+      // Info panel
+      drawPerspectiveInfo(ctx, corners);
+    }
+
+    function drawPerspectiveQuadDemo(ctx, source, corners, subdivisions) {
+      const { topLeft, topRight, bottomLeft, bottomRight } = corners;
+      const srcWidth = source.width;
+      const srcHeight = source.height;
+
+      for (let row = 0; row < subdivisions; row++) {
+        for (let col = 0; col < subdivisions; col++) {
+          const u0 = col / subdivisions;
+          const v0 = row / subdivisions;
+          const u1 = (col + 1) / subdivisions;
+          const v1 = (row + 1) / subdivisions;
+
+          // Source coordinates
+          const sx0 = u0 * srcWidth;
+          const sy0 = v0 * srcHeight;
+          const sx1 = u1 * srcWidth;
+          const sy1 = v1 * srcHeight;
+
+          // Destination coordinates via bilinear interpolation
+          const d00 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u0, v0);
+          const d10 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u1, v0);
+          const d01 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u0, v1);
+          const d11 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u1, v1);
+
+          // Draw two triangles
+          drawTexturedTriangleDemo(ctx, source,
+            sx0, sy0, sx1, sy0, sx0, sy1,
+            d00.x, d00.y, d10.x, d10.y, d01.x, d01.y
+          );
+          drawTexturedTriangleDemo(ctx, source,
+            sx1, sy0, sx1, sy1, sx0, sy1,
+            d10.x, d10.y, d11.x, d11.y, d01.x, d01.y
+          );
+        }
+      }
+    }
+
+    function bilinearInterpolateDemo(tl, tr, bl, br, u, v) {
+      const top = {
+        x: tl.x + (tr.x - tl.x) * u,
+        y: tl.y + (tr.y - tl.y) * u
+      };
+      const bottom = {
+        x: bl.x + (br.x - bl.x) * u,
+        y: bl.y + (br.y - bl.y) * u
+      };
+      return {
+        x: top.x + (bottom.x - top.x) * v,
+        y: top.y + (bottom.y - top.y) * v
+      };
+    }
+
+    function drawTexturedTriangleDemo(ctx, source, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
+      ctx.save();
+
+      ctx.beginPath();
+      ctx.moveTo(dx0, dy0);
+      ctx.lineTo(dx1, dy1);
+      ctx.lineTo(dx2, dy2);
+      ctx.closePath();
+      ctx.clip();
+
+      const denom = (sx0 * (sy2 - sy1) - sx1 * sy2 + sx2 * sy1 + (sx1 - sx2) * sy0);
+      if (Math.abs(denom) < 0.001) {
+        ctx.restore();
+        return;
+      }
+
+      const m11 = -(sy0 * (dx2 - dx1) - sy1 * dx2 + sy2 * dx1 + (sy1 - sy2) * dx0) / denom;
+      const m12 = (sy0 * (dy2 - dy1) - sy1 * dy2 + sy2 * dy1 + (sy1 - sy2) * dy0) / denom;
+      const m21 = (sx0 * (dx2 - dx1) - sx1 * dx2 + sx2 * dx1 + (sx1 - sx2) * dx0) / denom;
+      const m22 = -(sx0 * (dy2 - dy1) - sx1 * dy2 + sy2 * dy1 + (sx1 - sx2) * dy0) / denom;
+      const m31 = (sx0 * (sy2 * dx1 - sy1 * dx2) + sy0 * (sx1 * dx2 - sx2 * dx1) + (sx2 * sy1 - sx1 * sy2) * dx0) / denom;
+      const m32 = -(sx0 * (sy2 * dy1 - sy1 * dy2) + sy0 * (sx1 * dy2 - sx2 * dy1) + (sx2 * sy1 - sx1 * sy2) * dy0) / denom;
+
+      ctx.transform(m11, m12, m21, m22, m31, m32);
+      ctx.drawImage(source, 0, 0);
+
+      ctx.restore();
+    }
+
+    function applyPersonMaskDemo(ctx, mask) {
+      const canvas = ctx.canvas;
+      const width = canvas.width;
+      const height = canvas.height;
+
+      const maskCanvas = document.createElement('canvas');
+      maskCanvas.width = width;
+      maskCanvas.height = height;
+      const maskCtx = maskCanvas.getContext('2d');
+
+      const maskImageData = maskCtx.createImageData(width, height);
+      for (let i = 0; i < mask.length; i++) {
+        const val = mask[i] > 0 ? 255 : 0;
+        maskImageData.data[i * 4] = val;
+        maskImageData.data[i * 4 + 1] = val;
+        maskImageData.data[i * 4 + 2] = val;
+        maskImageData.data[i * 4 + 3] = val;
+      }
+      maskCtx.putImageData(maskImageData, 0, 0);
+
+      // Blur for soft edges
+      maskCtx.filter = 'blur(3px)';
+      maskCtx.drawImage(maskCanvas, 0, 0);
+      maskCtx.filter = 'none';
+
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.drawImage(maskCanvas, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawWireframeMesh(ctx, corners, subdivisions) {
+      const { topLeft, topRight, bottomLeft, bottomRight } = corners;
+
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 1;
+
+      for (let row = 0; row <= subdivisions; row++) {
+        const v = row / subdivisions;
+        ctx.beginPath();
+        for (let col = 0; col <= subdivisions; col++) {
+          const u = col / subdivisions;
+          const pt = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u, v);
+          if (col === 0) {
+            ctx.moveTo(pt.x, pt.y);
+          } else {
+            ctx.lineTo(pt.x, pt.y);
+          }
+        }
+        ctx.stroke();
+      }
+
+      for (let col = 0; col <= subdivisions; col++) {
+        const u = col / subdivisions;
+        ctx.beginPath();
+        for (let row = 0; row <= subdivisions; row++) {
+          const v = row / subdivisions;
+          const pt = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u, v);
+          if (row === 0) {
+            ctx.moveTo(pt.x, pt.y);
+          } else {
+            ctx.lineTo(pt.x, pt.y);
+          }
+        }
+        ctx.stroke();
+      }
+
+      // Draw border thicker
+      ctx.strokeStyle = '#ff0';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(topLeft.x, topLeft.y);
+      ctx.lineTo(topRight.x, topRight.y);
+      ctx.lineTo(bottomRight.x, bottomRight.y);
+      ctx.lineTo(bottomLeft.x, bottomLeft.y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    function drawUVMapping(ctx, corners, subdivisions) {
+      const { topLeft, topRight, bottomLeft, bottomRight } = corners;
+
+      for (let row = 0; row < subdivisions; row++) {
+        for (let col = 0; col < subdivisions; col++) {
+          const u = (col + 0.5) / subdivisions;
+          const v = (row + 0.5) / subdivisions;
+
+          const d00 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, col / subdivisions, row / subdivisions);
+          const d11 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, (col + 1) / subdivisions, (row + 1) / subdivisions);
+
+          // Color based on UV: R=U, G=V, B=0
+          const r = Math.floor(u * 255);
+          const g = Math.floor(v * 255);
+          ctx.fillStyle = `rgb(${r}, ${g}, 100)`;
+
+          ctx.beginPath();
+          ctx.moveTo(d00.x, d00.y);
+          const d10 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, (col + 1) / subdivisions, row / subdivisions);
+          const d01 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, col / subdivisions, (row + 1) / subdivisions);
+          ctx.lineTo(d10.x, d10.y);
+          ctx.lineTo(d11.x, d11.y);
+          ctx.lineTo(d01.x, d01.y);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+
+    function drawCornerHandles(ctx, corners) {
+      const handleRadius = 12;
+
+      // Draw quad outline
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(corners.topLeft.x, corners.topLeft.y);
+      ctx.lineTo(corners.topRight.x, corners.topRight.y);
+      ctx.lineTo(corners.bottomRight.x, corners.bottomRight.y);
+      ctx.lineTo(corners.bottomLeft.x, corners.bottomLeft.y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw corner handles
+      const cornerNames = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+      const labels = ['TL', 'TR', 'BL', 'BR'];
+      const colors = ['#f472b6', '#818cf8', '#34d399', '#fbbf24'];
+
+      cornerNames.forEach((name, i) => {
+        const corner = corners[name];
+        const isActive = perspectiveState.dragging === name;
+
+        ctx.beginPath();
+        ctx.arc(corner.x, corner.y, handleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = isActive ? '#fff' : colors[i];
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = isActive ? '#000' : '#fff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labels[i], corner.x, corner.y);
+      });
+    }
+
+    function drawPerspectiveInfo(ctx, corners) {
+      const width = elements.canvas.width;
+      const height = elements.canvas.height;
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillRect(10, height - 100, 280, 90);
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'left';
+
+      ctx.fillStyle = '#818cf8';
+      ctx.fillText('Perspective Transform Demo', 20, height - 82);
+
+      ctx.fillStyle = '#888';
+      ctx.fillText('Drag corners to warp the image. Uses triangle', 20, height - 64);
+      ctx.fillText('mesh subdivision with bilinear interpolation.', 20, height - 50);
+
+      // Show coordinates
+      ctx.fillStyle = '#f472b6';
+      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 32);
+      ctx.fillStyle = '#818cf8';
+      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 32);
+      ctx.fillStyle = '#34d399';
+      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 18);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 18);
+    }
+
+    // Mouse handlers for dragging corners
+    function setupPerspectiveMouseHandlers() {
+      const canvas = elements.canvas;
+      const handleRadius = 15;
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (state.currentModel?.id !== 'perspective-transform') return;
+        if (!perspectiveState.corners) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // Check if clicking on a corner handle
+        const cornerNames = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        for (const name of cornerNames) {
+          const corner = perspectiveState.corners[name];
+          const dx = x - corner.x;
+          const dy = y - corner.y;
+          if (dx * dx + dy * dy < handleRadius * handleRadius) {
+            perspectiveState.dragging = name;
+            canvas.style.cursor = 'grabbing';
+            e.preventDefault();
+            return;
+          }
+        }
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (state.currentModel?.id !== 'perspective-transform') return;
+        if (!perspectiveState.corners) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        if (perspectiveState.dragging) {
+          // Move the corner
+          perspectiveState.corners[perspectiveState.dragging] = {
+            x: Math.max(0, Math.min(canvas.width, x)),
+            y: Math.max(0, Math.min(canvas.height, y))
+          };
+        } else {
+          // Check hover
+          const cornerNames = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+          let hovering = false;
+          for (const name of cornerNames) {
+            const corner = perspectiveState.corners[name];
+            const dx = x - corner.x;
+            const dy = y - corner.y;
+            if (dx * dx + dy * dy < handleRadius * handleRadius) {
+              hovering = true;
+              break;
+            }
+          }
+          canvas.style.cursor = hovering ? 'grab' : 'default';
+        }
+      });
+
+      canvas.addEventListener('mouseup', () => {
+        if (perspectiveState.dragging) {
+          perspectiveState.dragging = null;
+          elements.canvas.style.cursor = 'default';
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        if (perspectiveState.dragging) {
+          perspectiveState.dragging = null;
+          elements.canvas.style.cursor = 'default';
+        }
+      });
+    }
+
+    // Initialize mouse handlers
+    setupPerspectiveMouseHandlers();
 
     function processEdgeDetection() {
       ctx.drawImage(elements.webcam, 0, 0);
