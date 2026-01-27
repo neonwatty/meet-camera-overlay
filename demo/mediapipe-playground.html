@@ -1842,13 +1842,17 @@
     // ============================================
     const perspectiveState = {
       corners: null,  // Will be initialized when model selected
-      dragging: null, // Which corner is being dragged
+      dragging: null, // Which corner is being dragged ('topLeft', 'topRight', etc.) or 'pan'
       patternCanvas: null,
       loadedImage: null,
       currentPattern: null,
       isLoadingImage: false,
       personMask: null,
-      uploadInput: null
+      uploadInput: null,
+      // Image panning within the quad
+      panOffset: { x: 0, y: 0 },
+      panStart: null,  // Starting position when pan drag begins
+      zoom: 1.0        // Future: allow zoom
     };
 
     // Sample artwork URLs (public domain from Wikimedia Commons)
@@ -2156,6 +2160,10 @@
       const srcWidth = source.width;
       const srcHeight = source.height;
 
+      // Get pan offset (as percentage of source dimensions)
+      const panX = perspectiveState.panOffset.x;
+      const panY = perspectiveState.panOffset.y;
+
       for (let row = 0; row < subdivisions; row++) {
         for (let col = 0; col < subdivisions; col++) {
           const u0 = col / subdivisions;
@@ -2163,11 +2171,17 @@
           const u1 = (col + 1) / subdivisions;
           const v1 = (row + 1) / subdivisions;
 
-          // Source coordinates
-          const sx0 = u0 * srcWidth;
-          const sy0 = v0 * srcHeight;
-          const sx1 = u1 * srcWidth;
-          const sy1 = v1 * srcHeight;
+          // Source coordinates with pan offset
+          // Pan is in pixels, we apply it to shift which part of the image is shown
+          const sx0 = u0 * srcWidth + panX;
+          const sy0 = v0 * srcHeight + panY;
+          const sx1 = u1 * srcWidth + panX;
+          const sy1 = v1 * srcHeight + panY;
+
+          // Skip if completely outside source bounds
+          if (sx1 < 0 || sy1 < 0 || sx0 > srcWidth || sy0 > srcHeight) {
+            continue;
+          }
 
           // Destination coordinates via bilinear interpolation
           const d00 = bilinearInterpolateDemo(topLeft, topRight, bottomLeft, bottomRight, u0, v0);
@@ -2242,21 +2256,27 @@
       maskCanvas.height = height;
       const maskCtx = maskCanvas.getContext('2d');
 
+      // Create mask where person pixels are opaque (will be cut out)
+      // MediaPipe: mask[i] > 0 means person pixel
       const maskImageData = maskCtx.createImageData(width, height);
       for (let i = 0; i < mask.length; i++) {
-        const val = mask[i] > 0 ? 255 : 0;
-        maskImageData.data[i * 4] = val;
-        maskImageData.data[i * 4 + 1] = val;
-        maskImageData.data[i * 4 + 2] = val;
-        maskImageData.data[i * 4 + 3] = val;
+        const isPerson = mask[i] > 0;
+        // Person pixels get full alpha - these will be cut out from the art
+        const alpha = isPerson ? 255 : 0;
+        maskImageData.data[i * 4] = 255;     // R (white)
+        maskImageData.data[i * 4 + 1] = 255; // G
+        maskImageData.data[i * 4 + 2] = 255; // B
+        maskImageData.data[i * 4 + 3] = alpha; // A - only person pixels are opaque
       }
       maskCtx.putImageData(maskImageData, 0, 0);
 
-      // Blur for soft edges
-      maskCtx.filter = 'blur(3px)';
+      // Blur for soft edges (feathering)
+      maskCtx.filter = 'blur(4px)';
       maskCtx.drawImage(maskCanvas, 0, 0);
       maskCtx.filter = 'none';
 
+      // destination-out: removes destination pixels where source is opaque
+      // So person areas (opaque in mask) get removed from the art
       ctx.globalCompositeOperation = 'destination-out';
       ctx.drawImage(maskCanvas, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
@@ -2386,40 +2406,70 @@
       const pattern = state.settings['pattern'] || 'Starry Night';
       const imgWidth = perspectiveState.patternCanvas?.width || 0;
       const imgHeight = perspectiveState.patternCanvas?.height || 0;
+      const panX = Math.round(perspectiveState.panOffset.x);
+      const panY = Math.round(perspectiveState.panOffset.y);
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillRect(10, height - 115, 280, 105);
+      ctx.fillRect(10, height - 130, 280, 120);
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'left';
 
       ctx.fillStyle = '#818cf8';
-      ctx.fillText('Perspective Transform Demo', 20, height - 97);
+      ctx.fillText('Perspective Transform Demo', 20, height - 112);
 
       // Show current image
       ctx.fillStyle = perspectiveState.isLoadingImage ? '#fbbf24' : '#4ade80';
       const statusText = perspectiveState.isLoadingImage ? 'Loading...' : `${pattern} (${imgWidth}x${imgHeight})`;
-      ctx.fillText(statusText, 20, height - 80);
+      ctx.fillText(statusText, 20, height - 95);
+
+      // Show pan offset
+      ctx.fillStyle = '#60a5fa';
+      ctx.fillText(`Pan: (${panX}, ${panY})`, 200, height - 95);
 
       ctx.fillStyle = '#888';
-      ctx.fillText('Drag corners to warp the image onto any quad.', 20, height - 63);
+      ctx.fillText('Corners: drag handles | Image: drag inside quad', 20, height - 78);
 
       // Show coordinates
       ctx.fillStyle = '#f472b6';
-      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 45);
+      ctx.fillText(`TL: (${Math.round(corners.topLeft.x)}, ${Math.round(corners.topLeft.y)})`, 20, height - 58);
       ctx.fillStyle = '#818cf8';
-      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 45);
+      ctx.fillText(`TR: (${Math.round(corners.topRight.x)}, ${Math.round(corners.topRight.y)})`, 150, height - 58);
       ctx.fillStyle = '#34d399';
-      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 28);
+      ctx.fillText(`BL: (${Math.round(corners.bottomLeft.x)}, ${Math.round(corners.bottomLeft.y)})`, 20, height - 41);
       ctx.fillStyle = '#fbbf24';
-      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 28);
+      ctx.fillText(`BR: (${Math.round(corners.bottomRight.x)}, ${Math.round(corners.bottomRight.y)})`, 150, height - 41);
+
+      // Segmentation status
+      const segEnabled = state.settings['use-segmentation'] ?? true;
+      const segReady = !!state.models.segmenter;
+      ctx.fillStyle = segEnabled && segReady ? '#4ade80' : (segEnabled ? '#fbbf24' : '#666');
+      ctx.fillText(segEnabled ? (segReady ? '✓ Person occlusion active' : '⏳ Loading segmentation...') : 'Person occlusion disabled', 20, height - 24);
 
       // Instructions
       ctx.fillStyle = '#666';
       ctx.font = '10px sans-serif';
-      ctx.fillText('Change image in Settings panel →', 20, height - 12);
+      ctx.fillText('Settings panel → change image, toggle occlusion', 20, height - 10);
     }
 
-    // Mouse handlers for dragging corners
+    // Check if point is inside quadrilateral using cross product method
+    function isPointInQuad(point, corners) {
+      const { topLeft, topRight, bottomRight, bottomLeft } = corners;
+      const pts = [topLeft, topRight, bottomRight, bottomLeft];
+
+      // Check if point is on the same side of all edges
+      let sign = null;
+      for (let i = 0; i < 4; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % 4];
+        const cross = (p2.x - p1.x) * (point.y - p1.y) - (p2.y - p1.y) * (point.x - p1.x);
+        const s = Math.sign(cross);
+        if (sign === null) sign = s;
+        else if (s !== 0 && s !== sign) return false;
+      }
+      return true;
+    }
+
+    // Mouse handlers for dragging corners and panning
     function setupPerspectiveMouseHandlers() {
       const canvas = elements.canvas;
       const handleRadius = 15;
@@ -2434,7 +2484,7 @@
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
-        // Check if clicking on a corner handle
+        // Check if clicking on a corner handle first (priority)
         const cornerNames = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
         for (const name of cornerNames) {
           const corner = perspectiveState.corners[name];
@@ -2446,6 +2496,14 @@
             e.preventDefault();
             return;
           }
+        }
+
+        // Check if clicking inside the quad for panning
+        if (isPointInQuad({ x, y }, perspectiveState.corners)) {
+          perspectiveState.dragging = 'pan';
+          perspectiveState.panStart = { x, y, offsetX: perspectiveState.panOffset.x, offsetY: perspectiveState.panOffset.y };
+          canvas.style.cursor = 'move';
+          e.preventDefault();
         }
       });
 
@@ -2459,32 +2517,47 @@
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
-        if (perspectiveState.dragging) {
+        if (perspectiveState.dragging === 'pan' && perspectiveState.panStart) {
+          // Pan the image within the quad
+          const dx = x - perspectiveState.panStart.x;
+          const dy = y - perspectiveState.panStart.y;
+          // Invert because moving mouse right should show more of left side of image
+          perspectiveState.panOffset.x = perspectiveState.panStart.offsetX - dx * 0.5;
+          perspectiveState.panOffset.y = perspectiveState.panStart.offsetY - dy * 0.5;
+        } else if (perspectiveState.dragging && perspectiveState.dragging !== 'pan') {
           // Move the corner
           perspectiveState.corners[perspectiveState.dragging] = {
             x: Math.max(0, Math.min(canvas.width, x)),
             y: Math.max(0, Math.min(canvas.height, y))
           };
         } else {
-          // Check hover
+          // Check hover state
           const cornerNames = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
-          let hovering = false;
+          let hoveringCorner = false;
           for (const name of cornerNames) {
             const corner = perspectiveState.corners[name];
             const dx = x - corner.x;
             const dy = y - corner.y;
             if (dx * dx + dy * dy < handleRadius * handleRadius) {
-              hovering = true;
+              hoveringCorner = true;
               break;
             }
           }
-          canvas.style.cursor = hovering ? 'grab' : 'default';
+
+          if (hoveringCorner) {
+            canvas.style.cursor = 'grab';
+          } else if (isPointInQuad({ x, y }, perspectiveState.corners)) {
+            canvas.style.cursor = 'move';
+          } else {
+            canvas.style.cursor = 'default';
+          }
         }
       });
 
       canvas.addEventListener('mouseup', () => {
         if (perspectiveState.dragging) {
           perspectiveState.dragging = null;
+          perspectiveState.panStart = null;
           elements.canvas.style.cursor = 'default';
         }
       });
@@ -2492,6 +2565,7 @@
       canvas.addEventListener('mouseleave', () => {
         if (perspectiveState.dragging) {
           perspectiveState.dragging = null;
+          perspectiveState.panStart = null;
           elements.canvas.style.cursor = 'default';
         }
       });
