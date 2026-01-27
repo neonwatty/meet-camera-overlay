@@ -2263,9 +2263,16 @@
       if (!applyPersonMaskDemo._logged) {
         console.log(`[Perspective] Mask: ${mask.length} values, dimensions: ${mWidth}x${mHeight}`);
         console.log(`[Perspective] Canvas: ${canvasWidth}x${canvasHeight}`);
-        // Sample values
-        const sample = [...new Set(mask.slice(0, 1000))].sort((a,b) => a-b);
-        console.log('[Perspective] Unique mask values (sample):', sample);
+        // Sample values and count
+        const sample = [...new Set(mask.slice(0, 10000))].sort((a,b) => a-b);
+        console.log('[Perspective] Unique mask values:', sample);
+        // Count occurrences
+        let count0 = 0, countNon0 = 0;
+        for (let i = 0; i < Math.min(mask.length, 100000); i++) {
+          if (mask[i] === 0) count0++; else countNon0++;
+        }
+        console.log(`[Perspective] Value counts (first 100k): 0=${count0}, non-zero=${countNon0}`);
+        console.log(`[Perspective] Interpretation: non-zero (${countNon0}) = background, 0 (${count0}) = person`);
         applyPersonMaskDemo._logged = true;
       }
 
@@ -2279,10 +2286,9 @@
       const maskImageData = maskCtx.createImageData(mWidth, mHeight);
 
       for (let i = 0; i < mask.length; i++) {
-        // MediaPipe Tasks Vision: 0 = background, 1 = person
-        // We want art on BACKGROUND, not on person
-        // So make BACKGROUND opaque (keep art), PERSON transparent (remove art)
-        const isBackground = mask[i] === 0;
+        // Testing: flip interpretation - maybe 0 = person, non-zero = background
+        // We want art on BACKGROUND only
+        const isBackground = mask[i] > 0;  // Non-zero = background
 
         maskImageData.data[i * 4] = 255;       // R
         maskImageData.data[i * 4 + 1] = 255;   // G
