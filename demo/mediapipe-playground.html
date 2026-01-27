@@ -1761,16 +1761,28 @@
       // Render using cached depth map
       if (depthCache.depthMap) {
         renderDepthVisualization(vizMode);
-      } else if (!depthEstimator) {
-        // Show loading message if model not ready
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, elements.canvas.height - 60, 320, 50);
-        ctx.fillStyle = '#fbbf24';
+      } else {
+        // Show status message
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(10, elements.canvas.height - 80, 350, 70);
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('Loading Depth Anything V2 model...', 20, elements.canvas.height - 40);
-        ctx.fillStyle = '#888';
-        ctx.fillText('First load downloads ~27MB model', 20, elements.canvas.height - 22);
+
+        if (!depthEstimator) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.fillText('⏳ Loading Depth Anything V2 model...', 20, elements.canvas.height - 58);
+          ctx.fillStyle = '#888';
+          ctx.fillText('First load downloads ~27MB model (cached after)', 20, elements.canvas.height - 40);
+          ctx.fillText('Check browser console for progress', 20, elements.canvas.height - 22);
+        } else if (depthCache.isProcessing) {
+          ctx.fillStyle = '#60a5fa';
+          ctx.fillText('🔄 Running depth estimation...', 20, elements.canvas.height - 58);
+          ctx.fillStyle = '#888';
+          ctx.fillText('Model loaded, processing first frame', 20, elements.canvas.height - 40);
+        } else {
+          ctx.fillStyle = '#4ade80';
+          ctx.fillText('✓ Model ready, waiting for first result', 20, elements.canvas.height - 58);
+        }
       }
     }
 
@@ -1787,23 +1799,30 @@
         const scaledWidth = Math.round(elements.canvas.width * scale);
         const scaledHeight = Math.round(elements.canvas.height * scale);
 
-        // Create offscreen canvas for scaling
-        const offscreen = new OffscreenCanvas(scaledWidth, scaledHeight);
-        const offCtx = offscreen.getContext('2d');
-        offCtx.drawImage(elements.webcam, 0, 0, scaledWidth, scaledHeight);
+        // Create canvas for scaling and convert to data URL
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = scaledWidth;
+        tempCanvas.height = scaledHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(elements.webcam, 0, 0, scaledWidth, scaledHeight);
 
-        // Convert to blob for the model
-        const blob = await offscreen.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+        // Convert to data URL (Transformers.js accepts URLs and data URLs)
+        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
 
         // Run depth estimation
-        const result = await depthEstimator(blob);
+        const result = await depthEstimator(dataUrl);
 
-        // Extract depth data from result
-        if (result && result.depth) {
-          const depthTensor = result.depth;
+        console.log('Depth result:', result);
+
+        // Extract depth data from result - output is "predicted_depth" tensor
+        if (result && result.predicted_depth) {
+          const depthTensor = result.predicted_depth;
           depthCache.depthMap = depthTensor.data;
-          depthCache.depthWidth = depthTensor.width;
-          depthCache.depthHeight = depthTensor.height;
+          depthCache.depthWidth = depthTensor.dims[1]; // dims is [height, width]
+          depthCache.depthHeight = depthTensor.dims[0];
+          console.log('Depth map updated:', depthCache.depthWidth, 'x', depthCache.depthHeight);
+        } else {
+          console.warn('Unexpected depth result format:', result);
         }
 
         depthCache.lastInferenceTime = performance.now() - startTime;
