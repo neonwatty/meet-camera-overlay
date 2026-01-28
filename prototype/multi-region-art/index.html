@@ -21,10 +21,35 @@
         </svg>
       </button>
 
+      <!-- Region Type Selector Popup -->
+      <div id="type-selector" class="type-selector hidden">
+        <div class="type-selector-header">Choose Region Type</div>
+        <button class="type-option" data-type="free">
+          <span class="type-icon">◇</span>
+          <div class="type-info">
+            <span class="type-label">Free Form</span>
+            <span class="type-hint">Drag corners freely</span>
+          </div>
+        </button>
+        <button class="type-option" data-type="trapezoid">
+          <span class="type-icon">▯</span>
+          <div class="type-info">
+            <span class="type-label">Wall Frame</span>
+            <span class="type-hint">Vertical edges stay parallel</span>
+          </div>
+        </button>
+      </div>
+
       <!-- Toggle Segmentation -->
       <button id="toggle-segmentation" class="control-btn" title="Toggle person occlusion">
         <span class="icon">👤</span>
         <span class="status">Loading...</span>
+      </button>
+
+      <!-- Renderer Toggle -->
+      <button id="toggle-renderer" class="control-btn renderer-toggle" title="Switch renderer">
+        <span class="icon">⚡</span>
+        <span class="status">Auto</span>
       </button>
 
       <!-- Info Panel -->
@@ -79,6 +104,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="upload">Upload</button>
         <button class="tab" data-tab="gallery">Gallery</button>
+        <button class="tab" data-tab="color">Color</button>
         <button class="tab" data-tab="url">URL</button>
       </div>
 
@@ -107,13 +133,70 @@
         <div id="tab-gallery" class="tab-panel">
           <div class="gallery-filters">
             <button class="filter-btn active" data-category="all">All</button>
+            <button class="filter-btn" data-category="animated">Animated</button>
             <button class="filter-btn" data-category="abstract">Abstract</button>
             <button class="filter-btn" data-category="nature">Nature</button>
             <button class="filter-btn" data-category="patterns">Patterns</button>
-            <button class="filter-btn" data-category="solid">Solid</button>
           </div>
           <div id="gallery-grid" class="gallery-grid">
             <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Color Tab -->
+        <div id="tab-color" class="tab-panel">
+          <div class="color-picker-container">
+            <!-- Solid Color Picker -->
+            <div class="color-section">
+              <label class="color-section-label">Solid Color</label>
+              <div class="color-input-row">
+                <input type="color" id="color-picker" value="#4a90d9">
+                <input type="text" id="color-hex" class="color-hex-input" value="#4a90d9" maxlength="7">
+              </div>
+            </div>
+
+            <!-- Gradient Toggle -->
+            <div class="color-section">
+              <label class="gradient-toggle-label">
+                <input type="checkbox" id="gradient-toggle">
+                <span>Use Gradient</span>
+              </label>
+            </div>
+
+            <!-- Gradient Controls (hidden by default) -->
+            <div id="gradient-controls" class="gradient-controls hidden">
+              <div class="gradient-row">
+                <label>Start:</label>
+                <input type="color" id="gradient-start" value="#4a90d9">
+              </div>
+              <div class="gradient-row">
+                <label>End:</label>
+                <input type="color" id="gradient-end" value="#9b59b6">
+              </div>
+              <div class="gradient-row">
+                <label>Direction:</label>
+                <select id="gradient-direction">
+                  <option value="to bottom">Top → Bottom</option>
+                  <option value="to right">Left → Right</option>
+                  <option value="to bottom right">Diagonal ↘</option>
+                  <option value="to top right">Diagonal ↗</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Color Preview -->
+            <div class="color-preview-section">
+              <label class="color-section-label">Preview</label>
+              <div id="color-preview" class="color-preview"></div>
+            </div>
+
+            <!-- Recent Colors -->
+            <div class="recent-colors-section">
+              <label class="color-section-label">Recent Colors</label>
+              <div id="recent-colors" class="recent-colors-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
           </div>
         </div>
 
