@@ -76,7 +76,7 @@ const elements = {
 const ctx = elements.canvas.getContext('2d');
 
 // Art picker state
-let artPickerState = {
+const artPickerState = {
   targetRegionId: null,
   selectedSource: null,
   uploadedImage: null
@@ -271,7 +271,7 @@ function renderLoop() {
         personMask = result.categoryMask.getAsUint8Array();
         result.categoryMask.close();
       }
-    } catch (e) {
+    } catch {
       // Ignore segmentation errors
     }
   }
@@ -330,7 +330,7 @@ function renderRegionWithArt(region, personMask, maskWidth, maskHeight) {
  * Simple approach: draw image stretched to bounding box, clipped to quad.
  * This doesn't have true perspective but tests basic rendering.
  */
-function drawPerspectiveImage(ctx, source, corners, transform, canvasWidth, canvasHeight) {
+function drawPerspectiveImage(ctx, source, corners, transform, _canvasWidth, _canvasHeight) {
   const { topLeft, topRight, bottomLeft, bottomRight } = corners;
   const { zoom = 1, panX = 0, panY = 0 } = transform;
 
@@ -628,7 +628,6 @@ function drawRegionOverlay(region, isSelected) {
 
     // === PAN ROW (bottom) - arrow buttons ===
     const panY = centerY + 18;
-    const arrowSize = 10;
 
     // Left arrow
     ctx.fillStyle = '#fff';
