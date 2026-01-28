@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAM Playground - Click to Segment</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .main-content {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .canvas-section {
+      flex: 1;
+      min-width: 400px;
+    }
+
+    .sidebar {
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #webcam {
+      display: block;
+      width: 100%;
+      max-width: 640px;
+      border-radius: 12px;
+    }
+
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      border-radius: 12px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: #4a90d9;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button:hover:not(:disabled) {
+      background: #3a7bc8;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      background: #444;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    button.secondary {
+      background: #555;
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: #666;
+    }
+
+    button.danger {
+      background: #d94a4a;
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: #c43a3a;
+    }
+
+    .panel {
+      background: #252540;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .panel h3 {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #333;
+      font-size: 13px;
+    }
+
+    .status-item:last-child {
+      border-bottom: none;
+    }
+
+    .status-label {
+      color: #888;
+    }
+
+    .status-value {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .status-value.loading {
+      color: #f0ad4e;
+    }
+
+    .status-value.ready {
+      color: #5cb85c;
+    }
+
+    .status-value.error {
+      color: #d9534f;
+    }
+
+    .instructions {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #aaa;
+    }
+
+    .instructions ol {
+      padding-left: 20px;
+    }
+
+    .instructions li {
+      margin-bottom: 8px;
+    }
+
+    .instructions strong {
+      color: #fff;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      z-index: 10;
+    }
+
+    .loading-overlay.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #333;
+      border-top-color: #4a90d9;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #888;
+    }
+
+    .mode-indicator {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .mode-indicator.live {
+      background: #2d5a2d;
+      color: #5cb85c;
+    }
+
+    .mode-indicator.captured {
+      background: #5a4a2d;
+      color: #f0ad4e;
+    }
+
+    .click-marker {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
+    }
+
+    .click-marker.foreground {
+      background: rgba(74, 144, 217, 0.5);
+    }
+
+    .click-marker.background {
+      background: rgba(217, 74, 74, 0.5);
+    }
+
+    .mask-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .mask-controls label {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .mask-controls input[type="color"] {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .mask-controls input[type="range"] {
+      width: 80px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .metric-box {
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 600;
+      color: #4a90d9;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    @media (max-width: 800px) {
+      .main-content {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+      }
+      .canvas-section {
+        min-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SAM Playground</h1>
+    <p class="subtitle">Segment Anything Model (SlimSAM) running 100% in your browser</p>
+
+    <div class="main-content">
+      <div class="canvas-section">
+        <div class="canvas-wrapper">
+          <video id="webcam" autoplay playsinline muted></video>
+          <canvas id="canvas"></canvas>
+          <div id="click-markers"></div>
+
+          <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <div id="loading-text" class="loading-text">Initializing...</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="capture-btn" disabled>Capture Frame</button>
+          <button id="resume-btn" class="secondary" disabled>Resume Live</button>
+          <button id="clear-btn" class="secondary" disabled>Clear Points</button>
+          <button id="undo-btn" class="secondary" disabled>Undo Point</button>
+        </div>
+
+        <div class="mask-controls" style="margin-top: 12px;">
+          <label>Mask Color:</label>
+          <input type="color" id="mask-color" value="#4a90d9">
+          <label style="margin-left: 12px;">Opacity:</label>
+          <input type="range" id="mask-opacity" min="0.1" max="0.9" step="0.1" value="0.5">
+          <span id="opacity-value">50%</span>
+        </div>
+
+        <p class="help-text">
+          Left-click to mark foreground (include in mask). Right-click to mark background (exclude from mask).
+        </p>
+      </div>
+
+      <div class="sidebar">
+        <div class="panel">
+          <h3>Status</h3>
+          <div class="status-item">
+            <span class="status-label">Mode</span>
+            <span id="mode-status" class="mode-indicator live">Live</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Model</span>
+            <span id="model-status" class="status-value loading">Loading...</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Camera</span>
+            <span id="camera-status" class="status-value loading">Connecting...</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Points</span>
+            <span id="points-count" class="status-value">0</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Performance</h3>
+          <div class="metrics-grid">
+            <div class="metric-box">
+              <div id="metric-load" class="metric-value">--</div>
+              <div class="metric-label">Model Load</div>
+            </div>
+            <div class="metric-box">
+              <div id="metric-embed" class="metric-value">--</div>
+              <div class="metric-label">Embedding</div>
+            </div>
+            <div class="metric-box">
+              <div id="metric-decode" class="metric-value">--</div>
+              <div class="metric-label">Decode</div>
+            </div>
+            <div class="metric-box">
+              <div id="metric-total" class="metric-value">--</div>
+              <div class="metric-label">Total</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Instructions</h3>
+          <div class="instructions">
+            <ol>
+              <li><strong>Wait</strong> for model to load (~5-10s first time)</li>
+              <li><strong>Click "Capture Frame"</strong> to freeze the video</li>
+              <li><strong>Left-click</strong> on objects to segment (foreground)</li>
+              <li><strong>Right-click</strong> to mark areas to exclude (background)</li>
+              <li><strong>Add more points</strong> to refine the mask</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import Transformers.js
+    import { SamModel, AutoProcessor, RawImage, Tensor } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1';
+
+    // State
+    const state = {
+      model: null,
+      processor: null,
+      imageEmbeddings: null,
+      imageInputs: null,
+      capturedImageData: null,
+      points: [],      // [{x, y, label}] - label: 1=foreground, 0=background
+      isLive: true,
+      isProcessing: false,
+      maskColor: '#4a90d9',
+      maskOpacity: 0.5,
+      metrics: {
+        modelLoad: null,
+        embedding: null,
+        decode: null
+      }
+    };
+
+    // DOM elements
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    const captureBtn = document.getElementById('capture-btn');
+    const resumeBtn = document.getElementById('resume-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const undoBtn = document.getElementById('undo-btn');
+    const clickMarkersContainer = document.getElementById('click-markers');
+    const maskColorInput = document.getElementById('mask-color');
+    const maskOpacityInput = document.getElementById('mask-opacity');
+    const opacityValue = document.getElementById('opacity-value');
+
+    // Status elements
+    const modelStatus = document.getElementById('model-status');
+    const cameraStatus = document.getElementById('camera-status');
+    const modeStatus = document.getElementById('mode-status');
+    const pointsCount = document.getElementById('points-count');
+    const metricLoad = document.getElementById('metric-load');
+    const metricEmbed = document.getElementById('metric-embed');
+    const metricDecode = document.getElementById('metric-decode');
+    const metricTotal = document.getElementById('metric-total');
+
+    // Initialize
+    async function init() {
+      try {
+        // Start camera
+        await startCamera();
+
+        // Load model
+        await loadModel();
+
+        // Setup event listeners
+        setupEventListeners();
+
+        // Hide loading overlay
+        loadingOverlay.classList.add('hidden');
+        captureBtn.disabled = false;
+
+      } catch (error) {
+        console.error('Initialization error:', error);
+        loadingText.textContent = `Error: ${error.message}`;
+        loadingText.style.color = '#d9534f';
+      }
+    }
+
+    async function startCamera() {
+      loadingText.textContent = 'Connecting to camera...';
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          }
+        });
+
+        video.srcObject = stream;
+        await new Promise(resolve => {
+          video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            resolve();
+          };
+        });
+
+        cameraStatus.textContent = 'Connected';
+        cameraStatus.className = 'status-value ready';
+
+        // Start live preview loop
+        requestAnimationFrame(drawLivePreview);
+
+      } catch (error) {
+        cameraStatus.textContent = 'Failed';
+        cameraStatus.className = 'status-value error';
+        throw new Error('Camera access denied');
+      }
+    }
+
+    async function loadModel() {
+      loadingText.textContent = 'Loading SAM model (this may take a moment)...';
+
+      const startTime = performance.now();
+
+      try {
+        // Load SlimSAM model
+        state.model = await SamModel.from_pretrained('Xenova/slimsam-77-uniform', {
+          dtype: 'fp32',  // Use fp32 for better compatibility
+        });
+
+        state.processor = await AutoProcessor.from_pretrained('Xenova/slimsam-77-uniform');
+
+        const loadTime = performance.now() - startTime;
+        state.metrics.modelLoad = loadTime;
+
+        modelStatus.textContent = 'Ready';
+        modelStatus.className = 'status-value ready';
+        metricLoad.textContent = `${(loadTime / 1000).toFixed(1)}s`;
+
+      } catch (error) {
+        modelStatus.textContent = 'Failed';
+        modelStatus.className = 'status-value error';
+        throw error;
+      }
+    }
+
+    function drawLivePreview() {
+      if (state.isLive && !state.isProcessing) {
+        ctx.drawImage(video, 0, 0);
+      }
+      requestAnimationFrame(drawLivePreview);
+    }
+
+    function setupEventListeners() {
+      // Capture button
+      captureBtn.addEventListener('click', captureFrame);
+
+      // Resume button
+      resumeBtn.addEventListener('click', resumeLive);
+
+      // Clear button
+      clearBtn.addEventListener('click', clearPoints);
+
+      // Undo button
+      undoBtn.addEventListener('click', undoLastPoint);
+
+      // Canvas click for segmentation
+      canvas.addEventListener('click', handleCanvasClick);
+      canvas.addEventListener('contextmenu', handleCanvasRightClick);
+
+      // Mask color/opacity
+      maskColorInput.addEventListener('input', (e) => {
+        state.maskColor = e.target.value;
+        if (state.points.length > 0) {
+          runSegmentation();
+        }
+      });
+
+      maskOpacityInput.addEventListener('input', (e) => {
+        state.maskOpacity = parseFloat(e.target.value);
+        opacityValue.textContent = `${Math.round(state.maskOpacity * 100)}%`;
+        if (state.points.length > 0) {
+          runSegmentation();
+        }
+      });
+    }
+
+    async function captureFrame() {
+      if (state.isProcessing) return;
+
+      state.isLive = false;
+      state.isProcessing = true;
+
+      modeStatus.textContent = 'Captured';
+      modeStatus.className = 'mode-indicator captured';
+
+      captureBtn.disabled = true;
+      resumeBtn.disabled = false;
+      clearBtn.disabled = false;
+
+      loadingOverlay.classList.remove('hidden');
+      loadingText.textContent = 'Computing image embeddings...';
+
+      try {
+        // Capture current frame
+        ctx.drawImage(video, 0, 0);
+        state.capturedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Create image for SAM
+        const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+        const imageUrl = URL.createObjectURL(imageBlob);
+        const image = await RawImage.read(imageUrl);
+        URL.revokeObjectURL(imageUrl);
+
+        // Process image
+        state.imageInputs = await state.processor(image);
+
+        // Compute embeddings
+        const startEmbed = performance.now();
+        const embedResult = await state.model.get_image_embeddings(state.imageInputs);
+        state.imageEmbeddings = embedResult.image_embeddings;
+
+        const embedTime = performance.now() - startEmbed;
+        state.metrics.embedding = embedTime;
+        metricEmbed.textContent = `${(embedTime / 1000).toFixed(2)}s`;
+
+        loadingOverlay.classList.add('hidden');
+
+      } catch (error) {
+        console.error('Capture error:', error);
+        loadingText.textContent = `Error: ${error.message}`;
+        state.isLive = true;
+      }
+
+      state.isProcessing = false;
+    }
+
+    function resumeLive() {
+      state.isLive = true;
+      state.imageEmbeddings = null;
+      state.imageInputs = null;
+      state.capturedImageData = null;
+
+      clearPoints();
+
+      modeStatus.textContent = 'Live';
+      modeStatus.className = 'mode-indicator live';
+
+      captureBtn.disabled = false;
+      resumeBtn.disabled = true;
+      clearBtn.disabled = true;
+      undoBtn.disabled = true;
+
+      metricEmbed.textContent = '--';
+      metricDecode.textContent = '--';
+      metricTotal.textContent = '--';
+    }
+
+    function clearPoints() {
+      state.points = [];
+      updatePointsDisplay();
+
+      // Redraw captured image without mask
+      if (state.capturedImageData) {
+        ctx.putImageData(state.capturedImageData, 0, 0);
+      }
+
+      undoBtn.disabled = true;
+    }
+
+    function undoLastPoint() {
+      if (state.points.length > 0) {
+        state.points.pop();
+        updatePointsDisplay();
+
+        if (state.points.length > 0) {
+          runSegmentation();
+        } else {
+          // Redraw captured image without mask
+          if (state.capturedImageData) {
+            ctx.putImageData(state.capturedImageData, 0, 0);
+          }
+          undoBtn.disabled = true;
+        }
+      }
+    }
+
+    function handleCanvasClick(e) {
+      if (state.isLive || !state.imageEmbeddings || state.isProcessing) return;
+
+      e.preventDefault();
+      addPoint(e, 1); // 1 = foreground
+    }
+
+    function handleCanvasRightClick(e) {
+      if (state.isLive || !state.imageEmbeddings || state.isProcessing) return;
+
+      e.preventDefault();
+      addPoint(e, 0); // 0 = background
+    }
+
+    function addPoint(e, label) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+
+      state.points.push({ x, y, label });
+      updatePointsDisplay();
+
+      undoBtn.disabled = false;
+
+      runSegmentation();
+    }
+
+    function updatePointsDisplay() {
+      pointsCount.textContent = state.points.length;
+
+      // Clear markers
+      clickMarkersContainer.innerHTML = '';
+
+      // Add markers for each point
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+
+      state.points.forEach(point => {
+        const marker = document.createElement('div');
+        marker.className = `click-marker ${point.label === 1 ? 'foreground' : 'background'}`;
+        marker.style.left = `${point.x * scaleX}px`;
+        marker.style.top = `${point.y * scaleY}px`;
+        clickMarkersContainer.appendChild(marker);
+      });
+    }
+
+    async function runSegmentation() {
+      if (state.isProcessing || state.points.length === 0) return;
+
+      state.isProcessing = true;
+
+      const startDecode = performance.now();
+
+      try {
+        // Prepare points and labels
+        const inputPoints = state.points.map(p => [p.x, p.y]);
+        const inputLabels = state.points.map(p => p.label);
+
+        // Create tensors for points and labels
+        const inputPointsTensor = new Tensor(
+          'float32',
+          inputPoints.flat(),
+          [1, 1, inputPoints.length, 2]
+        );
+
+        const inputLabelsTensor = new Tensor(
+          'int64',
+          inputLabels.map(l => BigInt(l)),
+          [1, 1, inputLabels.length]
+        );
+
+        // Run decoder
+        const outputs = await state.model({
+          ...state.imageInputs,
+          image_embeddings: state.imageEmbeddings,
+          input_points: inputPointsTensor,
+          input_labels: inputLabelsTensor,
+        });
+
+        const decodeTime = performance.now() - startDecode;
+        state.metrics.decode = decodeTime;
+        metricDecode.textContent = `${decodeTime.toFixed(0)}ms`;
+
+        const totalTime = state.metrics.embedding + decodeTime;
+        metricTotal.textContent = `${(totalTime / 1000).toFixed(2)}s`;
+
+        // Process and display mask
+        displayMask(outputs.pred_masks);
+
+      } catch (error) {
+        console.error('Segmentation error:', error);
+      }
+
+      state.isProcessing = false;
+    }
+
+    function displayMask(predMasks) {
+      // Get mask data - pred_masks shape is [batch, num_masks, height, width]
+      const maskData = predMasks.data;
+      const maskHeight = predMasks.dims[2];
+      const maskWidth = predMasks.dims[3];
+
+      // Redraw captured image first
+      if (state.capturedImageData) {
+        ctx.putImageData(state.capturedImageData, 0, 0);
+      }
+
+      // Create mask overlay
+      const maskCanvas = document.createElement('canvas');
+      maskCanvas.width = maskWidth;
+      maskCanvas.height = maskHeight;
+      const maskCtx = maskCanvas.getContext('2d');
+      const maskImageData = maskCtx.createImageData(maskWidth, maskHeight);
+
+      // Parse mask color
+      const r = parseInt(state.maskColor.slice(1, 3), 16);
+      const g = parseInt(state.maskColor.slice(3, 5), 16);
+      const b = parseInt(state.maskColor.slice(5, 7), 16);
+      const a = Math.round(state.maskOpacity * 255);
+
+      // Fill mask pixels
+      for (let i = 0; i < maskHeight * maskWidth; i++) {
+        // SAM outputs logits, positive = inside mask
+        const isMask = maskData[i] > 0;
+
+        maskImageData.data[i * 4 + 0] = isMask ? r : 0;
+        maskImageData.data[i * 4 + 1] = isMask ? g : 0;
+        maskImageData.data[i * 4 + 2] = isMask ? b : 0;
+        maskImageData.data[i * 4 + 3] = isMask ? a : 0;
+      }
+
+      maskCtx.putImageData(maskImageData, 0, 0);
+
+      // Draw scaled mask onto main canvas
+      ctx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height);
+    }
+
+    // Start initialization
+    init();
+  </script>
+</body>
+</html>
