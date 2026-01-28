@@ -1,6 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "docs",
+  "rewrites": [
+    { "source": "/", "destination": "/prototype/multi-region-art/index.html" },
+    { "source": "/app", "destination": "/prototype/multi-region-art/index.html" },
+    { "source": "/app/(.*)", "destination": "/prototype/multi-region-art/$1" },
+    { "source": "/landing", "destination": "/docs/index.html" },
+    { "source": "/guide", "destination": "/docs/guide.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
