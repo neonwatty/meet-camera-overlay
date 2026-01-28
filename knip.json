@@ -15,6 +15,7 @@
     "tests/**",
     "node_modules/**",
     "dev/**",
-    "dev-assets/**"
+    "dev-assets/**",
+    "prototype/**"
   ]
 }
