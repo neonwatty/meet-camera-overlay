@@ -4,6 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SAM Playground - Click to Segment</title>
+  <script>
+    // Early error handler to catch script errors
+    window.onerror = function(msg, url, line, col, error) {
+      console.error('[EARLY_ERROR]', msg, 'at', url, 'line', line);
+      return false;
+    };
+    window.onunhandledrejection = function(e) {
+      console.error('[EARLY_REJECTION]', e.reason);
+    };
+    console.log('[EARLY] Error handlers installed');
+  </script>
   <style>
     * {
       box-sizing: border-box;
@@ -224,8 +235,9 @@
 
     .loading-text {
       margin-top: 16px;
-      font-size: 14px;
-      color: #888;
+      font-size: 16px;
+      color: #fff;
+      font-weight: 500;
     }
 
     .mode-indicator {
@@ -245,6 +257,16 @@
     .mode-indicator.captured {
       background: #5a4a2d;
       color: #f0ad4e;
+    }
+
+    #click-markers {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
     }
 
     .click-marker {
@@ -355,6 +377,8 @@
 
         <div class="controls">
           <button id="capture-btn" disabled>Capture Frame</button>
+          <button id="test-image-btn" disabled>Use Test Image</button>
+          <button id="segment-btn" disabled>Segment</button>
           <button id="resume-btn" class="secondary" disabled>Resume Live</button>
           <button id="clear-btn" class="secondary" disabled>Clear Points</button>
           <button id="undo-btn" class="secondary" disabled>Undo Point</button>
@@ -369,7 +393,7 @@
         </div>
 
         <p class="help-text">
-          Left-click to mark foreground (include in mask). Right-click to mark background (exclude from mask).
+          Left-click = foreground (include). Right-click = background (exclude). Click "Segment" when ready.
         </p>
       </div>
 
@@ -424,7 +448,8 @@
               <li><strong>Click "Capture Frame"</strong> to freeze the video</li>
               <li><strong>Left-click</strong> on objects to segment (foreground)</li>
               <li><strong>Right-click</strong> to mark areas to exclude (background)</li>
-              <li><strong>Add more points</strong> to refine the mask</li>
+              <li><strong>Click "Segment"</strong> to generate the mask</li>
+              <li><strong>Refine</strong> by adding more points and re-segmenting</li>
             </ol>
           </div>
         </div>
@@ -432,9 +457,18 @@
     </div>
   </div>
 
-  <script type="module">
-    // Import Transformers.js
-    import { SamModel, AutoProcessor, RawImage, Tensor } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1';
+  <script>
+    console.log('[SAM_SCRIPT] Script tag reached at:', new Date().toISOString());
+
+    // Wait for DOM to be fully loaded before running
+    document.addEventListener('DOMContentLoaded', async function() {
+      console.log('[SAM] DOMContentLoaded fired, starting init...');
+
+      try {
+        console.log('[SAM] Importing transformers...');
+        const transformers = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1');
+        const { SamModel, AutoProcessor, RawImage, Tensor } = transformers;
+        console.log('[SAM] Import complete, got:', Object.keys(transformers).length, 'exports');
 
     // State
     const state = {
@@ -462,6 +496,8 @@
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingText = document.getElementById('loading-text');
     const captureBtn = document.getElementById('capture-btn');
+    const testImageBtn = document.getElementById('test-image-btn');
+    const segmentBtn = document.getElementById('segment-btn');
     const resumeBtn = document.getElementById('resume-btn');
     const clearBtn = document.getElementById('clear-btn');
     const undoBtn = document.getElementById('undo-btn');
@@ -482,19 +518,30 @@
 
     // Initialize
     async function init() {
+      console.log('[SAM] init() called');
       try {
-        // Start camera
-        await startCamera();
-
-        // Load model
+        // Load model first (doesn't require permissions)
+        console.log('[SAM] Calling loadModel()...');
         await loadModel();
+        console.log('[SAM] loadModel() complete');
 
-        // Setup event listeners
+        // Setup event listeners (needed for test image button)
         setupEventListeners();
 
-        // Hide loading overlay
+        // Try camera but don't block if it fails
+        try {
+          await startCamera();
+          captureBtn.disabled = false;
+        } catch (cameraError) {
+          console.warn('Camera not available:', cameraError.message);
+          // Set default canvas size for test images
+          canvas.width = 640;
+          canvas.height = 480;
+        }
+
+        // Hide loading overlay - test image always works
         loadingOverlay.classList.add('hidden');
-        captureBtn.disabled = false;
+        testImageBtn.disabled = false;
 
       } catch (error) {
         console.error('Initialization error:', error);
@@ -506,35 +553,28 @@
     async function startCamera() {
       loadingText.textContent = 'Connecting to camera...';
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user'
-          }
-        });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        }
+      });
 
-        video.srcObject = stream;
-        await new Promise(resolve => {
-          video.onloadedmetadata = () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            resolve();
-          };
-        });
+      video.srcObject = stream;
+      await new Promise(resolve => {
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          resolve();
+        };
+      });
 
-        cameraStatus.textContent = 'Connected';
-        cameraStatus.className = 'status-value ready';
+      cameraStatus.textContent = 'Connected';
+      cameraStatus.className = 'status-value ready';
 
-        // Start live preview loop
-        requestAnimationFrame(drawLivePreview);
-
-      } catch (error) {
-        cameraStatus.textContent = 'Failed';
-        cameraStatus.className = 'status-value error';
-        throw new Error('Camera access denied');
-      }
+      // Start live preview loop
+      requestAnimationFrame(drawLivePreview);
     }
 
     async function loadModel() {
@@ -545,7 +585,7 @@
       try {
         // Load SlimSAM model
         state.model = await SamModel.from_pretrained('Xenova/slimsam-77-uniform', {
-          dtype: 'fp32',  // Use fp32 for better compatibility
+          dtype: 'fp16',  // Use fp16 as per official example
         });
 
         state.processor = await AutoProcessor.from_pretrained('Xenova/slimsam-77-uniform');
@@ -574,6 +614,16 @@
     function setupEventListeners() {
       // Capture button
       captureBtn.addEventListener('click', captureFrame);
+
+      // Test image button
+      testImageBtn.addEventListener('click', loadTestImage);
+
+      // Segment button
+      segmentBtn.addEventListener('click', () => {
+        if (state.points.length > 0 && !state.isProcessing) {
+          runSegmentation();
+        }
+      });
 
       // Resume button
       resumeBtn.addEventListener('click', resumeLive);
@@ -619,7 +669,17 @@
       clearBtn.disabled = false;
 
       loadingOverlay.classList.remove('hidden');
-      loadingText.textContent = 'Computing image embeddings...';
+      const embedStartTime = performance.now();
+
+      // Update elapsed time during embedding
+      let embedTimerActive = true;
+      const updateEmbedTime = () => {
+        if (!embedTimerActive) return;
+        const elapsed = ((performance.now() - embedStartTime) / 1000).toFixed(1);
+        loadingText.textContent = `Computing image embeddings... ${elapsed}s`;
+        requestAnimationFrame(updateEmbedTime);
+      };
+      updateEmbedTime();
 
       try {
         // Capture current frame
@@ -635,10 +695,33 @@
         // Process image
         state.imageInputs = await state.processor(image);
 
+        // Store original image dimensions for coordinate scaling
+        state.originalWidth = image.width;
+        state.originalHeight = image.height;
+
+        // Get resized dimensions from processor output
+        // reshaped_input_sizes may be a tensor or array - handle both
+        let resizedHeight, resizedWidth;
+        const reshapedSizes = state.imageInputs.reshaped_input_sizes[0];
+        if (reshapedSizes.tolist) {
+          // It's a tensor
+          [resizedHeight, resizedWidth] = reshapedSizes.tolist();
+        } else if (Array.isArray(reshapedSizes)) {
+          // It's already an array
+          [resizedHeight, resizedWidth] = reshapedSizes;
+        } else {
+          // Try direct access
+          resizedHeight = reshapedSizes[0];
+          resizedWidth = reshapedSizes[1];
+        }
+        state.resizedWidth = resizedWidth;
+        state.resizedHeight = resizedHeight;
+
         // Compute embeddings
         const startEmbed = performance.now();
         const embedResult = await state.model.get_image_embeddings(state.imageInputs);
         state.imageEmbeddings = embedResult.image_embeddings;
+        embedTimerActive = false;
 
         const embedTime = performance.now() - startEmbed;
         state.metrics.embedding = embedTime;
@@ -648,6 +731,100 @@
 
       } catch (error) {
         console.error('Capture error:', error);
+        loadingText.textContent = `Error: ${error.message}`;
+        state.isLive = true;
+      }
+
+      state.isProcessing = false;
+    }
+
+    async function loadTestImage() {
+      if (state.isProcessing) return;
+
+      state.isLive = false;
+      state.isProcessing = true;
+
+      modeStatus.textContent = 'Test';
+      modeStatus.className = 'mode-indicator captured';
+
+      captureBtn.disabled = true;
+      testImageBtn.disabled = true;
+      resumeBtn.disabled = false;
+      clearBtn.disabled = false;
+
+      loadingOverlay.classList.remove('hidden');
+      const testStartTime = performance.now();
+
+      // Update elapsed time during loading
+      let testTimerActive = true;
+      const updateTestTime = () => {
+        if (!testTimerActive) return;
+        const elapsed = ((performance.now() - testStartTime) / 1000).toFixed(1);
+        loadingText.textContent = `Loading & processing test image... ${elapsed}s`;
+        requestAnimationFrame(updateTestTime);
+      };
+      updateTestTime();
+
+      try {
+        // Load a test image with clear objects and good contrast
+        // Using Unsplash for reliable, high-contrast images
+        const testImageUrl = 'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=640&h=480&fit=crop';  // Cat with clear edges
+        const image = await RawImage.read(testImageUrl);
+
+        // Draw image to canvas
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = image.width;
+        tempCanvas.height = image.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Convert RawImage to ImageData
+        const imageData = tempCtx.createImageData(image.width, image.height);
+        for (let i = 0; i < image.data.length; i++) {
+          imageData.data[i] = image.data[i];
+        }
+        tempCtx.putImageData(imageData, 0, 0);
+
+        // Resize main canvas to match
+        canvas.width = image.width;
+        canvas.height = image.height;
+        ctx.drawImage(tempCanvas, 0, 0);
+        state.capturedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Process image
+        state.imageInputs = await state.processor(image);
+
+        // Store dimensions for coordinate scaling
+        state.originalWidth = image.width;
+        state.originalHeight = image.height;
+
+        // Get resized dimensions - handle tensor or array
+        let resizedHeight, resizedWidth;
+        const reshapedSizes = state.imageInputs.reshaped_input_sizes[0];
+        if (reshapedSizes.tolist) {
+          [resizedHeight, resizedWidth] = reshapedSizes.tolist();
+        } else if (Array.isArray(reshapedSizes)) {
+          [resizedHeight, resizedWidth] = reshapedSizes;
+        } else {
+          resizedHeight = reshapedSizes[0];
+          resizedWidth = reshapedSizes[1];
+        }
+        state.resizedWidth = resizedWidth;
+        state.resizedHeight = resizedHeight;
+
+        // Compute embeddings
+        const startEmbed = performance.now();
+        const embedResult = await state.model.get_image_embeddings(state.imageInputs);
+        state.imageEmbeddings = embedResult.image_embeddings;
+        testTimerActive = false;
+
+        const embedTime = performance.now() - startEmbed;
+        state.metrics.embedding = embedTime;
+        metricEmbed.textContent = `${(embedTime / 1000).toFixed(2)}s`;
+
+        loadingOverlay.classList.add('hidden');
+
+      } catch (error) {
+        console.error('Test image error:', error);
         loadingText.textContent = `Error: ${error.message}`;
         state.isLive = true;
       }
@@ -667,6 +844,7 @@
       modeStatus.className = 'mode-indicator live';
 
       captureBtn.disabled = false;
+      testImageBtn.disabled = false;
       resumeBtn.disabled = true;
       clearBtn.disabled = true;
       undoBtn.disabled = true;
@@ -686,6 +864,7 @@
       }
 
       undoBtn.disabled = true;
+      segmentBtn.disabled = true;
     }
 
     function undoLastPoint() {
@@ -693,20 +872,22 @@
         state.points.pop();
         updatePointsDisplay();
 
-        if (state.points.length > 0) {
-          runSegmentation();
-        } else {
-          // Redraw captured image without mask
-          if (state.capturedImageData) {
-            ctx.putImageData(state.capturedImageData, 0, 0);
-          }
+        // Redraw captured image without mask
+        if (state.capturedImageData) {
+          ctx.putImageData(state.capturedImageData, 0, 0);
+        }
+
+        if (state.points.length === 0) {
           undoBtn.disabled = true;
+          segmentBtn.disabled = true;
         }
       }
     }
 
     function handleCanvasClick(e) {
-      if (state.isLive || !state.imageEmbeddings || state.isProcessing) return;
+      if (state.isLive || !state.imageEmbeddings || state.isProcessing) {
+        return;
+      }
 
       e.preventDefault();
       addPoint(e, 1); // 1 = foreground
@@ -731,8 +912,9 @@
       updatePointsDisplay();
 
       undoBtn.disabled = false;
+      segmentBtn.disabled = false;
 
-      runSegmentation();
+      // Don't auto-segment - wait for user to click Segment button
     }
 
     function updatePointsDisplay() {
@@ -746,7 +928,7 @@
       const scaleX = rect.width / canvas.width;
       const scaleY = rect.height / canvas.height;
 
-      state.points.forEach(point => {
+      state.points.forEach((point) => {
         const marker = document.createElement('div');
         marker.className = `click-marker ${point.label === 1 ? 'foreground' : 'background'}`;
         marker.style.left = `${point.x * scaleX}px`;
@@ -760,14 +942,31 @@
 
       state.isProcessing = true;
 
+      // Show processing indicator with elapsed time
+      loadingOverlay.classList.remove('hidden');
       const startDecode = performance.now();
 
+      // Update elapsed time every 100ms
+      const updateElapsed = () => {
+        if (!state.isProcessing) return;
+        const elapsed = ((performance.now() - startDecode) / 1000).toFixed(1);
+        loadingText.textContent = `Generating mask... ${elapsed}s`;
+        requestAnimationFrame(updateElapsed);
+      };
+      updateElapsed();
+
       try {
-        // Prepare points and labels
-        const inputPoints = state.points.map(p => [p.x, p.y]);
+        // Scale points from canvas coordinates to resized image coordinates
+        const scaleX = state.resizedWidth / canvas.width;
+        const scaleY = state.resizedHeight / canvas.height;
+
+        const inputPoints = state.points.map(p => [p.x * scaleX, p.y * scaleY]);
         const inputLabels = state.points.map(p => p.label);
 
+
         // Create tensors for points and labels
+        // Shape must be [1, 1, num_points, 2] for points and [1, 1, num_points] for labels
+        // Model expects rank 4 for points
         const inputPointsTensor = new Tensor(
           'float32',
           inputPoints.flat(),
@@ -795,28 +994,57 @@
         const totalTime = state.metrics.embedding + decodeTime;
         metricTotal.textContent = `${(totalTime / 1000).toFixed(2)}s`;
 
-        // Process and display mask
-        displayMask(outputs.pred_masks);
+        // Process and display mask (pass iou_scores for best mask selection)
+        displayMask(outputs.pred_masks, outputs.iou_scores);
+
+        // Hide loading overlay
+        loadingOverlay.classList.add('hidden');
 
       } catch (error) {
         console.error('Segmentation error:', error);
+        loadingText.textContent = `Error: ${error.message}`;
+        // Hide overlay after showing error briefly
+        setTimeout(() => loadingOverlay.classList.add('hidden'), 2000);
       }
 
       state.isProcessing = false;
     }
 
-    function displayMask(predMasks) {
-      // Get mask data - pred_masks shape is [batch, num_masks, height, width]
-      const maskData = predMasks.data;
-      const maskHeight = predMasks.dims[2];
-      const maskWidth = predMasks.dims[3];
+    function displayMask(predMasks, iouScores) {
+      // pred_masks shape is [1, 1, 3, 256, 256] - 5D tensor!
+      // dims: [batch=1, ?=1, num_masks=3, height=256, width=256]
+      const dims = predMasks.dims;
+      console.log('Mask dims:', JSON.stringify(dims));
+      console.log('Canvas dims:', canvas.width, 'x', canvas.height);
+      console.log('Total data length:', predMasks.data.length);
+
+      // Extract dimensions - dims is [1, 1, 3, H, W] (5D)
+      const numMasks = dims[2];
+      const maskHeight = dims[3];
+      const maskWidth = dims[4];
+      const maskSize = maskHeight * maskWidth;
+
+      console.log(`Mask: ${maskWidth}x${maskHeight}, numMasks: ${numMasks}`);
 
       // Redraw captured image first
       if (state.capturedImageData) {
         ctx.putImageData(state.capturedImageData, 0, 0);
       }
 
-      // Create mask overlay
+      // Find the best mask using IOU scores
+      let bestMaskIndex = 0;
+      if (iouScores && iouScores.data) {
+        let maxScore = iouScores.data[0];
+        for (let i = 1; i < iouScores.data.length; i++) {
+          if (iouScores.data[i] > maxScore) {
+            maxScore = iouScores.data[i];
+            bestMaskIndex = i;
+          }
+        }
+        console.log(`Best mask index: ${bestMaskIndex}, score: ${maxScore.toFixed(3)}`);
+      }
+
+      // Create mask overlay at mask dimensions (256x256)
       const maskCanvas = document.createElement('canvas');
       maskCanvas.width = maskWidth;
       maskCanvas.height = maskHeight;
@@ -829,16 +1057,45 @@
       const b = parseInt(state.maskColor.slice(5, 7), 16);
       const a = Math.round(state.maskOpacity * 255);
 
-      // Fill mask pixels
-      for (let i = 0; i < maskHeight * maskWidth; i++) {
-        // SAM outputs logits, positive = inside mask
-        const isMask = maskData[i] > 0;
+      // Count positive pixels for stats
+      let positiveCount = 0;
+      let minVal = Infinity, maxVal = -Infinity;
 
-        maskImageData.data[i * 4 + 0] = isMask ? r : 0;
-        maskImageData.data[i * 4 + 1] = isMask ? g : 0;
-        maskImageData.data[i * 4 + 2] = isMask ? b : 0;
-        maskImageData.data[i * 4 + 3] = isMask ? a : 0;
+      // Data layout for [1, 1, 3, 256, 256] in row-major (C-style) order:
+      // - Mask 0 starts at index 0, Mask 1 at 256*256, Mask 2 at 2*256*256
+      // - Within each mask, pixels are stored row by row (contiguous)
+      const maskOffset = bestMaskIndex * maskSize;
+
+      for (let row = 0; row < maskHeight; row++) {
+        for (let col = 0; col < maskWidth; col++) {
+          const pixelIdx = row * maskWidth + col;
+          const dataIdx = maskOffset + pixelIdx;
+          const val = predMasks.data[dataIdx];
+
+          if (val < minVal) minVal = val;
+          if (val > maxVal) maxVal = val;
+
+          // SAM outputs logits, positive = inside mask
+          const isMask = val > 0;
+          if (isMask) positiveCount++;
+
+          // Write to ImageData (also row-major)
+          const imgIdx = pixelIdx * 4;
+          maskImageData.data[imgIdx + 0] = isMask ? r : 0;
+          maskImageData.data[imgIdx + 1] = isMask ? g : 0;
+          maskImageData.data[imgIdx + 2] = isMask ? b : 0;
+          maskImageData.data[imgIdx + 3] = isMask ? a : 0;
+        }
       }
+
+      const percentPositive = ((positiveCount / maskSize) * 100).toFixed(1);
+      console.log(`Mask stats - min: ${minVal.toFixed(3)}, max: ${maxVal.toFixed(3)}, positive: ${percentPositive}%`);
+
+      // Update help text with mask coverage info
+      const helpText = document.querySelector('.help-text');
+      helpText.innerHTML = positiveCount > 0
+        ? `<strong style="color: #5cb85c">Mask coverage: ${percentPositive}%</strong> (${positiveCount.toLocaleString()} pixels)`
+        : `<strong style="color: #d9534f">No mask generated</strong> - try clicking on a higher-contrast area, or use webcam capture for better results`;
 
       maskCtx.putImageData(maskImageData, 0, 0);
 
@@ -847,7 +1104,18 @@
     }
 
     // Start initialization
-    init();
+    console.log('[SAM] About to call init()');
+    init().catch(err => console.error('[SAM] init() error:', err));
+
+      } catch (importError) {
+        console.error('[SAM] Failed to import transformers:', importError);
+        const loadingText = document.getElementById('loading-text');
+        if (loadingText) {
+          loadingText.textContent = 'Error loading ML library: ' + importError.message;
+          loadingText.style.color = '#d9534f';
+        }
+      }
+    }); // End DOMContentLoaded handler
   </script>
 </body>
 </html>
