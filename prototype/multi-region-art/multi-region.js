@@ -75,6 +75,7 @@ const elements = {
   typeSelector: document.getElementById('type-selector'),
   toggleSegmentation: document.getElementById('toggle-segmentation'),
   toggleRenderer: document.getElementById('toggle-renderer'),
+  resetBtn: document.getElementById('reset-btn'),
   regionList: document.getElementById('region-list'),
   infoPanel: document.getElementById('info-panel'),
   infoSelected: document.getElementById('info-selected'),
@@ -2308,6 +2309,15 @@ function setupEventListeners() {
   // Toggle renderer
   elements.toggleRenderer.addEventListener('click', cycleRendererMode);
   updateRendererStatus();
+
+  // Reset button - clears localStorage and reloads
+  elements.resetBtn.addEventListener('click', () => {
+    if (confirm('Reset to welcome screen? This will clear all regions.')) {
+      localStorage.removeItem(WELCOME_SHOWN_KEY);
+      localStorage.removeItem('multiRegionArt');
+      location.reload();
+    }
+  });
 
   // Canvas mouse handlers
   const canvas = elements.canvas;
