@@ -2064,7 +2064,7 @@ function drawRegionOverlay(region, isSelected) {
       left: { x: (corners.topLeft.x + corners.bottomLeft.x) / 2, y: (corners.topLeft.y + corners.bottomLeft.y) / 2, horizontal: false }
     };
 
-    for (const [edge, info] of Object.entries(edgeMidpoints)) {
+    for (const [_edge, info] of Object.entries(edgeMidpoints)) {
       const w = info.horizontal ? edgeHandleLength : edgeHandleThickness;
       const h = info.horizontal ? edgeHandleThickness : edgeHandleLength;
 
@@ -2342,10 +2342,10 @@ function setupEventListeners() {
 
   // Reset button - clears localStorage and reloads
   elements.resetBtn.addEventListener('click', () => {
-    if (confirm('Reset to welcome screen? This will clear all regions.')) {
+    if (window.confirm('Reset to welcome screen? This will clear all regions.')) {
       localStorage.removeItem(WELCOME_SHOWN_KEY);
       localStorage.removeItem('multiRegionArt');
-      location.reload();
+      window.location.reload();
     }
   });
 
@@ -2684,7 +2684,7 @@ function handleWheel(e) {
 // ============================================
 // Touch Event Handlers (Mobile Support)
 // ============================================
-let touchState = {
+const touchState = {
   lastTap: 0,
   initialPinchDistance: null,
   initialZoom: null
@@ -2845,7 +2845,7 @@ function handleTouchMove(e) {
   }
 }
 
-function handleTouchEnd(e) {
+function handleTouchEnd(_e) {
   // Reset pinch state
   touchState.initialPinchDistance = null;
   touchState.initialZoom = null;
