@@ -80,7 +80,9 @@
 
   <!-- Hint Tooltip (shown after demo) -->
   <div id="hint-tooltip" class="hint-tooltip hidden">
-    <span class="hint-icon">💡</span> Drag corners to resize • Click 🖼️ to change art
+    <span class="hint-icon">💡</span>
+    <span class="hint-desktop">Drag corners to resize • Click 🖼️ to change art</span>
+    <span class="hint-mobile">Drag corners • Pinch to zoom • Double-tap to reset</span>
   </div>
 
   <div class="app-container">
@@ -88,6 +90,11 @@
     <div class="canvas-container">
       <video id="webcam" autoplay playsinline muted></video>
       <canvas id="canvas"></canvas>
+
+      <!-- Mobile Sidebar Toggle -->
+      <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle regions panel">
+        <span>☰</span>
+      </button>
 
       <!-- Floating Add Button -->
       <button id="add-region-btn" class="fab" title="Add new region">
