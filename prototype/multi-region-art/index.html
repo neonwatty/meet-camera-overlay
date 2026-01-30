@@ -8,6 +8,39 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Welcome Modal (First-time UX) -->
+  <div id="welcome-overlay" class="welcome-overlay hidden">
+    <div class="welcome-modal">
+      <h2>What would you like to see?</h2>
+      <p>Choose a demo to see the magic in action</p>
+
+      <div class="demo-cards">
+        <div class="demo-card" data-demo="animated">
+          <div class="demo-card-icon">✨</div>
+          <h3>Animated Art</h3>
+          <p>Eye-catching moving artwork behind you</p>
+        </div>
+        <div class="demo-card" data-demo="professional">
+          <div class="demo-card-icon">🖼️</div>
+          <h3>Professional Art</h3>
+          <p>Clean, meeting-appropriate decor</p>
+        </div>
+        <div class="demo-card" data-demo="sponsor">
+          <div class="demo-card-icon">📺</div>
+          <h3>Sponsor Banner</h3>
+          <p>See how streamers use branded placements</p>
+        </div>
+      </div>
+
+      <button class="welcome-skip" id="welcome-skip">skip → start with blank canvas</button>
+    </div>
+  </div>
+
+  <!-- Hint Tooltip (shown after demo) -->
+  <div id="hint-tooltip" class="hint-tooltip hidden">
+    <span class="hint-icon">💡</span> Drag corners to resize • Click 🖼️ to change art
+  </div>
+
   <div class="app-container">
     <!-- Main Canvas Area -->
     <div class="canvas-container">

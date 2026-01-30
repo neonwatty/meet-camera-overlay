@@ -5,18 +5,22 @@
   box-sizing: border-box;
 }
 
+/* Design A: Warm Minimal */
 :root {
-  --bg-dark: #1a1a2e;
-  --bg-darker: #16213e;
-  --bg-card: #1f2937;
-  --accent: #e94560;
-  --accent-hover: #ff6b6b;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border: #334155;
-  --success: #4ade80;
-  --warning: #fbbf24;
+  --bg-dark: #111111;
+  --bg-darker: #0a0a0b;
+  --bg-card: #1a1a1a;
+  --bg-elevated: #222222;
+  --accent: #e85d04;
+  --accent-hover: #f97316;
+  --accent-soft: rgba(232, 93, 4, 0.15);
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1a1;
+  --text-muted: #666666;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --success: #22c55e;
+  --warning: #eab308;
   --error: #ef4444;
   --handle-tl: #f472b6;
   --handle-tr: #818cf8;
@@ -24,8 +28,11 @@
   --handle-br: #fbbf24;
 }
 
+/* Import distinctive fonts */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap');
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-dark);
   color: var(--text-primary);
   height: 100vh;
@@ -1114,4 +1121,353 @@ body {
   .fab {
     bottom: 220px;
   }
+}
+
+/* ================================
+   Welcome Modal (First-time UX)
+   ================================ */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.welcome-modal {
+  background: var(--bg-elevated);
+  border-radius: 20px;
+  padding: 48px 40px;
+  max-width: 640px;
+  width: 90%;
+  text-align: center;
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.welcome-modal h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.welcome-modal > p {
+  color: var(--text-secondary);
+  margin-bottom: 36px;
+  font-size: 16px;
+}
+
+.demo-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.demo-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 28px 16px 24px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid transparent;
+}
+
+.demo-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-6px);
+  box-shadow: 0 12px 32px rgba(232, 93, 4, 0.2);
+}
+
+.demo-card:active {
+  transform: translateY(-3px);
+}
+
+.demo-card-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 18px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.demo-card:nth-child(1) .demo-card-icon {
+  background: linear-gradient(135deg, #f97316, #ec4899);
+}
+
+.demo-card:nth-child(2) .demo-card-icon {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+}
+
+.demo-card:nth-child(3) .demo-card-icon {
+  background: linear-gradient(135deg, #22c55e, #14b8a6);
+}
+
+.demo-card h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.demo-card p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.welcome-skip {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: color 0.2s;
+  background: none;
+  border: none;
+}
+
+.welcome-skip:hover {
+  color: var(--text-primary);
+}
+
+/* Responsive welcome modal */
+@media (max-width: 600px) {
+  .demo-cards {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .demo-card {
+    padding: 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+  }
+
+  .demo-card-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .welcome-modal {
+    padding: 32px 24px;
+  }
+
+  .welcome-modal h2 {
+    font-size: 26px;
+  }
+}
+
+/* ================================
+   Subtle Tooltip (Post-demo hint)
+   ================================ */
+.hint-tooltip {
+  position: absolute;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  z-index: 100;
+  animation: tooltipFadeIn 0.5s ease 0.5s both;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.hint-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--bg-elevated);
+}
+
+.hint-tooltip .hint-icon {
+  color: var(--accent);
+}
+
+.hint-tooltip.fade-out {
+  animation: tooltipFadeOut 0.3s ease forwards;
+}
+
+@keyframes tooltipFadeOut {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
+
+/* ================================
+   Typography refinements
+   ================================ */
+.sidebar-header h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.modal-header h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 600;
+}
+
+.region-meta,
+.info-help,
+.type-hint {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Status badges refined */
+.control-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+}
+
+.control-btn .status {
+  font-weight: 500;
+}
+
+/* Info panel refined */
+.info-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* FAB refined */
+.fab {
+  background: var(--accent);
+  box-shadow: 0 4px 20px rgba(232, 93, 4, 0.4);
+  border-radius: 16px;
+}
+
+.fab:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 6px 28px rgba(232, 93, 4, 0.5);
+}
+
+/* Sidebar refined */
+.sidebar {
+  background: var(--bg-darker);
+  border-left: 1px solid var(--border-strong);
+}
+
+.region-item {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 2px solid transparent;
+}
+
+.region-item:hover {
+  background: var(--bg-elevated);
+}
+
+.region-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(232, 93, 4, 0.3);
+}
+
+/* Modal refined */
+.modal-content {
+  background: var(--bg-darker);
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+}
+
+/* Tab refined */
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Gallery items refined */
+.gallery-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(232, 93, 4, 0.35);
+}
+
+.gallery-item.selected::after {
+  background: var(--accent);
+}
+
+/* Buttons refined */
+.btn-primary {
+  background: var(--accent);
+  border-radius: 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.icon-btn {
+  background: var(--accent);
+  border-radius: 10px;
+}
+
+.icon-btn:hover {
+  background: var(--accent-hover);
+}
+
+/* Filter buttons refined */
+.filter-btn.active {
+  background: linear-gradient(135deg, var(--accent), #d45a04);
+  box-shadow: 0 2px 8px rgba(232, 93, 4, 0.35);
 }

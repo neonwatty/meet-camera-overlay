@@ -83,6 +83,10 @@ const elements = {
   loadingOverlay: document.getElementById('loading-overlay'),
   loadingText: document.getElementById('loading-text'),
   errorMessage: document.getElementById('error-message'),
+  // Welcome modal elements
+  welcomeOverlay: document.getElementById('welcome-overlay'),
+  welcomeSkip: document.getElementById('welcome-skip'),
+  hintTooltip: document.getElementById('hint-tooltip'),
   // Modal elements
   artPickerModal: document.getElementById('art-picker-modal'),
   closeModal: document.getElementById('close-modal'),
@@ -1050,6 +1054,165 @@ function updateRendererStatus() {
 // ============================================
 // Initialization
 // ============================================
+// ============================================
+// Welcome Modal (First-time UX)
+// ============================================
+const WELCOME_SHOWN_KEY = 'wallart_welcome_shown';
+
+// Demo art sources for each demo type
+const DEMO_ART = {
+  animated: {
+    src: '../../assets/effects/purple-aura.gif',
+    name: 'Purple Aura',
+    contentType: 'gif',
+    isAnimated: true
+  },
+  professional: {
+    src: '../../assets/wall-art/office-plants.png',
+    name: 'Office Plants',
+    contentType: 'image',
+    isAnimated: false
+  },
+  sponsor: {
+    // Create a simple sponsor banner as data URL
+    src: 'data:image/svg+xml,' + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+        <rect fill="#1a1a1a" width="400" height="200"/>
+        <rect fill="#e85d04" x="10" y="10" width="380" height="180" rx="8"/>
+        <text x="200" y="90" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">YOUR SPONSOR</text>
+        <text x="200" y="130" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16" opacity="0.8">yourbrand.com</text>
+      </svg>
+    `),
+    name: 'Sponsor Banner',
+    contentType: 'image',
+    isAnimated: false
+  }
+};
+
+function isFirstTimeUser() {
+  return !localStorage.getItem(WELCOME_SHOWN_KEY);
+}
+
+function markWelcomeShown() {
+  localStorage.setItem(WELCOME_SHOWN_KEY, 'true');
+}
+
+function showWelcomeModal() {
+  elements.welcomeOverlay.classList.remove('hidden');
+
+  // Set up demo card click handlers
+  const demoCards = elements.welcomeOverlay.querySelectorAll('.demo-card');
+  demoCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const demoType = card.dataset.demo;
+      handleDemoSelection(demoType);
+    });
+  });
+
+  // Skip button
+  elements.welcomeSkip.addEventListener('click', () => {
+    hideWelcomeModal();
+  });
+}
+
+function hideWelcomeModal() {
+  elements.welcomeOverlay.classList.add('hidden');
+  markWelcomeShown();
+}
+
+async function handleDemoSelection(demoType) {
+  hideWelcomeModal();
+
+  // Create a behind-center region
+  const region = createBehindCenterRegion();
+  state.regions.push(region);
+  state.selectedRegionId = region.id;
+
+  // Assign the demo art
+  const demoArt = DEMO_ART[demoType];
+  region.art = {
+    src: demoArt.src,
+    name: demoArt.name,
+    contentType: demoArt.contentType,
+    isAnimated: demoArt.isAnimated
+  };
+
+  // Load the art source
+  if (demoArt.isAnimated) {
+    try {
+      let animatedImage;
+      if (demoArt.src.startsWith('data:')) {
+        animatedImage = await decodeGifFromDataUrl(demoArt.src);
+      } else {
+        animatedImage = await decodeGifFromUrl(demoArt.src);
+      }
+      state.artSources.set(region.id, animatedImage);
+
+      if (webglRenderer && animatedImage.currentFrame) {
+        webglRenderer.loadTexture(animatedImage.currentFrame, region.id);
+      }
+    } catch (e) {
+      console.error('Failed to decode GIF:', e);
+      loadStaticImage(region, demoArt.src);
+    }
+  } else {
+    loadStaticImage(region, demoArt.src);
+  }
+
+  updateRegionList();
+  saveToStorage();
+
+  // Show hint tooltip after a short delay
+  setTimeout(showHintTooltip, 800);
+}
+
+function createBehindCenterRegion() {
+  // Create a large region positioned behind-center
+  // This positioning showcases person occlusion well
+  const id = `region-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+  return {
+    id,
+    name: `Region ${state.regions.length + 1}`,
+    type: 'trapezoid',  // Wall frame type to showcase person occlusion
+    region: {
+      topLeft: { x: 15, y: 8 },
+      topRight: { x: 85, y: 8 },
+      bottomLeft: { x: 15, y: 75 },
+      bottomRight: { x: 85, y: 75 }
+    },
+    art: null,
+    transform: { zoom: 1.0, panX: 0, panY: 0 },
+    active: true,
+    zIndex: state.regions.length
+  };
+}
+
+function showHintTooltip() {
+  elements.hintTooltip.classList.remove('hidden');
+
+  // Auto-hide after 8 seconds or on user interaction
+  const hideTooltip = () => {
+    elements.hintTooltip.classList.add('fade-out');
+    setTimeout(() => {
+      elements.hintTooltip.classList.add('hidden');
+      elements.hintTooltip.classList.remove('fade-out');
+    }, 300);
+  };
+
+  // Hide on any canvas interaction
+  const hideOnInteraction = () => {
+    hideTooltip();
+    elements.canvas.removeEventListener('mousedown', hideOnInteraction);
+    elements.canvas.removeEventListener('touchstart', hideOnInteraction);
+  };
+
+  elements.canvas.addEventListener('mousedown', hideOnInteraction);
+  elements.canvas.addEventListener('touchstart', hideOnInteraction);
+
+  // Auto-hide after 8 seconds
+  setTimeout(hideTooltip, 8000);
+}
+
 async function init() {
   showLoading('Starting camera...');
 
@@ -1082,6 +1245,11 @@ async function init() {
     state.isRunning = true;
     hideLoading();
     renderLoop();
+
+    // Show welcome modal for first-time users (after camera is ready)
+    if (isFirstTimeUser() && state.regions.length === 0) {
+      setTimeout(showWelcomeModal, 500);
+    }
 
   } catch (error) {
     console.error('Init error:', error);
@@ -1407,12 +1575,18 @@ function renderRegionsWebGL() {
     if (!region.active) continue;
 
     const source = state.artSources.get(region.id);
-    if (!source || !source.complete) continue;
+    // For regular images, check .complete; for AnimatedImage objects, check .isAnimated
+    const isReady = source && (source.isAnimated || source.complete !== false);
+    if (!isReady) continue;
+
+    // Get the drawable source (current frame for GIFs, image for static)
+    const drawableSource = source.isAnimated ? source.currentFrame : source;
+    if (!drawableSource) continue;
 
     // Ensure texture is loaded
     let texture = webglRenderer.getTexture(region.id);
     if (!texture) {
-      texture = webglRenderer.loadTexture(source, region.id);
+      texture = webglRenderer.loadTexture(drawableSource, region.id);
     }
 
     // Draw the quad with perspective transform
