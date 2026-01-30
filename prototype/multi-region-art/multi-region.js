@@ -85,7 +85,14 @@ const elements = {
   errorMessage: document.getElementById('error-message'),
   // Welcome modal elements
   welcomeOverlay: document.getElementById('welcome-overlay'),
+  welcomeStep1: document.getElementById('welcome-step-1'),
+  welcomeStepVideocalls: document.getElementById('welcome-step-videocalls'),
+  welcomeStepStreaming: document.getElementById('welcome-step-streaming'),
   welcomeSkip: document.getElementById('welcome-skip'),
+  welcomeSkipVideocalls: document.getElementById('welcome-skip-videocalls'),
+  welcomeSkipStreaming: document.getElementById('welcome-skip-streaming'),
+  backFromVideocalls: document.getElementById('back-from-videocalls'),
+  backFromStreaming: document.getElementById('back-from-streaming'),
   hintTooltip: document.getElementById('hint-tooltip'),
   // Modal elements
   artPickerModal: document.getElementById('art-picker-modal'),
@@ -1100,7 +1107,36 @@ function markWelcomeShown() {
 function showWelcomeModal() {
   elements.welcomeOverlay.classList.remove('hidden');
 
-  // Set up demo card click handlers
+  // Helper to show a specific step
+  const showStep = (stepElement) => {
+    elements.welcomeStep1.classList.add('hidden');
+    elements.welcomeStepVideocalls.classList.add('hidden');
+    elements.welcomeStepStreaming.classList.add('hidden');
+    stepElement.classList.remove('hidden');
+  };
+
+  // Step 1: Use case selection
+  const usecaseCards = elements.welcomeStep1.querySelectorAll('.usecase-card');
+  usecaseCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const usecase = card.dataset.usecase;
+      if (usecase === 'videocalls') {
+        showStep(elements.welcomeStepVideocalls);
+      } else if (usecase === 'streaming') {
+        showStep(elements.welcomeStepStreaming);
+      }
+    });
+  });
+
+  // Back buttons
+  elements.backFromVideocalls.addEventListener('click', () => {
+    showStep(elements.welcomeStep1);
+  });
+  elements.backFromStreaming.addEventListener('click', () => {
+    showStep(elements.welcomeStep1);
+  });
+
+  // Set up demo card click handlers (for both step 2 variants)
   const demoCards = elements.welcomeOverlay.querySelectorAll('.demo-card');
   demoCards.forEach(card => {
     card.addEventListener('click', () => {
@@ -1109,8 +1145,14 @@ function showWelcomeModal() {
     });
   });
 
-  // Skip button
+  // Skip buttons (all three)
   elements.welcomeSkip.addEventListener('click', () => {
+    hideWelcomeModal();
+  });
+  elements.welcomeSkipVideocalls.addEventListener('click', () => {
+    hideWelcomeModal();
+  });
+  elements.welcomeSkipStreaming.addEventListener('click', () => {
     hideWelcomeModal();
   });
 }
