@@ -75,6 +75,7 @@ const elements = {
   typeSelector: document.getElementById('type-selector'),
   toggleSegmentation: document.getElementById('toggle-segmentation'),
   toggleRenderer: document.getElementById('toggle-renderer'),
+  resetBtn: document.getElementById('reset-btn'),
   regionList: document.getElementById('region-list'),
   infoPanel: document.getElementById('info-panel'),
   infoSelected: document.getElementById('info-selected'),
@@ -83,6 +84,17 @@ const elements = {
   loadingOverlay: document.getElementById('loading-overlay'),
   loadingText: document.getElementById('loading-text'),
   errorMessage: document.getElementById('error-message'),
+  // Welcome modal elements
+  welcomeOverlay: document.getElementById('welcome-overlay'),
+  welcomeStep1: document.getElementById('welcome-step-1'),
+  welcomeStepVideocalls: document.getElementById('welcome-step-videocalls'),
+  welcomeStepStreaming: document.getElementById('welcome-step-streaming'),
+  welcomeSkip: document.getElementById('welcome-skip'),
+  welcomeSkipVideocalls: document.getElementById('welcome-skip-videocalls'),
+  welcomeSkipStreaming: document.getElementById('welcome-skip-streaming'),
+  backFromVideocalls: document.getElementById('back-from-videocalls'),
+  backFromStreaming: document.getElementById('back-from-streaming'),
+  hintTooltip: document.getElementById('hint-tooltip'),
   // Modal elements
   artPickerModal: document.getElementById('art-picker-modal'),
   closeModal: document.getElementById('close-modal'),
@@ -108,7 +120,10 @@ const elements = {
   gradientEnd: document.getElementById('gradient-end'),
   gradientDirection: document.getElementById('gradient-direction'),
   colorPreview: document.getElementById('color-preview'),
-  recentColors: document.getElementById('recent-colors')
+  recentColors: document.getElementById('recent-colors'),
+  // Mobile elements
+  sidebarToggle: document.getElementById('sidebar-toggle'),
+  sidebar: document.getElementById('sidebar')
 };
 
 const ctx = elements.canvas.getContext('2d');
@@ -1050,6 +1065,200 @@ function updateRendererStatus() {
 // ============================================
 // Initialization
 // ============================================
+// ============================================
+// Welcome Modal (First-time UX)
+// ============================================
+const WELCOME_SHOWN_KEY = 'wallart_welcome_shown';
+
+// Demo art sources for each demo type
+const DEMO_ART = {
+  animated: {
+    src: '../../assets/effects/purple-aura.gif',
+    name: 'Purple Aura',
+    contentType: 'gif',
+    isAnimated: true
+  },
+  professional: {
+    src: '../../assets/wall-art/office-plants.png',
+    name: 'Office Plants',
+    contentType: 'image',
+    isAnimated: false
+  },
+  sponsor: {
+    // Create a simple sponsor banner as data URL
+    src: 'data:image/svg+xml,' + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+        <rect fill="#1a1a1a" width="400" height="200"/>
+        <rect fill="#e85d04" x="10" y="10" width="380" height="180" rx="8"/>
+        <text x="200" y="90" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">YOUR SPONSOR</text>
+        <text x="200" y="130" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16" opacity="0.8">yourbrand.com</text>
+      </svg>
+    `),
+    name: 'Sponsor Banner',
+    contentType: 'image',
+    isAnimated: false
+  }
+};
+
+function isFirstTimeUser() {
+  return !localStorage.getItem(WELCOME_SHOWN_KEY);
+}
+
+function markWelcomeShown() {
+  localStorage.setItem(WELCOME_SHOWN_KEY, 'true');
+}
+
+function showWelcomeModal() {
+  elements.welcomeOverlay.classList.remove('hidden');
+
+  // Helper to show a specific step
+  const showStep = (stepElement) => {
+    elements.welcomeStep1.classList.add('hidden');
+    elements.welcomeStepVideocalls.classList.add('hidden');
+    elements.welcomeStepStreaming.classList.add('hidden');
+    stepElement.classList.remove('hidden');
+  };
+
+  // Step 1: Use case selection
+  const usecaseCards = elements.welcomeStep1.querySelectorAll('.usecase-card');
+  usecaseCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const usecase = card.dataset.usecase;
+      if (usecase === 'videocalls') {
+        showStep(elements.welcomeStepVideocalls);
+      } else if (usecase === 'streaming') {
+        showStep(elements.welcomeStepStreaming);
+      }
+    });
+  });
+
+  // Back buttons
+  elements.backFromVideocalls.addEventListener('click', () => {
+    showStep(elements.welcomeStep1);
+  });
+  elements.backFromStreaming.addEventListener('click', () => {
+    showStep(elements.welcomeStep1);
+  });
+
+  // Set up demo card click handlers (for both step 2 variants)
+  const demoCards = elements.welcomeOverlay.querySelectorAll('.demo-card');
+  demoCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const demoType = card.dataset.demo;
+      handleDemoSelection(demoType);
+    });
+  });
+
+  // Skip buttons (all three)
+  elements.welcomeSkip.addEventListener('click', () => {
+    hideWelcomeModal();
+  });
+  elements.welcomeSkipVideocalls.addEventListener('click', () => {
+    hideWelcomeModal();
+  });
+  elements.welcomeSkipStreaming.addEventListener('click', () => {
+    hideWelcomeModal();
+  });
+}
+
+function hideWelcomeModal() {
+  elements.welcomeOverlay.classList.add('hidden');
+  markWelcomeShown();
+}
+
+async function handleDemoSelection(demoType) {
+  hideWelcomeModal();
+
+  // Create a behind-center region
+  const region = createBehindCenterRegion();
+  state.regions.push(region);
+  state.selectedRegionId = region.id;
+
+  // Assign the demo art
+  const demoArt = DEMO_ART[demoType];
+  region.art = {
+    src: demoArt.src,
+    name: demoArt.name,
+    contentType: demoArt.contentType,
+    isAnimated: demoArt.isAnimated
+  };
+
+  // Load the art source
+  if (demoArt.isAnimated) {
+    try {
+      let animatedImage;
+      if (demoArt.src.startsWith('data:')) {
+        animatedImage = await decodeGifFromDataUrl(demoArt.src);
+      } else {
+        animatedImage = await decodeGifFromUrl(demoArt.src);
+      }
+      state.artSources.set(region.id, animatedImage);
+
+      if (webglRenderer && animatedImage.currentFrame) {
+        webglRenderer.loadTexture(animatedImage.currentFrame, region.id);
+      }
+    } catch (e) {
+      console.error('Failed to decode GIF:', e);
+      loadStaticImage(region, demoArt.src);
+    }
+  } else {
+    loadStaticImage(region, demoArt.src);
+  }
+
+  updateRegionList();
+  saveToStorage();
+
+  // Show hint tooltip after a short delay
+  setTimeout(showHintTooltip, 800);
+}
+
+function createBehindCenterRegion() {
+  // Create a large region positioned behind-center
+  // This positioning showcases person occlusion well
+  const id = `region-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+  return {
+    id,
+    name: `Region ${state.regions.length + 1}`,
+    type: 'trapezoid',  // Wall frame type to showcase person occlusion
+    region: {
+      topLeft: { x: 15, y: 8 },
+      topRight: { x: 85, y: 8 },
+      bottomLeft: { x: 15, y: 75 },
+      bottomRight: { x: 85, y: 75 }
+    },
+    art: null,
+    transform: { zoom: 1.0, panX: 0, panY: 0 },
+    active: true,
+    zIndex: state.regions.length
+  };
+}
+
+function showHintTooltip() {
+  elements.hintTooltip.classList.remove('hidden');
+
+  // Auto-hide after 8 seconds or on user interaction
+  const hideTooltip = () => {
+    elements.hintTooltip.classList.add('fade-out');
+    setTimeout(() => {
+      elements.hintTooltip.classList.add('hidden');
+      elements.hintTooltip.classList.remove('fade-out');
+    }, 300);
+  };
+
+  // Hide on any canvas interaction
+  const hideOnInteraction = () => {
+    hideTooltip();
+    elements.canvas.removeEventListener('mousedown', hideOnInteraction);
+    elements.canvas.removeEventListener('touchstart', hideOnInteraction);
+  };
+
+  elements.canvas.addEventListener('mousedown', hideOnInteraction);
+  elements.canvas.addEventListener('touchstart', hideOnInteraction);
+
+  // Auto-hide after 8 seconds
+  setTimeout(hideTooltip, 8000);
+}
+
 async function init() {
   showLoading('Starting camera...');
 
@@ -1082,6 +1291,11 @@ async function init() {
     state.isRunning = true;
     hideLoading();
     renderLoop();
+
+    // Show welcome modal for first-time users (after camera is ready)
+    if (isFirstTimeUser() && state.regions.length === 0) {
+      setTimeout(showWelcomeModal, 500);
+    }
 
   } catch (error) {
     console.error('Init error:', error);
@@ -1407,12 +1621,18 @@ function renderRegionsWebGL() {
     if (!region.active) continue;
 
     const source = state.artSources.get(region.id);
-    if (!source || !source.complete) continue;
+    // For regular images, check .complete; for AnimatedImage objects, check .isAnimated
+    const isReady = source && (source.isAnimated || source.complete !== false);
+    if (!isReady) continue;
+
+    // Get the drawable source (current frame for GIFs, image for static)
+    const drawableSource = source.isAnimated ? source.currentFrame : source;
+    if (!drawableSource) continue;
 
     // Ensure texture is loaded
     let texture = webglRenderer.getTexture(region.id);
     if (!texture) {
-      texture = webglRenderer.loadTexture(source, region.id);
+      texture = webglRenderer.loadTexture(drawableSource, region.id);
     }
 
     // Draw the quad with perspective transform
@@ -1834,6 +2054,33 @@ function drawRegionOverlay(region, isSelected) {
       ctx.fill();
     }
 
+    // Draw edge midpoint handles for resizing
+    const edgeHandleLength = 16;
+    const edgeHandleThickness = 6;
+    const edgeMidpoints = {
+      top: { x: (corners.topLeft.x + corners.topRight.x) / 2, y: (corners.topLeft.y + corners.topRight.y) / 2, horizontal: true },
+      right: { x: (corners.topRight.x + corners.bottomRight.x) / 2, y: (corners.topRight.y + corners.bottomRight.y) / 2, horizontal: false },
+      bottom: { x: (corners.bottomLeft.x + corners.bottomRight.x) / 2, y: (corners.bottomLeft.y + corners.bottomRight.y) / 2, horizontal: true },
+      left: { x: (corners.topLeft.x + corners.bottomLeft.x) / 2, y: (corners.topLeft.y + corners.bottomLeft.y) / 2, horizontal: false }
+    };
+
+    for (const [_edge, info] of Object.entries(edgeMidpoints)) {
+      const w = info.horizontal ? edgeHandleLength : edgeHandleThickness;
+      const h = info.horizontal ? edgeHandleThickness : edgeHandleLength;
+
+      // White border
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.roundRect(info.x - w/2 - 1, info.y - h/2 - 1, w + 2, h + 2, 3);
+      ctx.fill();
+
+      // Orange center
+      ctx.fillStyle = '#e85d04';
+      ctx.beginPath();
+      ctx.roundRect(info.x - w/2, info.y - h/2, w, h, 2);
+      ctx.fill();
+    }
+
     // Draw controls in center of region
     const centerX = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
     const centerY = (corners.topLeft.y + corners.topRight.y + corners.bottomLeft.y + corners.bottomRight.y) / 4;
@@ -2093,6 +2340,24 @@ function setupEventListeners() {
   elements.toggleRenderer.addEventListener('click', cycleRendererMode);
   updateRendererStatus();
 
+  // Reset button - clears localStorage and reloads
+  elements.resetBtn.addEventListener('click', () => {
+    if (window.confirm('Reset to welcome screen? This will clear all regions.')) {
+      localStorage.removeItem(WELCOME_SHOWN_KEY);
+      localStorage.removeItem('multiRegionArt');
+      window.location.reload();
+    }
+  });
+
+  // Mobile sidebar toggle
+  if (elements.sidebarToggle) {
+    elements.sidebarToggle.addEventListener('click', () => {
+      elements.sidebar.classList.toggle('mobile-visible');
+      const isVisible = elements.sidebar.classList.contains('mobile-visible');
+      elements.sidebarToggle.querySelector('span').textContent = isVisible ? '✕' : '☰';
+    });
+  }
+
   // Canvas mouse handlers
   const canvas = elements.canvas;
 
@@ -2102,6 +2367,12 @@ function setupEventListeners() {
   canvas.addEventListener('mouseleave', handleMouseUp);
   canvas.addEventListener('dblclick', handleDoubleClick);
   canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+  // Touch events for mobile
+  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+  canvas.addEventListener('touchend', handleTouchEnd);
+  canvas.addEventListener('touchcancel', handleTouchEnd);
 
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
@@ -2239,6 +2510,17 @@ function handleMouseDown(e) {
       e.preventDefault();
       return;
     }
+
+    // Check edge midpoint handles (for resizing)
+    const edge = findEdgeAtPoint(point, selected);
+    if (edge) {
+      state.dragging = `edge-${edge}`;
+      state.dragStartPoint = point;
+      state.dragStartRegion = JSON.parse(JSON.stringify(selected.region));
+      elements.canvas.style.cursor = edge === 'top' || edge === 'bottom' ? 'ns-resize' : 'ew-resize';
+      e.preventDefault();
+      return;
+    }
   }
 
   // Check if clicking inside any region
@@ -2286,6 +2568,29 @@ function handleMouseMove(e) {
   if (state.dragging.startsWith('corner-')) {
     const cornerName = state.dragging.replace('corner-', '');
     moveCorner(selected, cornerName, point);
+  } else if (state.dragging.startsWith('edge-') && state.dragStartRegion) {
+    // Resize region by moving both corners of an edge
+    const edgeName = state.dragging.replace('edge-', '');
+    const dx = point.x - state.dragStartPoint.x;
+    const dy = point.y - state.dragStartPoint.y;
+
+    if (edgeName === 'top') {
+      // Move topLeft and topRight vertically
+      selected.region.topLeft.y = clamp(state.dragStartRegion.topLeft.y + dy, 0, 100);
+      selected.region.topRight.y = clamp(state.dragStartRegion.topRight.y + dy, 0, 100);
+    } else if (edgeName === 'bottom') {
+      // Move bottomLeft and bottomRight vertically
+      selected.region.bottomLeft.y = clamp(state.dragStartRegion.bottomLeft.y + dy, 0, 100);
+      selected.region.bottomRight.y = clamp(state.dragStartRegion.bottomRight.y + dy, 0, 100);
+    } else if (edgeName === 'left') {
+      // Move topLeft and bottomLeft horizontally
+      selected.region.topLeft.x = clamp(state.dragStartRegion.topLeft.x + dx, 0, 100);
+      selected.region.bottomLeft.x = clamp(state.dragStartRegion.bottomLeft.x + dx, 0, 100);
+    } else if (edgeName === 'right') {
+      // Move topRight and bottomRight horizontally
+      selected.region.topRight.x = clamp(state.dragStartRegion.topRight.x + dx, 0, 100);
+      selected.region.bottomRight.x = clamp(state.dragStartRegion.bottomRight.x + dx, 0, 100);
+    }
   } else if (state.dragging === 'move-region' && state.dragStartRegion) {
     // Move entire region
     const dx = point.x - state.dragStartPoint.x;
@@ -2376,6 +2681,217 @@ function handleWheel(e) {
   }
 }
 
+// ============================================
+// Touch Event Handlers (Mobile Support)
+// ============================================
+const touchState = {
+  lastTap: 0,
+  initialPinchDistance: null,
+  initialZoom: null
+};
+
+function getTouchDistance(e) {
+  if (e.touches.length < 2) return null;
+  const dx = e.touches[0].clientX - e.touches[1].clientX;
+  const dy = e.touches[0].clientY - e.touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function handleTouchStart(e) {
+  const point = getCanvasPoint(e);
+  const selected = getSelectedRegion();
+
+  // Handle pinch-to-zoom with two fingers
+  if (e.touches.length === 2 && selected) {
+    e.preventDefault();
+    touchState.initialPinchDistance = getTouchDistance(e);
+    touchState.initialZoom = selected.transform.zoom;
+    return;
+  }
+
+  // Single touch - check for double-tap
+  const now = Date.now();
+  if (now - touchState.lastTap < 300) {
+    // Double tap detected
+    handleDoubleTap(e, point);
+    touchState.lastTap = 0;
+    return;
+  }
+  touchState.lastTap = now;
+
+  // Check control buttons on selected region
+  if (selected) {
+    const pixelPoint = getCanvasPixelPoint(e);
+    const action = checkControlButtonClick(pixelPoint, selected);
+    if (action) {
+      e.preventDefault();
+      const panStep = 30;
+
+      if (action === 'zoom-in') {
+        animateZoomTo(selected.id, selected.transform.zoom + 0.2);
+      } else if (action === 'zoom-out') {
+        animateZoomTo(selected.id, selected.transform.zoom - 0.2);
+      } else if (action === 'pan-left') {
+        animatePanTo(selected.id, selected.transform.panX - panStep, null);
+      } else if (action === 'pan-right') {
+        animatePanTo(selected.id, selected.transform.panX + panStep, null);
+      } else if (action === 'pan-up') {
+        animatePanTo(selected.id, null, selected.transform.panY - panStep);
+      } else if (action === 'pan-down') {
+        animatePanTo(selected.id, null, selected.transform.panY + panStep);
+      } else if (action === 'toggle-gif') {
+        toggleGifPlayback(selected.id);
+        return;
+      }
+      updateRegionList();
+      saveToStorage();
+      return;
+    }
+
+    // Check corners (larger touch target)
+    const corner = findCornerAtPoint(point, selected, 6); // Larger threshold for touch
+    if (corner) {
+      e.preventDefault();
+      state.dragging = `corner-${corner}`;
+      state.dragStartPoint = point;
+      return;
+    }
+
+    // Check edge handles (larger touch target)
+    const edge = findEdgeAtPoint(point, selected, 5); // Larger threshold for touch
+    if (edge) {
+      e.preventDefault();
+      state.dragging = `edge-${edge}`;
+      state.dragStartPoint = point;
+      state.dragStartRegion = JSON.parse(JSON.stringify(selected.region));
+      return;
+    }
+  }
+
+  // Check if touching inside any region
+  for (let i = state.regions.length - 1; i >= 0; i--) {
+    const region = state.regions[i];
+    if (isPointInRegion(point, region)) {
+      e.preventDefault();
+      selectRegion(region.id);
+      state.dragging = 'move-region';
+      state.dragStartPoint = point;
+      state.dragStartRegion = JSON.parse(JSON.stringify(region.region));
+      return;
+    }
+  }
+
+  // Touched outside all regions
+  selectRegion(null);
+}
+
+function handleTouchMove(e) {
+  const selected = getSelectedRegion();
+
+  // Handle pinch-to-zoom
+  if (e.touches.length === 2 && touchState.initialPinchDistance && selected) {
+    e.preventDefault();
+    const currentDistance = getTouchDistance(e);
+    if (currentDistance && touchState.initialPinchDistance) {
+      const scale = currentDistance / touchState.initialPinchDistance;
+      const newZoom = clamp(touchState.initialZoom * scale, 0.25, 4);
+      selected.transform.zoom = newZoom;
+      updateInfoPanel();
+      updateRegionList();
+    }
+    return;
+  }
+
+  // Single touch drag
+  if (!state.dragging || e.touches.length !== 1) return;
+  e.preventDefault();
+
+  const point = getCanvasPoint(e);
+  if (!selected) return;
+
+  if (state.dragging.startsWith('corner-')) {
+    const cornerName = state.dragging.replace('corner-', '');
+    moveCorner(selected, cornerName, point);
+  } else if (state.dragging.startsWith('edge-') && state.dragStartRegion) {
+    const edgeName = state.dragging.replace('edge-', '');
+    const dx = point.x - state.dragStartPoint.x;
+    const dy = point.y - state.dragStartPoint.y;
+
+    if (edgeName === 'top') {
+      selected.region.topLeft.y = clamp(state.dragStartRegion.topLeft.y + dy, 0, 100);
+      selected.region.topRight.y = clamp(state.dragStartRegion.topRight.y + dy, 0, 100);
+    } else if (edgeName === 'bottom') {
+      selected.region.bottomLeft.y = clamp(state.dragStartRegion.bottomLeft.y + dy, 0, 100);
+      selected.region.bottomRight.y = clamp(state.dragStartRegion.bottomRight.y + dy, 0, 100);
+    } else if (edgeName === 'left') {
+      selected.region.topLeft.x = clamp(state.dragStartRegion.topLeft.x + dx, 0, 100);
+      selected.region.bottomLeft.x = clamp(state.dragStartRegion.bottomLeft.x + dx, 0, 100);
+    } else if (edgeName === 'right') {
+      selected.region.topRight.x = clamp(state.dragStartRegion.topRight.x + dx, 0, 100);
+      selected.region.bottomRight.x = clamp(state.dragStartRegion.bottomRight.x + dx, 0, 100);
+    }
+  } else if (state.dragging === 'move-region' && state.dragStartRegion) {
+    const dx = point.x - state.dragStartPoint.x;
+    const dy = point.y - state.dragStartPoint.y;
+
+    selected.region.topLeft.x = clamp(state.dragStartRegion.topLeft.x + dx, 0, 100);
+    selected.region.topLeft.y = clamp(state.dragStartRegion.topLeft.y + dy, 0, 100);
+    selected.region.topRight.x = clamp(state.dragStartRegion.topRight.x + dx, 0, 100);
+    selected.region.topRight.y = clamp(state.dragStartRegion.topRight.y + dy, 0, 100);
+    selected.region.bottomLeft.x = clamp(state.dragStartRegion.bottomLeft.x + dx, 0, 100);
+    selected.region.bottomLeft.y = clamp(state.dragStartRegion.bottomLeft.y + dy, 0, 100);
+    selected.region.bottomRight.x = clamp(state.dragStartRegion.bottomRight.x + dx, 0, 100);
+    selected.region.bottomRight.y = clamp(state.dragStartRegion.bottomRight.y + dy, 0, 100);
+  }
+}
+
+function handleTouchEnd(_e) {
+  // Reset pinch state
+  touchState.initialPinchDistance = null;
+  touchState.initialZoom = null;
+
+  // Handle like mouse up
+  if (state.dragging) {
+    const anim = state.cornerAnimation;
+    if (anim.active && anim.targetCorners) {
+      const region = state.regions.find(r => r.id === anim.regionId);
+      if (region) {
+        for (const key of ['topLeft', 'topRight', 'bottomLeft', 'bottomRight']) {
+          if (anim.targetCorners[key]) {
+            region.region[key].x = anim.targetCorners[key].x;
+            region.region[key].y = anim.targetCorners[key].y;
+          }
+        }
+      }
+      anim.active = false;
+      anim.regionId = null;
+      anim.targetCorners = null;
+    }
+
+    state.dragging = null;
+    state.dragStartPoint = null;
+    state.dragStartRegion = null;
+    saveToStorage();
+  }
+}
+
+function handleDoubleTap(e, point) {
+  e.preventDefault();
+  const selected = getSelectedRegion();
+
+  if (selected && isPointInRegion(point, selected)) {
+    // Reset zoom/pan on double tap
+    const anim = state.transformAnimation;
+    anim.active = true;
+    anim.regionId = selected.id;
+    anim.targetZoom = 1.0;
+    anim.targetPanX = 0;
+    anim.targetPanY = 0;
+    updateRegionList();
+    saveToStorage();
+  }
+}
+
 function checkControlButtonClick(pixelPoint, region) {
   const width = elements.canvas.width;
   const height = elements.canvas.height;
@@ -2426,29 +2942,42 @@ function checkControlButtonClick(pixelPoint, region) {
   return null;
 }
 
+function getEventCoords(e) {
+  // Handle both mouse and touch events
+  if (e.touches && e.touches.length > 0) {
+    return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+  }
+  if (e.changedTouches && e.changedTouches.length > 0) {
+    return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+  }
+  return { clientX: e.clientX, clientY: e.clientY };
+}
+
 function getCanvasPoint(e) {
+  const coords = getEventCoords(e);
   const rect = elements.canvas.getBoundingClientRect();
   const scaleX = elements.canvas.width / rect.width;
   const scaleY = elements.canvas.height / rect.height;
   return {
-    x: ((e.clientX - rect.left) * scaleX / elements.canvas.width) * 100,
-    y: ((e.clientY - rect.top) * scaleY / elements.canvas.height) * 100
+    x: ((coords.clientX - rect.left) * scaleX / elements.canvas.width) * 100,
+    y: ((coords.clientY - rect.top) * scaleY / elements.canvas.height) * 100
   };
 }
 
 function getCanvasPixelPoint(e) {
+  const coords = getEventCoords(e);
   const rect = elements.canvas.getBoundingClientRect();
   const scaleX = elements.canvas.width / rect.width;
   const scaleY = elements.canvas.height / rect.height;
   return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY
+    x: (coords.clientX - rect.left) * scaleX,
+    y: (coords.clientY - rect.top) * scaleY
   };
 }
 
-function findCornerAtPoint(point, region) {
+function findCornerAtPoint(point, region, customThreshold = null) {
   const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
-  const threshold = 4;
+  const threshold = customThreshold !== null ? customThreshold : 4;
 
   for (const corner of corners) {
     const cx = region.region[corner].x;
@@ -2456,6 +2985,41 @@ function findCornerAtPoint(point, region) {
     const dist = Math.sqrt(Math.pow(point.x - cx, 2) + Math.pow(point.y - cy, 2));
     if (dist <= threshold) {
       return corner;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find if point is near an edge midpoint handle
+ * Returns: 'top', 'right', 'bottom', 'left', or null
+ */
+function findEdgeAtPoint(point, region, customThreshold = null) {
+  const edges = {
+    top: {
+      x: (region.region.topLeft.x + region.region.topRight.x) / 2,
+      y: (region.region.topLeft.y + region.region.topRight.y) / 2
+    },
+    right: {
+      x: (region.region.topRight.x + region.region.bottomRight.x) / 2,
+      y: (region.region.topRight.y + region.region.bottomRight.y) / 2
+    },
+    bottom: {
+      x: (region.region.bottomLeft.x + region.region.bottomRight.x) / 2,
+      y: (region.region.bottomLeft.y + region.region.bottomRight.y) / 2
+    },
+    left: {
+      x: (region.region.topLeft.x + region.region.bottomLeft.x) / 2,
+      y: (region.region.topLeft.y + region.region.bottomLeft.y) / 2
+    }
+  };
+
+  const threshold = customThreshold !== null ? customThreshold : 3.5;
+
+  for (const [edge, midpoint] of Object.entries(edges)) {
+    const dist = Math.sqrt(Math.pow(point.x - midpoint.x, 2) + Math.pow(point.y - midpoint.y, 2));
+    if (dist <= threshold) {
+      return edge;
     }
   }
   return null;
@@ -2707,6 +3271,13 @@ function updateCursor(point, shiftKey) {
     const corner = findCornerAtPoint(point, selected);
     if (corner) {
       canvas.style.cursor = 'grab';
+      return;
+    }
+
+    // Check edge handles for resize cursor
+    const edge = findEdgeAtPoint(point, selected);
+    if (edge) {
+      canvas.style.cursor = edge === 'top' || edge === 'bottom' ? 'ns-resize' : 'ew-resize';
       return;
     }
   }

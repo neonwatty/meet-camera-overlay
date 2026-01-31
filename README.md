@@ -63,6 +63,7 @@ npm test
 | `/landing` | Marketing landing page |
 | `/guide` | User guide |
 | `/demo/mediapipe-playground.html` | MediaPipe segmentation demo |
+| `/demo/sam-playground.html` | SAM click-to-segment demo |
 
 ## Chrome Extension
 

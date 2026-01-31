@@ -8,11 +8,93 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Welcome Modal (First-time UX) - Two Step Flow -->
+  <div id="welcome-overlay" class="welcome-overlay hidden">
+    <div class="welcome-modal">
+      <!-- Step 1: Use Case Selection -->
+      <div id="welcome-step-1" class="welcome-step">
+        <h2>How will you use this?</h2>
+        <p>We'll show you relevant examples</p>
+
+        <div class="usecase-cards">
+          <div class="usecase-card" data-usecase="videocalls">
+            <div class="usecase-card-icon">🎥</div>
+            <h3>Video Calls</h3>
+            <p>Cover or enhance your background for meetings</p>
+          </div>
+          <div class="usecase-card" data-usecase="streaming">
+            <div class="usecase-card-icon">📺</div>
+            <h3>Streaming</h3>
+            <p>Add sponsor logos and branded content</p>
+          </div>
+        </div>
+
+        <button class="welcome-skip" id="welcome-skip">skip → start with blank canvas</button>
+      </div>
+
+      <!-- Step 2: Demo Selection (Video Calls) -->
+      <div id="welcome-step-videocalls" class="welcome-step hidden">
+        <button class="welcome-back" id="back-from-videocalls">← Back</button>
+        <h2>Choose a demo</h2>
+        <p>See how it looks behind you</p>
+
+        <div class="demo-cards">
+          <div class="demo-card" data-demo="professional">
+            <div class="demo-card-icon">🖼️</div>
+            <h3>Professional Art</h3>
+            <p>Clean, meeting-appropriate decor</p>
+          </div>
+          <div class="demo-card" data-demo="animated">
+            <div class="demo-card-icon">✨</div>
+            <h3>Animated Art</h3>
+            <p>Subtle moving artwork</p>
+          </div>
+        </div>
+
+        <button class="welcome-skip welcome-skip-step2" id="welcome-skip-videocalls">skip → start with blank canvas</button>
+      </div>
+
+      <!-- Step 2: Demo Selection (Streaming) -->
+      <div id="welcome-step-streaming" class="welcome-step hidden">
+        <button class="welcome-back" id="back-from-streaming">← Back</button>
+        <h2>Choose a demo</h2>
+        <p>See how sponsors appear on stream</p>
+
+        <div class="demo-cards">
+          <div class="demo-card" data-demo="sponsor">
+            <div class="demo-card-icon">📺</div>
+            <h3>Sponsor Banner</h3>
+            <p>Branded placement example</p>
+          </div>
+          <div class="demo-card" data-demo="animated">
+            <div class="demo-card-icon">✨</div>
+            <h3>Animated Effects</h3>
+            <p>Eye-catching motion graphics</p>
+          </div>
+        </div>
+
+        <button class="welcome-skip welcome-skip-step2" id="welcome-skip-streaming">skip → start with blank canvas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hint Tooltip (shown after demo) -->
+  <div id="hint-tooltip" class="hint-tooltip hidden">
+    <span class="hint-icon">💡</span>
+    <span class="hint-desktop">Drag corners to resize • Click 🖼️ to change art</span>
+    <span class="hint-mobile">Drag corners • Pinch to zoom • Double-tap to reset</span>
+  </div>
+
   <div class="app-container">
     <!-- Main Canvas Area -->
     <div class="canvas-container">
       <video id="webcam" autoplay playsinline muted></video>
       <canvas id="canvas"></canvas>
+
+      <!-- Mobile Sidebar Toggle -->
+      <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle regions panel">
+        <span>☰</span>
+      </button>
 
       <!-- Floating Add Button -->
       <button id="add-region-btn" class="fab" title="Add new region">
@@ -51,6 +133,12 @@
       <button id="toggle-renderer" class="control-btn renderer-toggle" title="Switch renderer">
         <span class="icon">⚡</span>
         <span class="status">Auto</span>
+      </button>
+
+      <!-- Reset Button -->
+      <button id="reset-btn" class="control-btn reset-btn" title="Reset to welcome screen">
+        <span class="icon">↺</span>
+        <span class="status">Reset</span>
       </button>
 
       <!-- Info Panel -->
