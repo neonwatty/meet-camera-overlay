@@ -1,7 +1,9 @@
 import js from '@eslint/js';
+import security from 'eslint-plugin-security';
 
 export default [
   js.configs.recommended,
+  security.configs.recommended,
   {
     languageOptions: {
       ecmaVersion: 2022,
@@ -38,10 +40,35 @@ export default [
     },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-console': 'off', // Allow console for extension debugging
+      'no-console': 'off',
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always'],
+      'max-len': ['warn', {
+        code: 120,
+        ignoreUrls: true,
+        ignoreStrings: true,
+        ignoreTemplateLiterals: true,
+      }],
+      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    // Effects files — slightly higher line limit for cohesive classes
+    files: ['prototype/multi-region-art/effects/**/*.js'],
+    rules: {
+      'max-lines': ['error', { max: 350, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    // Large legacy files — disable max-lines
+    files: [
+      'prototype/multi-region-art/multi-region.js',
+      'popup.js',
+      'inject.js',
+    ],
+    rules: {
+      'max-lines': 'off',
     },
   },
   {
