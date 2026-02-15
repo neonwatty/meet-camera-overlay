@@ -12,6 +12,9 @@
  * - localStorage persistence
  */
 
+import { TransitionEffectManager } from './effects/index.js';
+const transitionEffects = new TransitionEffectManager();
+
 // ============================================
 // State
 // ============================================
@@ -48,6 +51,8 @@ const state = {
 
   // Models
   segmenter: null,
+  faceLandmarker: null,
+  poseLandmarker: null,
   segmentationEnabled: true,
   segmentationReady: false,
 
@@ -1292,6 +1297,10 @@ async function init() {
     hideLoading();
     renderLoop();
 
+    // Set up transition effects
+    transitionEffects.setVideoSource(elements.webcam);
+    transitionEffects.createDebugPanel();
+
     // Show welcome modal for first-time users (after camera is ready)
     if (isFirstTimeUser() && state.regions.length === 0) {
       setTimeout(showWelcomeModal, 500);
@@ -1309,12 +1318,13 @@ async function init() {
 // ============================================
 async function loadSegmentationModel() {
   const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/+esm');
-  const { ImageSegmenter, FilesetResolver } = vision;
+  const { ImageSegmenter, FaceLandmarker, PoseLandmarker, FilesetResolver } = vision;
 
   const wasmFileset = await FilesetResolver.forVisionTasks(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
   );
 
+  // Load segmenter first (critical) — face/pose are optional enhancements
   state.segmenter = await ImageSegmenter.createFromOptions(wasmFileset, {
     baseOptions: {
       modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite',
@@ -1327,6 +1337,39 @@ async function loadSegmentationModel() {
 
   state.segmentationReady = true;
   updateSegmentationStatus('active');
+
+  // Load face mesh + pose landmark models in background (non-blocking)
+  Promise.all([
+    FaceLandmarker.createFromOptions(wasmFileset, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      numFaces: 1,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: false
+    }),
+    PoseLandmarker.createFromOptions(wasmFileset, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      numPoses: 1
+    })
+  ]).then(([faceLandmarker, poseLandmarker]) => {
+    state.faceLandmarker = faceLandmarker;
+    state.poseLandmarker = poseLandmarker;
+    transitionEffects.setDetectors(
+      faceLandmarker, poseLandmarker,
+      FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+      PoseLandmarker.POSE_CONNECTIONS
+    );
+    console.log('Face mesh + pose landmark models loaded');
+  }).catch(err => {
+    console.warn('Face/pose models failed to load (effects will work without them):', err);
+  });
 }
 
 function updateSegmentationStatus(status) {
@@ -1454,8 +1497,21 @@ function renderLoop() {
       if (result.categoryMask) {
         maskWidth = result.categoryMask.width;
         maskHeight = result.categoryMask.height;
-        personMask = result.categoryMask.getAsUint8Array();
+        // Copy mask data BEFORE close() — WASM recycles the buffer
+        personMask = new Uint8Array(result.categoryMask.getAsUint8Array());
         result.categoryMask.close();
+
+        // Keep contour cache fresh for debug panel re-triggers
+        transitionEffects.updateContourCache(
+          personMask, maskWidth, maskHeight,
+          elements.canvas.width, elements.canvas.height
+        );
+
+        // Trigger first-segmentation transition effects
+        transitionEffects.triggerFirstSegmentation(
+          personMask, maskWidth, maskHeight,
+          elements.canvas.width, elements.canvas.height, timestamp
+        );
       }
     } catch {
       // Ignore segmentation errors
@@ -1486,6 +1542,9 @@ function renderLoop() {
     if (!region.active) continue;
     drawRegionOverlay(region, region.id === state.selectedRegionId);
   }
+
+  // Draw transition effects on top
+  transitionEffects.update(ctx, timestamp, elements.canvas.width, elements.canvas.height);
 }
 
 /**
@@ -2057,11 +2116,29 @@ function drawRegionOverlay(region, isSelected) {
     // Draw edge midpoint handles for resizing
     const edgeHandleLength = 16;
     const edgeHandleThickness = 6;
+    const midX = (a, b) => (a.x + b.x) / 2;
+    const midY = (a, b) => (a.y + b.y) / 2;
     const edgeMidpoints = {
-      top: { x: (corners.topLeft.x + corners.topRight.x) / 2, y: (corners.topLeft.y + corners.topRight.y) / 2, horizontal: true },
-      right: { x: (corners.topRight.x + corners.bottomRight.x) / 2, y: (corners.topRight.y + corners.bottomRight.y) / 2, horizontal: false },
-      bottom: { x: (corners.bottomLeft.x + corners.bottomRight.x) / 2, y: (corners.bottomLeft.y + corners.bottomRight.y) / 2, horizontal: true },
-      left: { x: (corners.topLeft.x + corners.bottomLeft.x) / 2, y: (corners.topLeft.y + corners.bottomLeft.y) / 2, horizontal: false }
+      top: {
+        x: midX(corners.topLeft, corners.topRight),
+        y: midY(corners.topLeft, corners.topRight),
+        horizontal: true,
+      },
+      right: {
+        x: midX(corners.topRight, corners.bottomRight),
+        y: midY(corners.topRight, corners.bottomRight),
+        horizontal: false,
+      },
+      bottom: {
+        x: midX(corners.bottomLeft, corners.bottomRight),
+        y: midY(corners.bottomLeft, corners.bottomRight),
+        horizontal: true,
+      },
+      left: {
+        x: midX(corners.topLeft, corners.bottomLeft),
+        y: midY(corners.topLeft, corners.bottomLeft),
+        horizontal: false,
+      },
     };
 
     for (const [_edge, info] of Object.entries(edgeMidpoints)) {
@@ -2334,6 +2411,10 @@ function setupEventListeners() {
   elements.toggleSegmentation.addEventListener('click', () => {
     state.segmentationEnabled = !state.segmentationEnabled;
     updateSegmentationStatus(state.segmentationEnabled && state.segmentationReady ? 'active' : 'disabled');
+    // Reset so transition effects re-fire on next detection
+    if (state.segmentationEnabled) {
+      transitionEffects.resetFirstSegmentation();
+    }
   });
 
   // Toggle renderer
