@@ -15,7 +15,12 @@ const { ScannerSequence } = await import(
   '../../../prototype/multi-region-art/effects/scanner-sequence.js'
 );
 
-function makeCtx() { return createCanvas(640, 480).getContext('2d'); }
+function makeCtx() {
+  const ctx = createCanvas(640, 480).getContext('2d');
+  // Spy drawImage so OffscreenCanvas mock doesn't hit node-canvas compat issue
+  vi.spyOn(ctx, 'drawImage').mockImplementation(() => {});
+  return ctx;
+}
 
 function makeDetectionData() {
   return {

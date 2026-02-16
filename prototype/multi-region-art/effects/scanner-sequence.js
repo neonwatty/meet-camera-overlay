@@ -67,8 +67,8 @@ export class ScannerSequence {
     const delay = regionIndex * REGION_STAGGER_MS;
     const effective = this._revealElapsed - delay;
     if (effective <= 0) return 0;
-    const duration = DURATIONS.REVEAL - delay;
-    if (duration <= 0) return 1;
+    // Each region gets at least 400ms to animate, even at high indices
+    const duration = Math.max(DURATIONS.REVEAL - delay, 400);
     return Math.min(effective / duration, 1);
   }
 
@@ -87,21 +87,21 @@ export class ScannerSequence {
     if (this.phase === 'SCAN') {
       const progress = Math.min(elapsed / duration, 1);
       this._renderScan(ctx, progress, elapsed, w, h);
-      if (elapsed > duration) {
+      if (progress >= 1) {
         this._computePersonCenter();
         this._setPhase('LOCK_ON', timestamp);
       }
     } else if (this.phase === 'LOCK_ON') {
       const progress = Math.min(elapsed / duration, 1);
       this._renderLockOn(ctx, progress, elapsed, w, h);
-      if (elapsed > duration) {
+      if (progress >= 1) {
         this._setPhase('REVEAL', timestamp);
       }
     } else if (this.phase === 'REVEAL') {
       this._revealElapsed = elapsed;
       const progress = Math.min(elapsed / duration, 1);
       this._renderReveal(ctx, progress, w, h);
-      if (elapsed > duration) {
+      if (progress >= 1) {
         this._setPhase('DONE', timestamp);
       }
     }
@@ -256,10 +256,7 @@ export class ScannerSequence {
   }
 
   _drawOverlay(ctx) {
-    // OffscreenCanvas is a valid drawImage source in browsers.
-    // In Node test environments the mock may wrap a native canvas.
-    const src = this._maskOverlay._canvas || this._maskOverlay;
-    ctx.drawImage(src, 0, 0);
+    ctx.drawImage(this._maskOverlay, 0, 0);
   }
 
   _computePersonCenter() {
