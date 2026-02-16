@@ -6,6 +6,7 @@
 import { renderMaskOverlay } from './utils.js';
 
 const DURATIONS = { SCAN: 3000, LOCK_ON: 2000, REVEAL: 2000 };
+const LOCK_ON_MAX_WAIT = 12000;
 const REGION_STAGGER_MS = 300;
 
 export class ScannerSequence {
@@ -27,6 +28,7 @@ export class ScannerSequence {
     this._revealElapsed = 0;
     this._lastTimestamp = 0;
     this._skipBtn = null;
+    this._readyForReveal = false;
   }
 
   // ---- Public API ----
@@ -42,6 +44,10 @@ export class ScannerSequence {
 
   skip() {
     this._setPhase('DONE', 0);
+  }
+
+  setReadyForReveal() {
+    this._readyForReveal = true;
   }
 
   setDetectionData({ contour, mask, maskW, maskH }) {
@@ -95,7 +101,14 @@ export class ScannerSequence {
         this._setPhase('LOCK_ON', timestamp);
       }
     } else if (this.phase === 'LOCK_ON') {
-      const progress = Math.min(elapsed / duration, 1);
+      // Hold in LOCK_ON until face mesh is ready (or max wait exceeded).
+      // This keeps the webcam visible so the face mesh wireframe can be
+      // seen before art regions appear in the REVEAL phase.
+      const holdForMesh = !this._readyForReveal
+        && elapsed < LOCK_ON_MAX_WAIT;
+      const effectiveDuration = holdForMesh
+        ? Math.max(duration, elapsed + 1) : duration;
+      const progress = Math.min(elapsed / effectiveDuration, 1);
       this._renderLockOn(ctx, progress, elapsed, w, h);
       if (progress >= 1) {
         this._setPhase('REVEAL', timestamp);
