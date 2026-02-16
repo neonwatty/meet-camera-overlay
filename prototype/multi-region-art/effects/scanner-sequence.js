@@ -12,6 +12,7 @@ export class ScannerSequence {
   constructor() {
     this.phase = 'IDLE';
     this.onComplete = null;
+    this.onScan = null;
     this.onLockOn = null;
 
     this._phaseStart = 0;
@@ -115,6 +116,9 @@ export class ScannerSequence {
     this.phase = phase;
     this._phaseStart = timestamp;
 
+    if (phase === 'SCAN' && this.onScan) {
+      this.onScan();
+    }
     if (phase === 'LOCK_ON' && this.onLockOn) {
       this.onLockOn();
     }
