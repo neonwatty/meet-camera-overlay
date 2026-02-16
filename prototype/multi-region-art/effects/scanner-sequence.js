@@ -25,6 +25,7 @@ export class ScannerSequence {
     this._personCenter = null;
     this._revealElapsed = 0;
     this._lastTimestamp = 0;
+    this._skipBtn = null;
   }
 
   // ---- Public API ----
@@ -34,6 +35,7 @@ export class ScannerSequence {
   }
 
   start() {
+    this._createSkipButton();
     this._setPhase('WAITING', 0);
   }
 
@@ -116,8 +118,9 @@ export class ScannerSequence {
     if (phase === 'LOCK_ON' && this.onLockOn) {
       this.onLockOn();
     }
-    if (phase === 'DONE' && this.onComplete) {
-      this.onComplete();
+    if (phase === 'DONE') {
+      this._removeSkipButton();
+      if (this.onComplete) this.onComplete();
     }
   }
 
@@ -244,6 +247,38 @@ export class ScannerSequence {
   }
 
   // ---- Helpers ----
+
+  _createSkipButton() {
+    if (typeof document === 'undefined') return;
+    this._skipBtn = document.createElement('button');
+    this._skipBtn.textContent = 'Skip';
+    Object.assign(this._skipBtn.style, {
+      position: 'fixed',
+      bottom: '20px',
+      right: '20px',
+      zIndex: '10001',
+      background: 'rgba(10, 10, 12, 0.7)',
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      borderRadius: '8px',
+      color: 'rgba(255, 255, 255, 0.7)',
+      padding: '10px 20px',
+      fontSize: '13px',
+      fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+      cursor: 'pointer',
+      minWidth: '44px',
+      minHeight: '44px',
+      backdropFilter: 'blur(4px)',
+    });
+    this._skipBtn.addEventListener('click', () => this.skip());
+    document.body.appendChild(this._skipBtn);
+  }
+
+  _removeSkipButton() {
+    if (this._skipBtn && this._skipBtn.parentNode) {
+      this._skipBtn.parentNode.removeChild(this._skipBtn);
+      this._skipBtn = null;
+    }
+  }
 
   _drawStatusText(ctx, text, w, h) {
     ctx.save();
