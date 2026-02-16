@@ -106,11 +106,14 @@ export class MeshShimmerEffect extends BaseEffect {
     const w = this.canvasW;
     const h = this.canvasH;
 
-    if (this._faceLandmarker && this._videoSource) {
+    // Read detectors from manager so late-loaded models are picked up
+    const faceLM = this._manager?._faceLandmarker || this._faceLandmarker;
+    const poseLM = this._manager?._poseLandmarker || this._poseLandmarker;
+    const videoSrc = this._manager?._videoSource || this._videoSource;
+
+    if (faceLM && videoSrc) {
       try {
-        const result = this._faceLandmarker.detectForVideo(
-          this._videoSource, ts
-        );
+        const result = faceLM.detectForVideo(videoSrc, ts);
         if (
           result.faceLandmarks &&
           result.faceLandmarks.length > 0
@@ -122,17 +125,19 @@ export class MeshShimmerEffect extends BaseEffect {
           this.faceLandmarks = this._smoothLandmarks(
             this.faceLandmarks, raw
           );
+          // Pick up tesselation from manager if not set at trigger time
+          if (!this._faceTesselation && this._manager?._faceTesselation) {
+            this._faceTesselation = this._manager._faceTesselation;
+          }
         }
       } catch {
         // Ignore per-frame detection errors
       }
     }
 
-    if (this._poseLandmarker && this._videoSource) {
+    if (poseLM && videoSrc) {
       try {
-        const result = this._poseLandmarker.detectForVideo(
-          this._videoSource, ts + 1
-        );
+        const result = poseLM.detectForVideo(videoSrc, ts + 1);
         if (result.landmarks && result.landmarks.length > 0) {
           const raw = result.landmarks[0].map((lm) => ({
             x: lm.x * w,
@@ -141,6 +146,10 @@ export class MeshShimmerEffect extends BaseEffect {
           this.poseLandmarks = this._smoothLandmarks(
             this.poseLandmarks, raw
           );
+          // Pick up connections from manager if not set at trigger time
+          if (!this._poseConnections && this._manager?._poseConnections) {
+            this._poseConnections = this._manager._poseConnections;
+          }
         }
       } catch {
         // Ignore per-frame detection errors
