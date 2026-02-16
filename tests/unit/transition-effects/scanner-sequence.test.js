@@ -112,3 +112,46 @@ describe('ScannerSequence — State Machine', () => {
     expect(seq.phase).toBe('DONE');
   });
 });
+
+// Task 2: SCAN Phase
+describe('ScannerSequence — SCAN Phase', () => {
+  let seq, ctx;
+  beforeEach(() => { seq = new ScannerSequence(); ctx = makeCtx(); });
+
+  it('tracks canvas dimensions and pre-renders mask overlay', () => {
+    startScan(seq, ctx);
+    seq.update(ctx, 1500, 640, 480);
+    expect(seq._canvasW).toBe(640);
+    expect(seq._canvasH).toBe(480);
+    expect(seq._maskOverlay).not.toBeNull();
+  });
+
+  it('skips mask overlay without canvas dimensions', () => {
+    seq.start();
+    seq.setDetectionData(makeDetectionData());
+    expect(seq._maskOverlay).toBeNull();
+  });
+
+  it('renders at various progress points without error', () => {
+    const t0 = startScan(seq, ctx);
+    seq.update(ctx, t0 + 100, 640, 480);
+    expect(seq.phase).toBe('SCAN');
+    seq.update(ctx, t0 + 1500, 640, 480);
+    expect(seq.phase).toBe('SCAN');
+    seq.update(ctx, t0 + 2900, 640, 480);
+    expect(seq.phase).toBe('SCAN');
+  });
+
+  it('draws "ANALYZING SUBJECT..." status text', () => {
+    const t0 = startScan(seq, ctx);
+    const spy = vi.spyOn(seq, '_drawStatusText');
+    seq.update(ctx, t0 + 500, 640, 480);
+    expect(spy).toHaveBeenCalledWith(ctx, 'ANALYZING SUBJECT...', 640, 480);
+    spy.mockRestore();
+  });
+
+  it('_drawStatusText renders without error', () => {
+    startScan(seq, ctx);
+    seq._drawStatusText(ctx, 'TEST', 640, 480);
+  });
+});

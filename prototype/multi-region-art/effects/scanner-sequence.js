@@ -121,9 +121,59 @@ export class ScannerSequence {
     }
   }
 
-  // ---- Rendering stubs (filled in subsequent commits) ----
+  // ---- Rendering: SCAN ----
 
-  _renderScan(_ctx, _progress, _elapsed, _w, _h) {}
+  _renderScan(ctx, progress, _elapsed, w, h) {
+    const scanY = progress * h;
+
+    ctx.save();
+
+    // Trailing glow gradient (80px above scan line)
+    const glowTop = Math.max(0, scanY - 80);
+    const grad = ctx.createLinearGradient(0, glowTop, 0, scanY);
+    grad.addColorStop(0, 'rgba(0, 255, 65, 0)');
+    grad.addColorStop(1, 'rgba(0, 255, 65, 0.15)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, glowTop, w, scanY - glowTop);
+
+    // Bright core scan line
+    ctx.strokeStyle = 'rgba(0, 255, 65, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, scanY);
+    ctx.lineTo(w, scanY);
+    ctx.stroke();
+
+    // Progressive contour reveal (only points above scanY)
+    if (this._contour.length > 0) {
+      ctx.strokeStyle = 'rgba(0, 255, 65, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      let started = false;
+      for (const p of this._contour) {
+        if (p.y <= scanY) {
+          if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+          else ctx.lineTo(p.x, p.y);
+        }
+      }
+      if (started) ctx.stroke();
+    }
+
+    // Green mask overlay fades in with progress
+    if (this._maskOverlay) {
+      ctx.globalAlpha = progress * 0.15;
+      ctx.globalCompositeOperation = 'screen';
+      this._drawOverlay(ctx);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+
+    this._drawStatusText(ctx, 'ANALYZING SUBJECT...', w, h);
+  }
+
+  // ---- Rendering stubs (filled in subsequent commits) ----
 
   _renderLockOn(_ctx, _progress, _elapsed, _w, _h) {}
 
