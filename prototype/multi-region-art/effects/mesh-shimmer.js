@@ -332,17 +332,6 @@ export class MeshShimmerEffect extends BaseEffect {
       ctx.stroke();
     }
 
-    for (const pt of lm) {
-      if (!pt) continue;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 8, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(0, 255, 65, ${alpha * 0.4})`;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(150, 255, 180, ${alpha})`;
-      ctx.fill();
-    }
     ctx.lineCap = 'butt';
   }
 
