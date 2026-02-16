@@ -232,9 +232,16 @@ export class ScannerSequence {
     this._drawStatusText(ctx, 'SUBJECT LOCKED', w, h);
   }
 
-  // ---- Rendering stub (filled in subsequent commit) ----
+  // ---- Rendering: REVEAL ----
 
-  _renderReveal(_ctx, _progress, _w, _h) {}
+  _renderReveal(ctx, progress, w, h) {
+    // "SCENE READY" text fades in during first half, then holds
+    const textAlpha = Math.min(progress / 0.5, 1);
+    ctx.save();
+    ctx.globalAlpha = textAlpha;
+    this._drawStatusText(ctx, 'SCENE READY', w, h);
+    ctx.restore();
+  }
 
   // ---- Helpers ----
 

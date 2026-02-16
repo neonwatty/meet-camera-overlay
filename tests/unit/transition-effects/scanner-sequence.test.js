@@ -194,3 +194,76 @@ describe('ScannerSequence — LOCK_ON Phase', () => {
     expect(seq._personCenter.y).toBeCloseTo(225, 0);
   });
 });
+
+function advanceToReveal(seq, ctx) {
+  const t1 = advanceToLockOn(seq, ctx);
+  const t2 = t1 + 2001;
+  seq.update(ctx, t2, 640, 480);
+  return t2;
+}
+
+// Task 4: REVEAL Phase + getRegionEntrance
+describe('ScannerSequence — REVEAL + getRegionEntrance', () => {
+  let seq, ctx;
+  beforeEach(() => { seq = new ScannerSequence(); ctx = makeCtx(); });
+
+  it('enters REVEAL and renders without error', () => {
+    const t = advanceToReveal(seq, ctx);
+    expect(seq.phase).toBe('REVEAL');
+    seq.update(ctx, t + 500, 640, 480);
+    expect(seq.phase).toBe('REVEAL');
+  });
+
+  it('renders fading "SCENE READY" text', () => {
+    const t = advanceToReveal(seq, ctx);
+    const spy = vi.spyOn(seq, '_drawStatusText');
+    seq.update(ctx, t + 500, 640, 480);
+    expect(spy.mock.calls.some((a) => a[1] === 'SCENE READY')).toBe(true);
+    spy.mockRestore();
+  });
+
+  it('getRegionEntrance returns 1 when IDLE or DONE', () => {
+    expect(seq.getRegionEntrance(0)).toBe(1);
+    expect(seq.getRegionEntrance(5)).toBe(1);
+    seq.start();
+    seq.skip();
+    expect(seq.getRegionEntrance(0)).toBe(1);
+  });
+
+  it('getRegionEntrance returns 0 when WAITING, SCAN, or LOCK_ON', () => {
+    seq.start();
+    expect(seq.getRegionEntrance(0)).toBe(0);
+    seq.update(ctx, 1000, 640, 480);
+    seq.setDetectionData(makeDetectionData());
+    expect(seq.getRegionEntrance(0)).toBe(0);
+    seq.update(ctx, 1000 + 3001, 640, 480);
+    expect(seq.phase).toBe('LOCK_ON');
+    expect(seq.getRegionEntrance(0)).toBe(0);
+  });
+
+  it('getRegionEntrance returns 0-1 progress during REVEAL', () => {
+    const t = advanceToReveal(seq, ctx);
+    seq.update(ctx, t + 1000, 640, 480);
+    const p = seq.getRegionEntrance(0);
+    expect(p).toBeGreaterThan(0);
+    expect(p).toBeLessThanOrEqual(1);
+  });
+
+  it('stagger: later regions start later', () => {
+    const t = advanceToReveal(seq, ctx);
+    seq.update(ctx, t + 400, 640, 480);
+    expect(seq.getRegionEntrance(0)).toBeGreaterThan(seq.getRegionEntrance(1));
+  });
+
+  it('region entrance is 0 before stagger delay elapses', () => {
+    const t = advanceToReveal(seq, ctx);
+    seq.update(ctx, t + 100, 640, 480);
+    expect(seq.getRegionEntrance(2)).toBe(0);
+  });
+
+  it('region 0 reaches 1 at end of REVEAL', () => {
+    const t = advanceToReveal(seq, ctx);
+    seq.update(ctx, t + 1999, 640, 480);
+    expect(seq.getRegionEntrance(0)).toBeCloseTo(1, 1);
+  });
+});
