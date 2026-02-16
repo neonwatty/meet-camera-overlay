@@ -28,6 +28,7 @@ export class MeshShimmerEffect extends BaseEffect {
     this._maskOverlay = null;
     this._scanLines = [];
     this._lastMaskRebuildTime = 0;
+    this._landmarksDetected = false;
   }
 
   onTrigger(
@@ -46,9 +47,26 @@ export class MeshShimmerEffect extends BaseEffect {
     this._poseConnections = poseConnections;
     this._videoSource = videoSource;
 
+    this._landmarksDetected = false;
     this._detectLandmarks();
     this._rebuildMaskData(mask, maskW, maskH, canvasW, canvasH);
     this._lastMaskRebuildTime = _timestamp;
+  }
+
+  update(ctx, timestamp, w, h) {
+    if (!this.active) return;
+    // Defer the fade-out countdown until face landmarks are first detected.
+    // This prevents the effect from expiring before models finish loading
+    // (common in incognito / cold cache).
+    if (!this._landmarksDetected) {
+      if (this.faceLandmarks) {
+        this._landmarksDetected = true;
+        this.startTime = timestamp;
+      } else {
+        this.startTime = timestamp;
+      }
+    }
+    super.update(ctx, timestamp, w, h);
   }
 
   _rebuildMaskData(mask, maskW, maskH, canvasW, canvasH) {

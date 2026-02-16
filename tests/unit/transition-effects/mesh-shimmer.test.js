@@ -99,4 +99,56 @@ describe('MeshShimmerEffect', () => {
       }
     });
   });
+
+  describe('deferred countdown', () => {
+    it('resets _landmarksDetected on trigger', () => {
+      effect._landmarksDetected = true;
+      effect.trigger(1000);
+      expect(effect._landmarksDetected).toBe(false);
+    });
+
+    it('defers startTime until face landmarks detected', () => {
+      const ctx = createCanvas(100, 100).getContext('2d');
+      effect.trigger(1000);
+      expect(effect.active).toBe(true);
+
+      // Without landmarks, startTime keeps resetting
+      effect.update(ctx, 5000, 100, 100);
+      expect(effect.startTime).toBe(5000);
+      expect(effect.active).toBe(true);
+
+      effect.update(ctx, 10000, 100, 100);
+      expect(effect.startTime).toBe(10000);
+      expect(effect.active).toBe(true);
+
+      // Simulate landmarks detected
+      effect.faceLandmarks = [{ x: 50, y: 50 }];
+      effect.update(ctx, 12000, 100, 100);
+      expect(effect._landmarksDetected).toBe(true);
+      expect(effect.startTime).toBe(12000);
+
+      // Now countdown progresses normally — startTime stays fixed
+      effect.update(ctx, 13000, 100, 100);
+      expect(effect.startTime).toBe(12000);
+      expect(effect.active).toBe(true);
+    });
+
+    it('expires 15s after landmarks first detected', () => {
+      const ctx = createCanvas(100, 100).getContext('2d');
+      effect.trigger(1000);
+
+      // Landmarks appear at t=5000
+      effect.faceLandmarks = [{ x: 50, y: 50 }];
+      effect.update(ctx, 5000, 100, 100);
+      expect(effect._landmarksDetected).toBe(true);
+
+      // Still active at t=19999 (14.999s after landmarks)
+      effect.update(ctx, 19999, 100, 100);
+      expect(effect.active).toBe(true);
+
+      // Expires at t=20000 (15s after landmarks)
+      effect.update(ctx, 20000, 100, 100);
+      expect(effect.active).toBe(false);
+    });
+  });
 });
