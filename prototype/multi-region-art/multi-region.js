@@ -12,8 +12,20 @@
  * - localStorage persistence
  */
 
-import { TransitionEffectManager } from './effects/index.js';
+import { TransitionEffectManager, ScannerSequence } from './effects/index.js';
 const transitionEffects = new TransitionEffectManager();
+const scannerSequence = new ScannerSequence();
+scannerSequence.onLockOn = () => {
+  // Trigger existing shimmer effects during LOCK_ON
+  if (transitionEffects._lastContour) {
+    transitionEffects.triggerFirstSegmentation(
+      transitionEffects._lastMask,
+      transitionEffects._lastMaskW,
+      transitionEffects._lastMaskH,
+      elements.canvas.width, elements.canvas.height, performance.now()
+    );
+  }
+};
 
 // ============================================
 // State
@@ -1173,6 +1185,8 @@ function hideWelcomeModal() {
 
 async function handleDemoSelection(demoType) {
   hideWelcomeModal();
+  // Start scanner sequence for first-time users
+  scannerSequence.start();
 
   // Create a behind-center region
   const region = createBehindCenterRegion();
@@ -1507,11 +1521,24 @@ function renderLoop() {
           elements.canvas.width, elements.canvas.height
         );
 
+        // Feed live data to scanner sequence if active
+        if (scannerSequence.isActive) {
+          scannerSequence.setDetectionData({
+            contour: transitionEffects._lastContour,
+            mask: personMask,
+            maskW: maskWidth,
+            maskH: maskHeight,
+          });
+        }
+
         // Trigger first-segmentation transition effects
-        transitionEffects.triggerFirstSegmentation(
-          personMask, maskWidth, maskHeight,
-          elements.canvas.width, elements.canvas.height, timestamp
-        );
+        // (skip if scanner sequence is managing effects)
+        if (!scannerSequence.isActive) {
+          transitionEffects.triggerFirstSegmentation(
+            personMask, maskWidth, maskHeight,
+            elements.canvas.width, elements.canvas.height, timestamp
+          );
+        }
       }
     } catch {
       // Ignore segmentation errors
@@ -1521,17 +1548,49 @@ function renderLoop() {
   // Check if any regions have art to render
   const hasArtRegions = state.regions.some(r => r.active && r.art && state.artSources.has(r.id));
 
-  if (hasArtRegions) {
+  // Gate region rendering on scanner sequence
+  const scannerHidesRegions = scannerSequence.isActive
+    && scannerSequence.phase !== 'REVEAL'
+    && scannerSequence.phase !== 'DONE';
+
+  if (hasArtRegions && !scannerHidesRegions) {
     // Choose rendering path based on mode
     if (state.renderer.useWebGL && webglRenderer) {
-      // WebGL rendering path
+      // WebGL rendering path — apply entrance animation as a single composite
+      const wglEntrance = scannerSequence.getRegionEntrance(0);
+      if (wglEntrance < 1) {
+        ctx.save();
+        ctx.globalAlpha = wglEntrance;
+      }
       renderArtWithWebGL(personMask, maskWidth, maskHeight);
+      if (wglEntrance < 1) {
+        ctx.restore();
+      }
     } else {
       // Canvas2D rendering path (original)
+      let regionIdx = 0;
       for (const region of state.regions) {
         if (!region.active) continue;
         if (region.art && state.artSources.has(region.id)) {
+          // Apply scanner entrance animation during REVEAL
+          const entrance = scannerSequence.getRegionEntrance(regionIdx);
+          if (entrance < 1) {
+            ctx.save();
+            ctx.globalAlpha = entrance;
+            const scale = 0.8 + 0.2 * entrance;
+            const cx = (region.corners.topLeft.x + region.corners.bottomRight.x) / 2;
+            const cy = (region.corners.topLeft.y + region.corners.bottomRight.y) / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cx, -cy);
+          }
+
           renderRegionWithArt(region, personMask, maskWidth, maskHeight);
+
+          if (entrance < 1) {
+            ctx.restore();
+          }
+          regionIdx++;
         }
       }
     }
@@ -1542,6 +1601,9 @@ function renderLoop() {
     if (!region.active) continue;
     drawRegionOverlay(region, region.id === state.selectedRegionId);
   }
+
+  // Draw scanner sequence on top
+  scannerSequence.update(ctx, timestamp, elements.canvas.width, elements.canvas.height);
 
   // Draw transition effects on top
   transitionEffects.update(ctx, timestamp, elements.canvas.width, elements.canvas.height);
