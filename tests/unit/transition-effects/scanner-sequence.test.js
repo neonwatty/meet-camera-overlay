@@ -95,6 +95,7 @@ describe('ScannerSequence — State Machine', () => {
     const t1 = t0 + 3001;
     seq.update(ctx, t1, 640, 480);
     expect(seq.phase).toBe('LOCK_ON');
+    seq.setReadyForReveal();
     const t2 = t1 + 2001;
     seq.update(ctx, t2, 640, 480);
     expect(seq.phase).toBe('REVEAL');
@@ -202,6 +203,7 @@ describe('ScannerSequence — LOCK_ON Phase', () => {
 
 function advanceToReveal(seq, ctx) {
   const t1 = advanceToLockOn(seq, ctx);
+  seq.setReadyForReveal();
   const t2 = t1 + 2001;
   seq.update(ctx, t2, 640, 480);
   return t2;

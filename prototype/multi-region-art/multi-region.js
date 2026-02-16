@@ -1604,6 +1604,11 @@ function renderLoop() {
     drawRegionOverlay(region, region.id === state.selectedRegionId);
   }
 
+  // Signal scanner that face mesh is ready so it can advance past LOCK_ON
+  if (transitionEffects.meshShimmer.faceLandmarks) {
+    scannerSequence.setReadyForReveal();
+  }
+
   // Draw scanner sequence on top
   scannerSequence.update(ctx, timestamp, elements.canvas.width, elements.canvas.height);
 
