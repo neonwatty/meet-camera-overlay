@@ -16,6 +16,9 @@ import { TransitionEffectManager, ScannerSequence } from './effects/index.js';
 const transitionEffects = new TransitionEffectManager();
 const scannerSequence = new ScannerSequence();
 scannerSequence.onScan = () => {
+  // Reset idempotency flag — shimmer may have already fired (invisible)
+  // behind the welcome modal while scanner was still IDLE
+  transitionEffects.resetFirstSegmentation();
   if (transitionEffects._lastContour) {
     transitionEffects.triggerFirstSegmentation(
       transitionEffects._lastMask,
