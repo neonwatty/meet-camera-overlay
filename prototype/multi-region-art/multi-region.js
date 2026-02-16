@@ -15,17 +15,6 @@
 import { TransitionEffectManager, ScannerSequence } from './effects/index.js';
 const transitionEffects = new TransitionEffectManager();
 const scannerSequence = new ScannerSequence();
-scannerSequence.onLockOn = () => {
-  // Trigger existing shimmer effects during LOCK_ON
-  if (transitionEffects._lastContour) {
-    transitionEffects.triggerFirstSegmentation(
-      transitionEffects._lastMask,
-      transitionEffects._lastMaskW,
-      transitionEffects._lastMaskH,
-      elements.canvas.width, elements.canvas.height, performance.now()
-    );
-  }
-};
 
 // ============================================
 // State
@@ -1531,14 +1520,13 @@ function renderLoop() {
           });
         }
 
-        // Trigger first-segmentation transition effects
-        // (skip if scanner sequence is managing effects)
-        if (!scannerSequence.isActive) {
-          transitionEffects.triggerFirstSegmentation(
-            personMask, maskWidth, maskHeight,
-            elements.canvas.width, elements.canvas.height, timestamp
-          );
-        }
+        // Trigger shimmer effects (face mesh, edge detection)
+        // Fires during scanner SCAN phase or immediately for returning users
+        // (idempotent — only the first call has effect)
+        transitionEffects.triggerFirstSegmentation(
+          personMask, maskWidth, maskHeight,
+          elements.canvas.width, elements.canvas.height, timestamp
+        );
       }
     } catch {
       // Ignore segmentation errors
