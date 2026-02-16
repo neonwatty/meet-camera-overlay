@@ -67,6 +67,7 @@ const state = {
   segmenter: null,
   faceLandmarker: null,
   poseLandmarker: null,
+  faceModelPromise: null,
   segmentationEnabled: true,
   segmentationReady: false,
 
@@ -1187,6 +1188,15 @@ function hideWelcomeModal() {
 
 async function handleDemoSelection(demoType) {
   hideWelcomeModal();
+
+  // Wait for face/pose models so mesh wireframe is ready for the scanner
+  if (!state.faceLandmarker && state.faceModelPromise) {
+    showLoading('INITIALIZING SENSORS...');
+    const timeout = new Promise(resolve => setTimeout(resolve, 10000));
+    await Promise.race([state.faceModelPromise, timeout]);
+    hideLoading();
+  }
+
   // Start scanner sequence for first-time users
   scannerSequence.start();
 
@@ -1355,7 +1365,7 @@ async function loadSegmentationModel() {
   updateSegmentationStatus('active');
 
   // Load face mesh + pose landmark models in background (non-blocking)
-  Promise.all([
+  state.faceModelPromise = Promise.all([
     FaceLandmarker.createFromOptions(wasmFileset, {
       baseOptions: {
         modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
