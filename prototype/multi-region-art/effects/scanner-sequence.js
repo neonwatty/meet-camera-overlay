@@ -249,6 +249,7 @@ export class ScannerSequence {
   // ---- Helpers ----
 
   _createSkipButton() {
+    this._removeSkipButton();
     if (typeof document === 'undefined') return;
     this._skipBtn = document.createElement('button');
     this._skipBtn.textContent = 'Skip';

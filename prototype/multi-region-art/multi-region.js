@@ -1556,8 +1556,16 @@ function renderLoop() {
   if (hasArtRegions && !scannerHidesRegions) {
     // Choose rendering path based on mode
     if (state.renderer.useWebGL && webglRenderer) {
-      // WebGL rendering path
+      // WebGL rendering path — apply entrance animation as a single composite
+      const wglEntrance = scannerSequence.getRegionEntrance(0);
+      if (wglEntrance < 1) {
+        ctx.save();
+        ctx.globalAlpha = wglEntrance;
+      }
       renderArtWithWebGL(personMask, maskWidth, maskHeight);
+      if (wglEntrance < 1) {
+        ctx.restore();
+      }
     } else {
       // Canvas2D rendering path (original)
       let regionIdx = 0;
