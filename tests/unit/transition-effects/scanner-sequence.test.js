@@ -155,3 +155,42 @@ describe('ScannerSequence — SCAN Phase', () => {
     seq._drawStatusText(ctx, 'TEST', 640, 480);
   });
 });
+
+function advanceToLockOn(seq, ctx) {
+  const t0 = startScan(seq, ctx);
+  const t1 = t0 + 3001;
+  seq.update(ctx, t1, 640, 480);
+  return t1;
+}
+
+// Task 3: LOCK_ON Phase
+describe('ScannerSequence — LOCK_ON Phase', () => {
+  let seq, ctx;
+  beforeEach(() => { seq = new ScannerSequence(); ctx = makeCtx(); });
+
+  it('fires onLockOn callback exactly once', () => {
+    const cb = vi.fn();
+    seq.onLockOn = cb;
+    const t = advanceToLockOn(seq, ctx);
+    expect(seq.phase).toBe('LOCK_ON');
+    expect(cb).toHaveBeenCalledOnce();
+    seq.update(ctx, t + 500, 640, 480);
+    seq.update(ctx, t + 1000, 640, 480);
+    expect(cb).toHaveBeenCalledOnce();
+  });
+
+  it('renders without error and shows "SUBJECT LOCKED"', () => {
+    const t = advanceToLockOn(seq, ctx);
+    const spy = vi.spyOn(seq, '_drawStatusText');
+    seq.update(ctx, t + 500, 640, 480);
+    expect(seq.phase).toBe('LOCK_ON');
+    expect(spy).toHaveBeenCalledWith(ctx, 'SUBJECT LOCKED', 640, 480);
+    spy.mockRestore();
+  });
+
+  it('computes person center from contour average', () => {
+    advanceToLockOn(seq, ctx);
+    expect(seq._personCenter.x).toBeCloseTo(300, 0);
+    expect(seq._personCenter.y).toBeCloseTo(225, 0);
+  });
+});

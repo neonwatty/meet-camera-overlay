@@ -173,9 +173,66 @@ export class ScannerSequence {
     this._drawStatusText(ctx, 'ANALYZING SUBJECT...', w, h);
   }
 
-  // ---- Rendering stubs (filled in subsequent commits) ----
+  // ---- Rendering: LOCK_ON ----
 
-  _renderLockOn(_ctx, _progress, _elapsed, _w, _h) {}
+  _renderLockOn(ctx, progress, elapsed, w, h) {
+    ctx.save();
+
+    const center = this._personCenter || { x: w / 2, y: h / 2 };
+    const shimmer = 0.6 + 0.4 * Math.sin(elapsed * 0.006);
+
+    // Pulse ring expanding outward from center
+    const ringRadius = 40 + progress * 120;
+    const ringAlpha = (1 - progress) * 0.5;
+    ctx.strokeStyle = `rgba(0, 255, 65, ${ringAlpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Full contour with shimmer
+    if (this._contour.length > 0) {
+      ctx.strokeStyle = `rgba(0, 255, 65, ${shimmer * 0.8})`;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < this._contour.length; i++) {
+        const p = this._contour[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // 4 scanning dots orbiting contour
+      const dotCount = 4;
+      const scanSpeed = elapsed * 0.002;
+      for (let d = 0; d < dotCount; d++) {
+        const t = (scanSpeed + d / dotCount) % 1;
+        const idx = Math.floor(t * this._contour.length);
+        const p = this._contour[idx % this._contour.length];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(180, 255, 200, ${shimmer})`;
+        ctx.fill();
+      }
+    }
+
+    // Mask overlay at higher intensity
+    if (this._maskOverlay) {
+      ctx.globalAlpha = shimmer * 0.25;
+      ctx.globalCompositeOperation = 'screen';
+      this._drawOverlay(ctx);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+
+    this._drawStatusText(ctx, 'SUBJECT LOCKED', w, h);
+  }
+
+  // ---- Rendering stub (filled in subsequent commit) ----
 
   _renderReveal(_ctx, _progress, _w, _h) {}
 
