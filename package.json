@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Chrome extension that adds image overlays to your Google Meet camera feed",
   "scripts": {
-    "dev:wall-art": "cd dev && npx vite",
+    "dev:wall-art": "npx vite prototype/multi-region-art --port 5173 --open",
     "dev:rich-content": "npx vite prototype/rich-content --port 5174 --open",
     "dev:region-content": "npx vite prototype/region-content --port 5176 --open",
     "test": "npm run test:unit && npm run test:integration",
