@@ -62,17 +62,11 @@ export default [
   },
   {
     // Large legacy files and dev environment — disable max-lines
-    // TODO: refactor these lib/ files to be under 300 lines
     files: [
       'prototype/multi-region-art/multi-region.js',
       'popup.js',
       'inject.js',
       'dev/**/*.js',
-      'lib/gif-decoder.js',
-      'lib/jiggle-compensator.js',
-      'lib/overlay-utils.js',
-      'lib/wall-region-editor.js',
-      'lib/wall-segmentation.js',
     ],
     rules: {
       'max-lines': 'off',
@@ -103,8 +97,23 @@ export default [
     },
   },
   {
-    // Inject.js runs in page context, not as module
-    files: ['inject.js'],
+    // Scripts injected into page context via content.js, not ES modules
+    files: [
+      'inject.js',
+      'lib/gif-decoder.js',
+      'lib/animated-image.js',
+      'lib/jiggle-compensator.js',
+      'lib/feature-tracking.js',
+      'lib/wall-region-editor.js',
+      'lib/wall-region-helpers.js',
+      'lib/wall-region-snapping.js',
+      'lib/segmentation-mask.js',
+      'lib/wall-detector.js',
+      'lib/edge-detector.js',
+      'lib/lighting-detector.js',
+      'lib/performance-monitor.js',
+      'lib/snap-engine.js',
+    ],
     languageOptions: {
       sourceType: 'script',
     },

@@ -28,14 +28,18 @@ function injectScript(src) {
     await injectScript('lib/wall-region.js');
     await injectScript('lib/wall-paint-renderer.js');
     await injectScript('lib/wall-art-renderer.js');
+    await injectScript('lib/segmentation-mask.js');
     await injectScript('lib/wall-segmentation.js');
     // Load edge detection and snapping before region editor (editor depends on them)
     await injectScript('lib/edge-detector.js');
     await injectScript('lib/snap-engine.js');
+    await injectScript('lib/wall-region-helpers.js');
+    await injectScript('lib/wall-region-snapping.js');
     await injectScript('lib/wall-region-editor.js');
     // Load performance monitor
     await injectScript('lib/performance-monitor.js');
-    // Load jiggle compensator
+    // Load feature tracking before jiggle compensator
+    await injectScript('lib/feature-tracking.js');
     await injectScript('lib/jiggle-compensator.js');
     // Load lighting detector
     await injectScript('lib/lighting-detector.js');
@@ -43,6 +47,7 @@ function injectScript(src) {
     await injectScript('lib/wall-detector.js');
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
+    await injectScript('lib/animated-image.js');
     await injectScript('inject.js');
 
     // Send initial overlays and wall art from chrome.storage to the injected script

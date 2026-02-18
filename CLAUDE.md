@@ -9,6 +9,11 @@ Manifest V3 Chrome extension that adds image overlays to your Google Meet camera
 - `popup.js` / `popup.html` — Extension popup UI
 - `background.js` — Service worker (ES module)
 - `lib/` — Shared modules: wall segmentation, detection, rendering, utilities
+  - `overlay-utils.js` + `overlay-factory.js` — Overlay constants/utils and factory/migration (ES modules)
+  - `gif-decoder.js` + `animated-image.js` — GIF decoding and animated playback (classic scripts)
+  - `feature-tracking.js` + `jiggle-compensator.js` — CV feature tracking and camera stabilization (classic scripts)
+  - `segmentation-mask.js` + `wall-segmentation.js` — Mask utilities and MediaPipe segmenter (classic script + ES module)
+  - `wall-region-helpers.js` + `wall-region-snapping.js` + `wall-region-editor.js` — Region editor (classic scripts)
 - `prototype/multi-region-art/` — Wall art prototype app (ES module, served via Vite)
   - `multi-region.js` — Main app (~4000 lines, legacy, max-lines disabled)
   - `effects/` — Transition effects extending `BaseEffect` (lifecycle: trigger -> active -> update -> render -> deactivate)
@@ -25,7 +30,7 @@ Manifest V3 Chrome extension that adds image overlays to your Google Meet camera
 
 ## Conventions
 
-- ES modules throughout, **except** `inject.js` which uses `sourceType: script`
+- ES modules throughout, **except** `inject.js` and classic script lib files which use `sourceType: script`
 - Max 300 lines per file (skip blank lines and comments)
 - Effects files (`prototype/multi-region-art/effects/`): max 350 lines
 - Legacy files exempt from max-lines: `multi-region.js`, `popup.js`, `inject.js`

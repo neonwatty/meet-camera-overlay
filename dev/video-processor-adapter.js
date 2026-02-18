@@ -4,7 +4,8 @@
  * Uses the same lib/ modules as production inject.js.
  */
 
-import { sortOverlaysByLayer, TYPE_EFFECT, TYPE_TEXT_BANNER, TYPE_TIMER } from '../lib/overlay-utils.js';
+import { TYPE_EFFECT, TYPE_TEXT_BANNER, TYPE_TIMER } from '../lib/overlay-utils.js';
+import { sortOverlaysByLayer } from '../lib/overlay-factory.js';
 import { drawOverlay, renderTextBanner, renderTimer } from '../lib/canvas-renderer.js';
 import { WallArtSegmenter, SEGMENTATION_PRESETS, checkSegmentationSupport } from '../lib/wall-segmentation.js';
 import { renderAllWallPaint } from '../lib/wall-paint-renderer.js';
