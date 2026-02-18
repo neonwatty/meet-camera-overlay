@@ -381,10 +381,14 @@
 
   // Load an image for a wall art overlay
   async function loadWallArtImage(wallArt) {
-    if (!wallArt.art || !wallArt.art.src) return;
+    if (!wallArt.art) return;
+
+    const contentType = wallArt.art.contentType || 'image';
+
+    // Slideshows and tabCapture don't need a src URL
+    if (!wallArt.art.src && contentType !== 'slideshow' && contentType !== 'tabCapture') return;
 
     const src = wallArt.art.src;
-    const contentType = wallArt.art.contentType || 'image';
 
     // Check if it's an animated GIF
     if (hasGifSupport && (contentType === 'gif' || window.isAnimatedGif(src))) {
@@ -417,6 +421,31 @@
       } catch (e) {
         console.error('[Meet Overlay] Failed to load wall art video:', e);
       }
+      return;
+    }
+
+    // Check if it's a slideshow
+    if (contentType === 'slideshow' && window.SlideshowPlayer) {
+      try {
+        console.log('[Meet Overlay] Loading wall art slideshow:', wallArt.id);
+        const slides = wallArt.art.slides || [];
+        if (slides.length >= 2) {
+          const player = new window.SlideshowPlayer(slides, {
+            intervalSeconds: wallArt.art.intervalSeconds,
+            transition: wallArt.art.transition,
+            transitionDurationMs: wallArt.art.transitionDurationMs,
+          });
+          wallArtImages.set(wallArt.id, player);
+          console.log('[Meet Overlay] Loaded slideshow with', slides.length, 'slides');
+        }
+      } catch (e) {
+        console.error('[Meet Overlay] Failed to create slideshow:', e);
+      }
+      return;
+    }
+
+    // Tab capture is loaded via START_TAB_CAPTURE message, not here
+    if (contentType === 'tabCapture') {
       return;
     }
 

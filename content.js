@@ -48,6 +48,7 @@ function injectScript(src) {
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('lib/animated-image.js');
+    await injectScript('lib/slideshow-player.js');
     await injectScript('inject.js');
 
     // Send initial overlays and wall art from chrome.storage to the injected script
