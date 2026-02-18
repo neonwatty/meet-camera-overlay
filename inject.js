@@ -34,6 +34,7 @@
   // Wall art state
   let wallArtOverlays = [];
   const wallArtImages = new Map(); // id -> HTMLImageElement, HTMLCanvasElement, or AnimatedImage
+  const tabCaptures = new Map(); // id -> TabCapture instance
   let wallArtSegmenter = null;
   const wallArtSettings = {
     segmentationEnabled: false,
@@ -381,10 +382,14 @@
 
   // Load an image for a wall art overlay
   async function loadWallArtImage(wallArt) {
-    if (!wallArt.art || !wallArt.art.src) return;
+    if (!wallArt.art) return;
+
+    const contentType = wallArt.art.contentType || 'image';
+
+    // Slideshows and tabCapture don't need a src URL
+    if (!wallArt.art.src && contentType !== 'slideshow' && contentType !== 'tabCapture') return;
 
     const src = wallArt.art.src;
-    const contentType = wallArt.art.contentType || 'image';
 
     // Check if it's an animated GIF
     if (hasGifSupport && (contentType === 'gif' || window.isAnimatedGif(src))) {
@@ -417,6 +422,31 @@
       } catch (e) {
         console.error('[Meet Overlay] Failed to load wall art video:', e);
       }
+      return;
+    }
+
+    // Check if it's a slideshow
+    if (contentType === 'slideshow' && window.SlideshowPlayer) {
+      try {
+        console.log('[Meet Overlay] Loading wall art slideshow:', wallArt.id);
+        const slides = wallArt.art.slides || [];
+        if (slides.length >= 2) {
+          const player = new window.SlideshowPlayer(slides, {
+            intervalSeconds: wallArt.art.intervalSeconds,
+            transition: wallArt.art.transition,
+            transitionDurationMs: wallArt.art.transitionDurationMs,
+          });
+          wallArtImages.set(wallArt.id, player);
+          console.log('[Meet Overlay] Loaded slideshow with', slides.length, 'slides');
+        }
+      } catch (e) {
+        console.error('[Meet Overlay] Failed to create slideshow:', e);
+      }
+      return;
+    }
+
+    // Tab capture is loaded via START_TAB_CAPTURE message, not here
+    if (contentType === 'tabCapture') {
       return;
     }
 
@@ -939,9 +969,11 @@
       console.log('[Meet Overlay] Received wall art update:', event.data.wallArtOverlays?.length || 0, 'overlays');
       wallArtOverlays = event.data.wallArtOverlays || [];
 
-      // Load any new art images
+      // Load any new art images (slideshows + tabCaptures lack .src)
       wallArtOverlays.forEach(wallArt => {
-        if (wallArt.art && wallArt.art.src && !wallArtImages.has(wallArt.id)) {
+        if (!wallArt.art || wallArtImages.has(wallArt.id)) return;
+        const ct = wallArt.art.contentType || 'image';
+        if (wallArt.art.src || ct === 'slideshow' || ct === 'tabCapture') {
           loadWallArtImage(wallArt);
         }
       });
@@ -950,6 +982,11 @@
       for (const id of wallArtImages.keys()) {
         if (!wallArtOverlays.find(wa => wa.id === id)) {
           wallArtImages.delete(id);
+          const capture = tabCaptures.get(id);
+          if (capture) {
+            capture.stop();
+            tabCaptures.delete(id);
+          }
         }
       }
     }
@@ -1168,6 +1205,64 @@
       console.log('[Meet Overlay] Hiding region editor');
       if (window.WallRegionEditor) {
         window.WallRegionEditor.hide();
+      }
+    }
+
+    // ==================== TAB CAPTURE MESSAGE HANDLERS ====================
+
+    if (event.data.type === 'START_TAB_CAPTURE') {
+      const wallArtId = event.data.wallArtId;
+      (async () => {
+        try {
+          const capture = new window.TabCapture();
+          const video = await capture.start();
+
+          if (capture.isMeetTab()) {
+            console.warn('[Meet Overlay] Cannot capture Meet tab — would cause recursion');
+            capture.stop();
+            window.postMessage({
+              source: 'meet-overlay-page',
+              type: 'TAB_CAPTURE_REJECTED',
+              wallArtId,
+              reason: 'Cannot capture the Meet tab itself',
+            }, '*');
+            return;
+          }
+
+          wallArtImages.set(wallArtId, video);
+          tabCaptures.set(wallArtId, capture);
+
+          capture.onEnded(() => {
+            console.log('[Meet Overlay] Tab capture ended for:', wallArtId);
+            wallArtImages.delete(wallArtId);
+            tabCaptures.delete(wallArtId);
+            window.postMessage({
+              source: 'meet-overlay-page',
+              type: 'TAB_CAPTURE_ENDED',
+              wallArtId,
+            }, '*');
+          });
+
+          console.log('[Meet Overlay] Tab capture started:', capture.tabName);
+          window.postMessage({
+            source: 'meet-overlay-page',
+            type: 'TAB_CAPTURE_STARTED',
+            wallArtId,
+            tabName: capture.tabName,
+          }, '*');
+        } catch (e) {
+          console.error('[Meet Overlay] Tab capture failed:', e);
+        }
+      })();
+    }
+
+    if (event.data.type === 'STOP_TAB_CAPTURE') {
+      const wallArtId = event.data.wallArtId;
+      const capture = tabCaptures.get(wallArtId);
+      if (capture) {
+        capture.stop();
+        wallArtImages.delete(wallArtId);
+        tabCaptures.delete(wallArtId);
       }
     }
 

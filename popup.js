@@ -38,6 +38,14 @@ let editingWallArtId = null;  // Track which wall art is being edited
 let selectedGalleryItem = null;  // Currently selected gallery item
 let galleryItems = [];  // Loaded gallery items
 
+// Slideshow state
+let slideshowImages = []; // Array of { src: dataUrl, name: string }
+
+// Tab capture state
+let _tabCaptureActive = false;
+let tabCaptureName = '';
+let tabCaptureWallArtId = null;
+
 // Bundled wall art definitions
 const BUNDLED_WALL_ART = [
   // Abstract (5)
@@ -182,6 +190,16 @@ const detectWallsBtn = document.getElementById('detect-walls');
 const galleryGrid = document.getElementById('gallery-grid');
 const artSourceUpload = document.getElementById('art-source-upload');
 const artSourceGallery = document.getElementById('art-source-gallery');
+const artSourceSlideshow = document.getElementById('art-source-slideshow');
+const artSourceLivetab = document.getElementById('art-source-livetab');
+
+// Live Tab DOM elements
+const livetabCaptureBtn = document.getElementById('livetab-capture-btn');
+const livetabStatus = document.getElementById('livetab-status');
+const livetabName = document.getElementById('livetab-name');
+const livetabStopBtn = document.getElementById('livetab-stop-btn');
+const livetabReconnect = document.getElementById('livetab-reconnect');
+const livetabReconnectBtn = document.getElementById('livetab-reconnect-btn');
 
 // Wall Art region editor state
 let wallArtRegion = null;
@@ -997,8 +1015,21 @@ function openWallArtModal(editId = null) {
   });
   if (artSourceUpload) artSourceUpload.classList.remove('hidden');
   if (artSourceGallery) artSourceGallery.classList.add('hidden');
+  if (artSourceSlideshow) artSourceSlideshow.classList.add('hidden');
+  if (artSourceLivetab) artSourceLivetab.classList.add('hidden');
   selectedGalleryItem = null;
   clearGallerySelection();
+
+  // Reset slideshow state
+  slideshowImages = [];
+  renderSlideshowList();
+
+  // Reset tab capture state
+  _tabCaptureActive = false;
+  tabCaptureName = '';
+  if (livetabCaptureBtn) livetabCaptureBtn.classList.remove('hidden');
+  if (livetabStatus) livetabStatus.classList.add('hidden');
+  if (livetabReconnect) livetabReconnect.classList.add('hidden');
 }
 
 // Gallery functions
@@ -1110,7 +1141,7 @@ function setupWallArtEventHandlers() {
     });
   });
 
-  // Art Source tabs (Upload/Gallery)
+  // Art Source tabs (Upload/Gallery/Slideshow/Live Tab)
   document.querySelectorAll('.art-source-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const source = tab.dataset.source;
@@ -1122,6 +1153,12 @@ function setupWallArtEventHandlers() {
       // Show/hide source content
       if (artSourceUpload) artSourceUpload.classList.toggle('hidden', source !== 'upload');
       if (artSourceGallery) artSourceGallery.classList.toggle('hidden', source !== 'gallery');
+      if (artSourceSlideshow) {
+        artSourceSlideshow.classList.toggle('hidden', source !== 'slideshow');
+      }
+      if (artSourceLivetab) {
+        artSourceLivetab.classList.toggle('hidden', source !== 'livetab');
+      }
 
       // Populate gallery when switching to it
       if (source === 'gallery') {
@@ -1132,7 +1169,7 @@ function setupWallArtEventHandlers() {
       if (source === 'upload') {
         selectedGalleryItem = null;
         clearGallerySelection();
-      } else {
+      } else if (source === 'gallery') {
         // Clear upload fields when switching to gallery
         if (wallArtImageUrl) wallArtImageUrl.value = '';
         if (wallArtImageFile) wallArtImageFile.value = '';
@@ -1154,6 +1191,12 @@ function setupWallArtEventHandlers() {
     });
   });
 
+  // Slideshow event listeners
+  initSlideshowListeners();
+
+  // Tab capture event listeners
+  initTabCaptureListeners();
+
   // Wall Art Modal cancel
   if (wallArtCancelBtn) {
     wallArtCancelBtn.addEventListener('click', () => {
@@ -1165,31 +1208,71 @@ function setupWallArtEventHandlers() {
   // Wall Art Modal confirm
   if (wallArtConfirmBtn) {
     wallArtConfirmBtn.addEventListener('click', async () => {
-      // Get art source (URL, file, or gallery selection)
-      let artSrc = wallArtImageUrl?.value || '';
-      let contentType = 'image';
+      // Check which art source tab is active
+      const activeSourceTab = document.querySelector('.art-source-tab.active');
+      const activeSource = activeSourceTab?.dataset?.source;
 
-      // Check if gallery item is selected
-      if (selectedGalleryItem) {
-        artSrc = selectedGalleryItem.src;
-        contentType = 'image';
-      }
-      // Check if file was uploaded
-      else if (wallArtImageFile?.files?.length > 0) {
-        const file = wallArtImageFile.files[0];
+      let artData = null;
 
-        // Detect content type from MIME type
-        if (file.type === 'image/gif') {
-          contentType = 'gif';
-        } else if (file.type.startsWith('video/')) {
-          contentType = 'video';
+      if (activeSource === 'livetab') {
+        // Live tab capture source
+        artData = {
+          contentType: 'tabCapture',
+          src: null,
+          name: tabCaptureName || 'Live Tab',
+        };
+      } else if (activeSource === 'slideshow') {
+        // Slideshow source
+        if (slideshowImages.length < 2) {
+          showStatus('Slideshow needs at least 2 images', 'error');
+          return;
+        }
+        const intervalVal = document.getElementById('slideshow-interval')?.value;
+        const transitionVal = document.getElementById('slideshow-transition')?.value;
+        artData = {
+          contentType: 'slideshow',
+          slides: slideshowImages.map(s => ({ src: s.src, name: s.name })),
+          intervalSeconds: parseInt(intervalVal || '30', 10),
+          transition: transitionVal || 'fade',
+          transitionDurationMs: 1000,
+          name: `Slideshow (${slideshowImages.length} images)`,
+        };
+      } else {
+        // Upload or Gallery source
+        let artSrc = wallArtImageUrl?.value || '';
+        let contentType = 'image';
+
+        // Check if gallery item is selected
+        if (selectedGalleryItem) {
+          artSrc = selectedGalleryItem.src;
+          contentType = 'image';
+        }
+        // Check if file was uploaded
+        else if (wallArtImageFile?.files?.length > 0) {
+          const file = wallArtImageFile.files[0];
+
+          // Detect content type from MIME type
+          if (file.type === 'image/gif') {
+            contentType = 'gif';
+          } else if (file.type.startsWith('video/')) {
+            contentType = 'video';
+          }
+
+          // Use Blob URL for large files (>2MB) or videos
+          if (file.size > 2 * 1024 * 1024 || contentType === 'video') {
+            artSrc = URL.createObjectURL(file);
+          } else {
+            artSrc = await readFileAsDataUrl(file);
+          }
         }
 
-        // Use Blob URL for large files (>2MB) or videos to avoid data URL limits
-        if (file.size > 2 * 1024 * 1024 || contentType === 'video') {
-          artSrc = URL.createObjectURL(file);
-        } else {
-          artSrc = await readFileAsDataUrl(file);
+        if (artSrc) {
+          artData = {
+            src: artSrc,
+            contentType,
+            aspectRatioMode: wallArtAspectMode?.value || 'stretch',
+            opacity: (wallArtArtOpacity?.value || 100) / 100
+          };
         }
       }
 
@@ -1200,12 +1283,7 @@ function setupWallArtEventHandlers() {
           color: wallArtPaintColor?.value || '#808080',
           opacity: (wallArtPaintOpacity?.value || 100) / 100
         } : null,
-        art: artSrc ? {
-          src: artSrc,
-          contentType,
-          aspectRatioMode: wallArtAspectMode?.value || 'stretch',
-          opacity: (wallArtArtOpacity?.value || 100) / 100
-        } : null,
+        art: artData,
         active: true
       };
 
@@ -1221,10 +1299,11 @@ function setupWallArtEventHandlers() {
         }
       } else {
         // Add new
+        const wallArtName = artData?.name || 'Wall Art Region';
         const newWallArt = {
           id: `wall-art-${generateId()}`,
           type: TYPE_WALL_ART,
-          name: `Wall Art Region`,
+          name: wallArtName,
           ...wallArtData,
           createdAt: Date.now(),
           updatedAt: Date.now()
@@ -1355,6 +1434,151 @@ function readFileAsDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// ==================== SLIDESHOW FUNCTIONS ====================
+
+// Resize image for storage (max 1280px dimension, JPEG quality 0.8)
+function resizeImageForStorage(dataUrl, maxDim = 1280, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('Failed to load image for resizing'));
+    img.src = dataUrl;
+  });
+}
+
+// Render slideshow thumbnail list in the modal
+function renderSlideshowList() {
+  const container = document.getElementById('slideshow-image-list');
+  if (!container) return;
+  container.innerHTML = '';
+  slideshowImages.forEach((slide, index) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'slideshow-thumb';
+    const img = document.createElement('img');
+    img.src = slide.src;
+    img.alt = slide.name;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-btn';
+    removeBtn.dataset.index = index;
+    removeBtn.textContent = '\u00d7';
+    removeBtn.addEventListener('click', () => {
+      slideshowImages.splice(index, 1);
+      renderSlideshowList();
+    });
+    thumb.appendChild(img);
+    thumb.appendChild(removeBtn);
+    container.appendChild(thumb);
+  });
+}
+
+// Initialize slideshow event listeners
+function initSlideshowListeners() {
+  const addBtn = document.getElementById('slideshow-add-btn');
+  const fileInput = document.getElementById('slideshow-add-images');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      fileInput?.click();
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      for (const file of files) {
+        if (slideshowImages.length >= 20) break;
+        const dataUrl = await readFileAsDataUrl(file);
+        const resized = await resizeImageForStorage(dataUrl);
+        slideshowImages.push({ src: resized, name: file.name });
+      }
+      renderSlideshowList();
+      e.target.value = ''; // reset file input
+    });
+  }
+}
+
+// ==================== END SLIDESHOW FUNCTIONS ====================
+
+// ==================== TAB CAPTURE FUNCTIONS ====================
+
+/**
+ * Initialize tab capture event listeners
+ */
+function initTabCaptureListeners() {
+  // Capture button — start capturing a tab
+  livetabCaptureBtn?.addEventListener('click', () => {
+    const wallArtId = editingWallArtId || 'pending';
+    chrome.runtime.sendMessage({
+      type: 'START_TAB_CAPTURE',
+      wallArtId,
+    });
+  });
+
+  // Stop button — stop the active capture
+  livetabStopBtn?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({
+      type: 'STOP_TAB_CAPTURE',
+      wallArtId: tabCaptureWallArtId,
+    });
+    _tabCaptureActive = false;
+    if (livetabStatus) livetabStatus.classList.add('hidden');
+    if (livetabCaptureBtn) livetabCaptureBtn.classList.remove('hidden');
+    if (livetabReconnect) livetabReconnect.classList.add('hidden');
+  });
+
+  // Reconnect button — re-start capture after stream ended
+  livetabReconnectBtn?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({
+      type: 'START_TAB_CAPTURE',
+      wallArtId: tabCaptureWallArtId || editingWallArtId || 'pending',
+    });
+    if (livetabReconnect) livetabReconnect.classList.add('hidden');
+  });
+}
+
+// Listen for tab capture status messages from background
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'TAB_CAPTURE_STARTED') {
+    _tabCaptureActive = true;
+    tabCaptureName = message.tabName || 'Unknown Tab';
+    tabCaptureWallArtId = message.wallArtId;
+    if (livetabCaptureBtn) livetabCaptureBtn.classList.add('hidden');
+    if (livetabStatus) livetabStatus.classList.remove('hidden');
+    if (livetabName) livetabName.textContent = tabCaptureName;
+    if (livetabReconnect) livetabReconnect.classList.add('hidden');
+  }
+
+  if (message.type === 'TAB_CAPTURE_ENDED') {
+    _tabCaptureActive = false;
+    if (livetabStatus) livetabStatus.classList.add('hidden');
+    if (livetabReconnect) livetabReconnect.classList.remove('hidden');
+    if (livetabCaptureBtn) livetabCaptureBtn.classList.add('hidden');
+  }
+
+  if (message.type === 'TAB_CAPTURE_REJECTED') {
+    _tabCaptureActive = false;
+    if (livetabCaptureBtn) livetabCaptureBtn.classList.remove('hidden');
+    if (livetabStatus) livetabStatus.classList.add('hidden');
+    showStatus(message.reason || 'Tab capture was rejected', 'error');
+  }
+});
+
+// ==================== END TAB CAPTURE FUNCTIONS ====================
 
 // Open region editor on Meet video
 async function openRegionEditorOnVideo() {

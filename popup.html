@@ -300,6 +300,8 @@
           <div class="art-source-tabs">
             <button type="button" class="art-source-tab active" data-source="upload">Upload</button>
             <button type="button" class="art-source-tab" data-source="gallery">Gallery</button>
+            <button type="button" class="art-source-tab" data-source="slideshow">Slideshow</button>
+            <button type="button" class="art-source-tab" data-source="livetab">Live Tab</button>
           </div>
 
           <!-- Upload Source Content -->
@@ -327,6 +329,74 @@
             </div>
             <div id="gallery-grid" class="gallery-grid">
               <!-- Gallery items populated by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Slideshow Source Content -->
+          <div id="art-source-slideshow" class="art-source-content hidden">
+            <div class="form-group">
+              <label>Images (2-20)</label>
+              <div id="slideshow-image-list" class="slideshow-image-list">
+                <!-- Populated by JS -->
+              </div>
+              <input type="file" id="slideshow-add-images" accept="image/*,.gif" multiple
+                     style="display:none">
+              <button type="button" id="slideshow-add-btn" class="btn btn-secondary btn-small">
+                Add Images
+              </button>
+            </div>
+            <div class="form-row">
+              <div class="form-group form-group-half">
+                <label>Interval</label>
+                <select id="slideshow-interval">
+                  <option value="10">10 seconds</option>
+                  <option value="15">15 seconds</option>
+                  <option value="30" selected>30 seconds</option>
+                  <option value="60">1 minute</option>
+                  <option value="120">2 minutes</option>
+                </select>
+              </div>
+              <div class="form-group form-group-half">
+                <label>Transition</label>
+                <select id="slideshow-transition">
+                  <option value="fade">Fade</option>
+                  <option value="slide-left">Slide Left</option>
+                  <option value="none">None (cut)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Tab Source Content -->
+          <div id="art-source-livetab" class="art-source-content hidden">
+            <div class="form-group">
+              <p class="help-text"
+                 style="margin-bottom: 10px; color: #aaa; font-size: 12px;">
+                Capture any browser tab and display it live in this region —
+                YouTube, dashboards, websites, anything.
+              </p>
+              <button type="button" id="livetab-capture-btn"
+                      class="btn btn-primary">
+                Select a Tab to Capture
+              </button>
+              <div id="livetab-status" class="livetab-status hidden">
+                <span class="livetab-badge">LIVE</span>
+                <span id="livetab-name"
+                      style="margin: 0 8px; font-size: 12px;"></span>
+                <button type="button" id="livetab-stop-btn"
+                        class="btn btn-small"
+                        style="background:#e53e3e;">Stop</button>
+              </div>
+              <div id="livetab-reconnect"
+                   class="livetab-reconnect hidden">
+                <p style="color: #aaa; font-size: 12px; margin-bottom: 8px;">
+                  Tab closed or stream ended.
+                </p>
+                <button type="button" id="livetab-reconnect-btn"
+                        class="btn btn-secondary">
+                  Reconnect
+                </button>
+              </div>
             </div>
           </div>
 

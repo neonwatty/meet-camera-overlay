@@ -1,4 +1,3 @@
-/* global HTMLVideoElement */
 /**
  * Development VideoProcessor adapter.
  * Uses the same lib/ modules as production inject.js.

@@ -48,6 +48,8 @@ function injectScript(src) {
     // Then existing scripts
     await injectScript('lib/gif-decoder.js');
     await injectScript('lib/animated-image.js');
+    await injectScript('lib/slideshow-player.js');
+    await injectScript('lib/tab-capture.js');
     await injectScript('inject.js');
 
     // Send initial overlays and wall art from chrome.storage to the injected script
@@ -168,6 +170,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     window.postMessage({
       type: 'MEET_OVERLAY_UPDATE_WALL_ART_SETTINGS',
       settings: message.settings
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  // Tab capture message handlers
+  if (message.type === 'START_TAB_CAPTURE') {
+    window.postMessage({
+      type: 'START_TAB_CAPTURE',
+      wallArtId: message.wallArtId
+    }, '*');
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'STOP_TAB_CAPTURE') {
+    window.postMessage({
+      type: 'STOP_TAB_CAPTURE',
+      wallArtId: message.wallArtId
     }, '*');
     sendResponse({ success: true });
   }
@@ -303,6 +322,30 @@ window.addEventListener('message', (event) => {
       type: 'REGION_EDITOR_UPDATE',
       region: event.data.region,
       wallArtId: event.data.wallArtId
+    }).catch(() => {});
+  }
+
+  // Forward tab capture events back to popup
+  if (event.data.source === 'meet-overlay-page' && event.data.type === 'TAB_CAPTURE_STARTED') {
+    chrome.runtime.sendMessage({
+      type: 'TAB_CAPTURE_STARTED',
+      wallArtId: event.data.wallArtId,
+      tabName: event.data.tabName
+    }).catch(() => {});
+  }
+
+  if (event.data.source === 'meet-overlay-page' && event.data.type === 'TAB_CAPTURE_ENDED') {
+    chrome.runtime.sendMessage({
+      type: 'TAB_CAPTURE_ENDED',
+      wallArtId: event.data.wallArtId
+    }).catch(() => {});
+  }
+
+  if (event.data.source === 'meet-overlay-page' && event.data.type === 'TAB_CAPTURE_REJECTED') {
+    chrome.runtime.sendMessage({
+      type: 'TAB_CAPTURE_REJECTED',
+      wallArtId: event.data.wallArtId,
+      reason: event.data.reason
     }).catch(() => {});
   }
 });
