@@ -301,6 +301,7 @@
             <button type="button" class="art-source-tab active" data-source="upload">Upload</button>
             <button type="button" class="art-source-tab" data-source="gallery">Gallery</button>
             <button type="button" class="art-source-tab" data-source="slideshow">Slideshow</button>
+            <button type="button" class="art-source-tab" data-source="livetab">Live Tab</button>
           </div>
 
           <!-- Upload Source Content -->
@@ -362,6 +363,39 @@
                   <option value="slide-left">Slide Left</option>
                   <option value="none">None (cut)</option>
                 </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Tab Source Content -->
+          <div id="art-source-livetab" class="art-source-content hidden">
+            <div class="form-group">
+              <p class="help-text"
+                 style="margin-bottom: 10px; color: #aaa; font-size: 12px;">
+                Capture any browser tab and display it live in this region —
+                YouTube, dashboards, websites, anything.
+              </p>
+              <button type="button" id="livetab-capture-btn"
+                      class="btn btn-primary">
+                Select a Tab to Capture
+              </button>
+              <div id="livetab-status" class="livetab-status hidden">
+                <span class="livetab-badge">LIVE</span>
+                <span id="livetab-name"
+                      style="margin: 0 8px; font-size: 12px;"></span>
+                <button type="button" id="livetab-stop-btn"
+                        class="btn btn-small"
+                        style="background:#e53e3e;">Stop</button>
+              </div>
+              <div id="livetab-reconnect"
+                   class="livetab-reconnect hidden">
+                <p style="color: #aaa; font-size: 12px; margin-bottom: 8px;">
+                  Tab closed or stream ended.
+                </p>
+                <button type="button" id="livetab-reconnect-btn"
+                        class="btn btn-secondary">
+                  Reconnect
+                </button>
               </div>
             </div>
           </div>
