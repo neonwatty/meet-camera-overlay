@@ -582,7 +582,9 @@
         sortedOverlays.forEach(overlay => {
           // Check if overlay should be rendered
           // Effects, text banners, and timers only render when active
-          if ((overlay.type === TYPE_EFFECT || overlay.type === TYPE_TEXT_BANNER || overlay.type === TYPE_TIMER) && !overlay.active) {
+          const isToggleable = overlay.type === TYPE_EFFECT
+            || overlay.type === TYPE_TEXT_BANNER || overlay.type === TYPE_TIMER;
+          if (isToggleable && !overlay.active) {
             return;
           }
 

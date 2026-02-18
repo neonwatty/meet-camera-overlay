@@ -44,13 +44,13 @@ export default [
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always'],
-      'max-len': ['warn', {
+      'max-len': ['error', {
         code: 120,
         ignoreUrls: true,
         ignoreStrings: true,
         ignoreTemplateLiterals: true,
       }],
-      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
   {
@@ -61,11 +61,18 @@ export default [
     },
   },
   {
-    // Large legacy files — disable max-lines
+    // Large legacy files and dev environment — disable max-lines
+    // TODO: refactor these lib/ files to be under 300 lines
     files: [
       'prototype/multi-region-art/multi-region.js',
       'popup.js',
       'inject.js',
+      'dev/**/*.js',
+      'lib/gif-decoder.js',
+      'lib/jiggle-compensator.js',
+      'lib/overlay-utils.js',
+      'lib/wall-region-editor.js',
+      'lib/wall-segmentation.js',
     ],
     rules: {
       'max-lines': 'off',
@@ -79,6 +86,9 @@ export default [
         process: 'readonly',
         __dirname: 'readonly',
       },
+    },
+    rules: {
+      'max-lines': 'off',
     },
   },
   {
