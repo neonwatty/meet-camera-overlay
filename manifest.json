@@ -45,6 +45,7 @@
         "lib/gif-decoder.js",
         "lib/animated-image.js",
         "lib/slideshow-player.js",
+        "lib/tab-capture.js",
         "lib/segmentation-mask.js",
         "lib/wall-segmentation.js",
         "lib/wall-region.js",

@@ -34,6 +34,7 @@
   // Wall art state
   let wallArtOverlays = [];
   const wallArtImages = new Map(); // id -> HTMLImageElement, HTMLCanvasElement, or AnimatedImage
+  const tabCaptures = new Map(); // id -> TabCapture instance
   let wallArtSegmenter = null;
   const wallArtSettings = {
     segmentationEnabled: false,
@@ -1197,6 +1198,58 @@
       console.log('[Meet Overlay] Hiding region editor');
       if (window.WallRegionEditor) {
         window.WallRegionEditor.hide();
+      }
+    }
+
+    // ==================== TAB CAPTURE MESSAGE HANDLERS ====================
+
+    if (event.data.type === 'START_TAB_CAPTURE') {
+      const wallArtId = event.data.wallArtId;
+      (async () => {
+        try {
+          const capture = new window.TabCapture();
+          const video = await capture.start();
+
+          if (capture.isMeetTab()) {
+            console.warn('[Meet Overlay] Cannot capture Meet tab — would cause recursion');
+            capture.stop();
+            return;
+          }
+
+          wallArtImages.set(wallArtId, video);
+          tabCaptures.set(wallArtId, capture);
+
+          capture.onEnded(() => {
+            console.log('[Meet Overlay] Tab capture ended for:', wallArtId);
+            wallArtImages.delete(wallArtId);
+            tabCaptures.delete(wallArtId);
+            window.postMessage({
+              source: 'meet-overlay-page',
+              type: 'TAB_CAPTURE_ENDED',
+              wallArtId,
+            }, '*');
+          });
+
+          console.log('[Meet Overlay] Tab capture started:', capture.tabName);
+          window.postMessage({
+            source: 'meet-overlay-page',
+            type: 'TAB_CAPTURE_STARTED',
+            wallArtId,
+            tabName: capture.tabName,
+          }, '*');
+        } catch (e) {
+          console.error('[Meet Overlay] Tab capture failed:', e);
+        }
+      })();
+    }
+
+    if (event.data.type === 'STOP_TAB_CAPTURE') {
+      const wallArtId = event.data.wallArtId;
+      const capture = tabCaptures.get(wallArtId);
+      if (capture) {
+        capture.stop();
+        wallArtImages.delete(wallArtId);
+        tabCaptures.delete(wallArtId);
       }
     }
 
