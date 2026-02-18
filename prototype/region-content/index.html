@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Region Content Prototype</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <video id="webcam" autoplay playsinline muted hidden></video>
+
+  <div class="app">
+    <div class="canvas-area">
+      <canvas id="preview" width="1280" height="720"></canvas>
+    </div>
+
+    <aside class="sidebar">
+      <h1 class="sidebar-title">Region Content</h1>
+
+      <!-- Mode selector -->
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="slideshow">Slideshow</button>
+        <button class="mode-tab" data-mode="tabCapture">Live Tab</button>
+      </div>
+
+      <!-- Slideshow panel -->
+      <div id="slideshow-panel" class="panel">
+        <label class="field-label">
+          Interval
+          <select id="interval">
+            <option value="5">5 s</option>
+            <option value="10">10 s</option>
+            <option value="15">15 s</option>
+            <option value="30" selected>30 s</option>
+            <option value="60">60 s</option>
+          </select>
+        </label>
+
+        <label class="field-label">
+          Transition
+          <select id="transition">
+            <option value="fade" selected>Fade</option>
+            <option value="slide-left">Slide Left</option>
+            <option value="none">None (cut)</option>
+          </select>
+        </label>
+
+        <button id="add-images" class="btn">Add Images...</button>
+        <input type="file" id="file-input" accept="image/*" multiple hidden />
+
+        <div id="slide-list" class="slide-list"></div>
+      </div>
+
+      <!-- Tab capture panel -->
+      <div id="tab-capture-panel" class="panel hidden">
+        <button id="start-capture" class="btn btn-accent">Select Tab</button>
+        <div id="capture-status" class="capture-status hidden">
+          <span class="live-badge">LIVE</span>
+          <span id="tab-name" class="tab-name"></span>
+          <button id="stop-capture" class="btn btn-small btn-danger">Stop</button>
+        </div>
+      </div>
+
+      <!-- Region controls -->
+      <div id="region-panel" class="panel region-panel">
+        <div class="region-info">Drag corners to reshape. Drag inside to move.</div>
+        <button id="reset-region" class="btn">Reset Position</button>
+      </div>
+
+      <!-- Segmentation -->
+      <div class="panel segmentation-panel">
+        <label class="toggle-label">
+          <input type="checkbox" id="segmentation-toggle" checked />
+          Person Occlusion
+        </label>
+        <div id="segmentation-status" class="seg-status">
+          <span class="seg-dot loading"></span>
+          <span id="seg-text">Initializing...</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

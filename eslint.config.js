@@ -36,6 +36,7 @@ export default [
         clearInterval: 'readonly',
         performance: 'readonly',
         HTMLCanvasElement: 'readonly',
+        HTMLVideoElement: 'readonly',
       },
     },
     rules: {
