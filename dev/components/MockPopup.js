@@ -3,7 +3,7 @@
  * Minimal overlay management UI for dev environment.
  */
 
-import { createOverlay, createTextBanner, createTimer } from '../../lib/overlay-utils.js';
+import { createOverlay, createTextBanner, createTimer } from '../../lib/overlay-factory.js';
 
 let api = null;
 

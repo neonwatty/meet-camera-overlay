@@ -3,21 +3,23 @@ import {
   fitImageInBox,
   calculateOverlayPosition,
   validateOverlay,
-  generateId,
-  createOverlay,
-  createEffect,
   isEffect,
   shouldRender,
-  migrateOverlay,
-  migrateOverlays,
-  sortOverlaysByLayer,
-  duplicateOverlay,
-  recalculateZIndices,
   CATEGORY_USER,
   CATEGORY_BUNDLED,
   LAYER_FOREGROUND,
   LAYER_BACKGROUND
 } from '../../lib/overlay-utils.js';
+import {
+  generateId,
+  createOverlay,
+  createEffect,
+  migrateOverlay,
+  migrateOverlays,
+  sortOverlaysByLayer,
+  duplicateOverlay,
+  recalculateZIndices
+} from '../../lib/overlay-factory.js';
 
 describe('fitImageInBox', () => {
   it('fits a wider image to box width', () => {
