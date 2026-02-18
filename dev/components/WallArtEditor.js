@@ -506,7 +506,9 @@ function renderEditorPreview() {
 
   // Match canvas size to processor canvas
   const processorCanvas = processor.canvas;
-  if (processorCanvas && (editorCanvas.width !== processorCanvas.width || editorCanvas.height !== processorCanvas.height)) {
+  const sizeChanged = editorCanvas.width !== processorCanvas.width
+    || editorCanvas.height !== processorCanvas.height;
+  if (processorCanvas && sizeChanged) {
     editorCanvas.width = processorCanvas.width;
     editorCanvas.height = processorCanvas.height;
   }

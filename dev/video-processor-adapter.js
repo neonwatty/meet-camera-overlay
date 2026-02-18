@@ -107,7 +107,8 @@ export class DevVideoProcessor {
   /**
    * Register an art source for a wall art overlay.
    * @param {string} id - Wall art overlay ID
-   * @param {HTMLImageElement|HTMLCanvasElement|HTMLVideoElement|Object} source - Art source (image, AnimatedImage, or video)
+   * @param {HTMLImageElement|HTMLCanvasElement|HTMLVideoElement|Object} source
+   *   Art source (image, AnimatedImage, or video)
    */
   setWallArtSource(id, source) {
     this.wallArtSources.set(id, source);
@@ -326,7 +327,9 @@ export class DevVideoProcessor {
       // Render each overlay
       sortedOverlays.forEach(overlay => {
         // Skip inactive effects/text/timers
-        if ((overlay.type === TYPE_EFFECT || overlay.type === TYPE_TEXT_BANNER || overlay.type === TYPE_TIMER) && !overlay.active) {
+        const isToggleable = overlay.type === TYPE_EFFECT
+          || overlay.type === TYPE_TEXT_BANNER || overlay.type === TYPE_TIMER;
+        if (isToggleable && !overlay.active) {
           return;
         }
 
