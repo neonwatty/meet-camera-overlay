@@ -300,6 +300,7 @@
           <div class="art-source-tabs">
             <button type="button" class="art-source-tab active" data-source="upload">Upload</button>
             <button type="button" class="art-source-tab" data-source="gallery">Gallery</button>
+            <button type="button" class="art-source-tab" data-source="slideshow">Slideshow</button>
           </div>
 
           <!-- Upload Source Content -->
@@ -327,6 +328,41 @@
             </div>
             <div id="gallery-grid" class="gallery-grid">
               <!-- Gallery items populated by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Slideshow Source Content -->
+          <div id="art-source-slideshow" class="art-source-content hidden">
+            <div class="form-group">
+              <label>Images (2-20)</label>
+              <div id="slideshow-image-list" class="slideshow-image-list">
+                <!-- Populated by JS -->
+              </div>
+              <input type="file" id="slideshow-add-images" accept="image/*,.gif" multiple
+                     style="display:none">
+              <button type="button" id="slideshow-add-btn" class="btn btn-secondary btn-small">
+                Add Images
+              </button>
+            </div>
+            <div class="form-row">
+              <div class="form-group form-group-half">
+                <label>Interval</label>
+                <select id="slideshow-interval">
+                  <option value="10">10 seconds</option>
+                  <option value="15">15 seconds</option>
+                  <option value="30" selected>30 seconds</option>
+                  <option value="60">1 minute</option>
+                  <option value="120">2 minutes</option>
+                </select>
+              </div>
+              <div class="form-group form-group-half">
+                <label>Transition</label>
+                <select id="slideshow-transition">
+                  <option value="fade">Fade</option>
+                  <option value="slide-left">Slide Left</option>
+                  <option value="none">None (cut)</option>
+                </select>
+              </div>
             </div>
           </div>
 

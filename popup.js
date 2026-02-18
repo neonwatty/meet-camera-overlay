@@ -38,6 +38,9 @@ let editingWallArtId = null;  // Track which wall art is being edited
 let selectedGalleryItem = null;  // Currently selected gallery item
 let galleryItems = [];  // Loaded gallery items
 
+// Slideshow state
+let slideshowImages = []; // Array of { src: dataUrl, name: string }
+
 // Bundled wall art definitions
 const BUNDLED_WALL_ART = [
   // Abstract (5)
@@ -182,6 +185,7 @@ const detectWallsBtn = document.getElementById('detect-walls');
 const galleryGrid = document.getElementById('gallery-grid');
 const artSourceUpload = document.getElementById('art-source-upload');
 const artSourceGallery = document.getElementById('art-source-gallery');
+const artSourceSlideshow = document.getElementById('art-source-slideshow');
 
 // Wall Art region editor state
 let wallArtRegion = null;
@@ -997,8 +1001,13 @@ function openWallArtModal(editId = null) {
   });
   if (artSourceUpload) artSourceUpload.classList.remove('hidden');
   if (artSourceGallery) artSourceGallery.classList.add('hidden');
+  if (artSourceSlideshow) artSourceSlideshow.classList.add('hidden');
   selectedGalleryItem = null;
   clearGallerySelection();
+
+  // Reset slideshow state
+  slideshowImages = [];
+  renderSlideshowList();
 }
 
 // Gallery functions
@@ -1110,7 +1119,7 @@ function setupWallArtEventHandlers() {
     });
   });
 
-  // Art Source tabs (Upload/Gallery)
+  // Art Source tabs (Upload/Gallery/Slideshow)
   document.querySelectorAll('.art-source-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const source = tab.dataset.source;
@@ -1122,6 +1131,9 @@ function setupWallArtEventHandlers() {
       // Show/hide source content
       if (artSourceUpload) artSourceUpload.classList.toggle('hidden', source !== 'upload');
       if (artSourceGallery) artSourceGallery.classList.toggle('hidden', source !== 'gallery');
+      if (artSourceSlideshow) {
+        artSourceSlideshow.classList.toggle('hidden', source !== 'slideshow');
+      }
 
       // Populate gallery when switching to it
       if (source === 'gallery') {
@@ -1132,7 +1144,7 @@ function setupWallArtEventHandlers() {
       if (source === 'upload') {
         selectedGalleryItem = null;
         clearGallerySelection();
-      } else {
+      } else if (source === 'gallery') {
         // Clear upload fields when switching to gallery
         if (wallArtImageUrl) wallArtImageUrl.value = '';
         if (wallArtImageFile) wallArtImageFile.value = '';
@@ -1154,6 +1166,9 @@ function setupWallArtEventHandlers() {
     });
   });
 
+  // Slideshow event listeners
+  initSlideshowListeners();
+
   // Wall Art Modal cancel
   if (wallArtCancelBtn) {
     wallArtCancelBtn.addEventListener('click', () => {
@@ -1165,31 +1180,64 @@ function setupWallArtEventHandlers() {
   // Wall Art Modal confirm
   if (wallArtConfirmBtn) {
     wallArtConfirmBtn.addEventListener('click', async () => {
-      // Get art source (URL, file, or gallery selection)
-      let artSrc = wallArtImageUrl?.value || '';
-      let contentType = 'image';
+      // Check which art source tab is active
+      const activeSourceTab = document.querySelector('.art-source-tab.active');
+      const activeSource = activeSourceTab?.dataset?.source;
 
-      // Check if gallery item is selected
-      if (selectedGalleryItem) {
-        artSrc = selectedGalleryItem.src;
-        contentType = 'image';
-      }
-      // Check if file was uploaded
-      else if (wallArtImageFile?.files?.length > 0) {
-        const file = wallArtImageFile.files[0];
+      let artData = null;
 
-        // Detect content type from MIME type
-        if (file.type === 'image/gif') {
-          contentType = 'gif';
-        } else if (file.type.startsWith('video/')) {
-          contentType = 'video';
+      if (activeSource === 'slideshow') {
+        // Slideshow source
+        if (slideshowImages.length < 2) {
+          showStatus('Slideshow needs at least 2 images', 'error');
+          return;
+        }
+        const intervalVal = document.getElementById('slideshow-interval')?.value;
+        const transitionVal = document.getElementById('slideshow-transition')?.value;
+        artData = {
+          contentType: 'slideshow',
+          slides: slideshowImages.map(s => ({ src: s.src, name: s.name })),
+          intervalSeconds: parseInt(intervalVal || '30', 10),
+          transition: transitionVal || 'fade',
+          transitionDurationMs: 1000,
+          name: `Slideshow (${slideshowImages.length} images)`,
+        };
+      } else {
+        // Upload or Gallery source
+        let artSrc = wallArtImageUrl?.value || '';
+        let contentType = 'image';
+
+        // Check if gallery item is selected
+        if (selectedGalleryItem) {
+          artSrc = selectedGalleryItem.src;
+          contentType = 'image';
+        }
+        // Check if file was uploaded
+        else if (wallArtImageFile?.files?.length > 0) {
+          const file = wallArtImageFile.files[0];
+
+          // Detect content type from MIME type
+          if (file.type === 'image/gif') {
+            contentType = 'gif';
+          } else if (file.type.startsWith('video/')) {
+            contentType = 'video';
+          }
+
+          // Use Blob URL for large files (>2MB) or videos
+          if (file.size > 2 * 1024 * 1024 || contentType === 'video') {
+            artSrc = URL.createObjectURL(file);
+          } else {
+            artSrc = await readFileAsDataUrl(file);
+          }
         }
 
-        // Use Blob URL for large files (>2MB) or videos to avoid data URL limits
-        if (file.size > 2 * 1024 * 1024 || contentType === 'video') {
-          artSrc = URL.createObjectURL(file);
-        } else {
-          artSrc = await readFileAsDataUrl(file);
+        if (artSrc) {
+          artData = {
+            src: artSrc,
+            contentType,
+            aspectRatioMode: wallArtAspectMode?.value || 'stretch',
+            opacity: (wallArtArtOpacity?.value || 100) / 100
+          };
         }
       }
 
@@ -1200,12 +1248,7 @@ function setupWallArtEventHandlers() {
           color: wallArtPaintColor?.value || '#808080',
           opacity: (wallArtPaintOpacity?.value || 100) / 100
         } : null,
-        art: artSrc ? {
-          src: artSrc,
-          contentType,
-          aspectRatioMode: wallArtAspectMode?.value || 'stretch',
-          opacity: (wallArtArtOpacity?.value || 100) / 100
-        } : null,
+        art: artData,
         active: true
       };
 
@@ -1221,10 +1264,11 @@ function setupWallArtEventHandlers() {
         }
       } else {
         // Add new
+        const wallArtName = artData?.name || 'Wall Art Region';
         const newWallArt = {
           id: `wall-art-${generateId()}`,
           type: TYPE_WALL_ART,
-          name: `Wall Art Region`,
+          name: wallArtName,
           ...wallArtData,
           createdAt: Date.now(),
           updatedAt: Date.now()
@@ -1355,6 +1399,84 @@ function readFileAsDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// ==================== SLIDESHOW FUNCTIONS ====================
+
+// Resize image for storage (max 1280px dimension, JPEG quality 0.8)
+function resizeImageForStorage(dataUrl, maxDim = 1280, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// Render slideshow thumbnail list in the modal
+function renderSlideshowList() {
+  const container = document.getElementById('slideshow-image-list');
+  if (!container) return;
+  container.innerHTML = '';
+  slideshowImages.forEach((slide, index) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'slideshow-thumb';
+    const img = document.createElement('img');
+    img.src = slide.src;
+    img.alt = slide.name;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-btn';
+    removeBtn.dataset.index = index;
+    removeBtn.textContent = '\u00d7';
+    removeBtn.addEventListener('click', () => {
+      slideshowImages.splice(index, 1);
+      renderSlideshowList();
+    });
+    thumb.appendChild(img);
+    thumb.appendChild(removeBtn);
+    container.appendChild(thumb);
+  });
+}
+
+// Initialize slideshow event listeners
+function initSlideshowListeners() {
+  const addBtn = document.getElementById('slideshow-add-btn');
+  const fileInput = document.getElementById('slideshow-add-images');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      fileInput?.click();
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      for (const file of files) {
+        if (slideshowImages.length >= 20) break;
+        const dataUrl = await readFileAsDataUrl(file);
+        const resized = await resizeImageForStorage(dataUrl);
+        slideshowImages.push({ src: resized, name: file.name });
+      }
+      renderSlideshowList();
+      e.target.value = ''; // reset file input
+    });
+  }
+}
+
+// ==================== END SLIDESHOW FUNCTIONS ====================
 
 // Open region editor on Meet video
 async function openRegionEditorOnVideo() {
