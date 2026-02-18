@@ -1439,7 +1439,7 @@ function readFileAsDataUrl(file) {
 
 // Resize image for storage (max 1280px dimension, JPEG quality 0.8)
 function resizeImageForStorage(dataUrl, maxDim = 1280, quality = 0.8) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       let { width, height } = img;
@@ -1455,6 +1455,7 @@ function resizeImageForStorage(dataUrl, maxDim = 1280, quality = 0.8) {
       ctx.drawImage(img, 0, 0, width, height);
       resolve(canvas.toDataURL('image/jpeg', quality));
     };
+    img.onerror = () => reject(new Error('Failed to load image for resizing'));
     img.src = dataUrl;
   });
 }
@@ -1567,6 +1568,13 @@ chrome.runtime.onMessage.addListener((message) => {
     if (livetabStatus) livetabStatus.classList.add('hidden');
     if (livetabReconnect) livetabReconnect.classList.remove('hidden');
     if (livetabCaptureBtn) livetabCaptureBtn.classList.add('hidden');
+  }
+
+  if (message.type === 'TAB_CAPTURE_REJECTED') {
+    _tabCaptureActive = false;
+    if (livetabCaptureBtn) livetabCaptureBtn.classList.remove('hidden');
+    if (livetabStatus) livetabStatus.classList.add('hidden');
+    showStatus(message.reason || 'Tab capture was rejected', 'error');
   }
 });
 

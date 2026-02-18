@@ -340,6 +340,14 @@ window.addEventListener('message', (event) => {
       wallArtId: event.data.wallArtId
     }).catch(() => {});
   }
+
+  if (event.data.source === 'meet-overlay-page' && event.data.type === 'TAB_CAPTURE_REJECTED') {
+    chrome.runtime.sendMessage({
+      type: 'TAB_CAPTURE_REJECTED',
+      wallArtId: event.data.wallArtId,
+      reason: event.data.reason
+    }).catch(() => {});
+  }
 });
 
 console.log('[Meet Overlay] Content script initialized');

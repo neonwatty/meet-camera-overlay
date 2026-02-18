@@ -969,9 +969,11 @@
       console.log('[Meet Overlay] Received wall art update:', event.data.wallArtOverlays?.length || 0, 'overlays');
       wallArtOverlays = event.data.wallArtOverlays || [];
 
-      // Load any new art images
+      // Load any new art images (slideshows + tabCaptures lack .src)
       wallArtOverlays.forEach(wallArt => {
-        if (wallArt.art && wallArt.art.src && !wallArtImages.has(wallArt.id)) {
+        if (!wallArt.art || wallArtImages.has(wallArt.id)) return;
+        const ct = wallArt.art.contentType || 'image';
+        if (wallArt.art.src || ct === 'slideshow' || ct === 'tabCapture') {
           loadWallArtImage(wallArt);
         }
       });
@@ -980,6 +982,11 @@
       for (const id of wallArtImages.keys()) {
         if (!wallArtOverlays.find(wa => wa.id === id)) {
           wallArtImages.delete(id);
+          const capture = tabCaptures.get(id);
+          if (capture) {
+            capture.stop();
+            tabCaptures.delete(id);
+          }
         }
       }
     }
@@ -1213,6 +1220,12 @@
           if (capture.isMeetTab()) {
             console.warn('[Meet Overlay] Cannot capture Meet tab — would cause recursion');
             capture.stop();
+            window.postMessage({
+              source: 'meet-overlay-page',
+              type: 'TAB_CAPTURE_REJECTED',
+              wallArtId,
+              reason: 'Cannot capture the Meet tab itself',
+            }, '*');
             return;
           }
 
