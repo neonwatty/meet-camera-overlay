@@ -6,6 +6,7 @@
     "dev:wall-art": "npx vite prototype/multi-region-art --port 5173 --open",
     "dev:rich-content": "npx vite prototype/rich-content --port 5174 --open",
     "dev:region-content": "npx vite prototype/region-content --port 5176 --open",
+    "dev:unified-effects": "npx vite prototype/unified-effects --open",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
