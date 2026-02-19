@@ -270,6 +270,8 @@ export class TransitionEffectManager {
   triggerFirstSegmentation(personMask, maskW, maskH, canvasW, canvasH, timestamp) {
     if (this._firstSegmentationFired) return;
     this._firstSegmentationFired = true;
+    this._canvasW = canvasW;
+    this._canvasH = canvasH;
     this.updateContourCache(personMask, maskW, maskH, canvasW, canvasH);
     if (!this._lastContour) return;
     this.triggerEffect('meshShimmer', timestamp);

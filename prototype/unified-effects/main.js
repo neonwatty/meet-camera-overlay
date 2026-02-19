@@ -70,6 +70,10 @@ const tempCtx = tempCanvas.getContext('2d');
 const manager = new TransitionEffectManager();
 const scannerSequence = new ScannerSequence();
 
+// Debug: expose for console inspection
+window.__manager = manager;
+window.__state = state;
+
 // ============================================
 // Initialization
 // ============================================
@@ -258,12 +262,14 @@ function renderLoop(timestamp) {
 
   // 4. Stabilization
   if (state.stabilizationEnabled && state.jiggle) {
-    if (!state.jiggleInitialized && personMask) {
-      state.jiggle.initialize(elements.webcam, personMask);
-      state.jiggleInitialized = true;
-    } else if (state.jiggleInitialized) {
-      state.jiggle.process(elements.webcam, personMask);
-    }
+    try {
+      if (!state.jiggleInitialized && personMask) {
+        state.jiggle.initialize(elements.webcam, personMask);
+        state.jiggleInitialized = true;
+      } else if (state.jiggleInitialized) {
+        state.jiggle.process(elements.webcam, personMask);
+      }
+    } catch { /* stabilization non-critical */ }
   }
 
   // 5. Render regions

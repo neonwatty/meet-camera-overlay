@@ -95,6 +95,7 @@ export function extractContour(mask, maskW, maskH, canvasW, canvasH) {
 export function renderMaskOverlay(
   mask, maskW, maskH, canvasW, canvasH
 ) {
+  if (!canvasW || !canvasH) return null;
   const offscreen = new OffscreenCanvas(canvasW, canvasH);
   const ctx = offscreen.getContext('2d');
 
