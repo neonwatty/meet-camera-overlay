@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unified Effects Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="canvas-area">
+      <canvas id="canvas" width="1280" height="720"></canvas>
+      <video id="webcam" autoplay playsinline style="display:none"></video>
+    </div>
+    <aside class="sidebar">
+      <h1 class="sidebar-title">Unified Effects</h1>
+
+      <section class="panel">
+        <h2 class="panel-header" data-toggle="existing">Existing Effects</h2>
+        <div class="panel-body" id="existing-effects">
+          <button class="fx-btn" data-fx="scannerSequence">
+            <span class="fx-dot" style="background:#00ff41"></span>
+            Scanner Sequence
+          </button>
+          <button class="fx-btn" data-fx="meshShimmer">
+            <span class="fx-dot" style="background:#00ff41"></span>
+            Mesh Shimmer
+          </button>
+          <button class="fx-btn" data-fx="edgeWireframe">
+            <span class="fx-dot" style="background:#00ff41"></span>
+            Edge Wireframe
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel-header" data-toggle="new">New Effects</h2>
+        <div class="panel-body" id="new-effects">
+          <button class="fx-btn" data-fx="ambientAura">
+            <span class="fx-dot" style="background:#ff8844"></span>
+            Ambient Aura
+          </button>
+          <button class="fx-btn" data-fx="depthParallax">
+            <span class="fx-dot" style="background:#4488ff"></span>
+            Depth Parallax
+          </button>
+          <button class="fx-btn" data-fx="smileWarmth">
+            <span class="fx-dot" style="background:#ffb03c"></span>
+            Smile Warmth
+          </button>
+          <button class="fx-btn" data-fx="handHighlight">
+            <span class="fx-dot" style="background:#e85d04"></span>
+            Hand Highlight
+          </button>
+          <button class="fx-btn" data-fx="headTilt">
+            <span class="fx-dot" style="background:#00ff41"></span>
+            Head Tilt
+          </button>
+          <button class="fx-btn" data-fx="contourParticles">
+            <span class="fx-dot" style="background:#ffcc44"></span>
+            Contour Particles
+          </button>
+          <button class="fx-btn" data-fx="portalDissolve">
+            <span class="fx-dot" style="background:#64c8ff"></span>
+            Portal Dissolve
+          </button>
+          <button class="fx-btn" data-fx="wireframeMorph">
+            <span class="fx-dot" style="background:#ff44aa"></span>
+            Wireframe Morph
+          </button>
+          <button class="fx-btn" data-fx="environmentalGlow">
+            <span class="fx-dot" style="background:#88ffcc"></span>
+            Environmental Glow
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel-header">Settings</h2>
+        <div class="panel-body">
+          <label class="toggle-row">
+            <input type="checkbox" id="toggle-occlusion" checked />
+            Person Occlusion
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="toggle-stabilization" checked />
+            Stabilization
+          </label>
+          <div class="region-presets">
+            <span class="preset-label">Regions:</span>
+            <button class="preset-btn" data-count="2">2</button>
+            <button class="preset-btn active" data-count="3">3</button>
+            <button class="preset-btn" data-count="4">4</button>
+          </div>
+          <button id="btn-reset" class="btn btn-danger">Reset All</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel-header">Status</h2>
+        <div class="panel-body" id="status-panel">
+          <div class="status-row"><span class="dot loading" id="dot-seg"></span> Segmentation</div>
+          <div class="status-row"><span class="dot loading" id="dot-face"></span> Face Mesh</div>
+          <div class="status-row"><span class="dot loading" id="dot-pose"></span> Pose</div>
+          <div class="status-row"><span class="dot loading" id="dot-stab"></span> Stabilization</div>
+          <div class="status-row fps-row">FPS: <span id="fps-display">--</span></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="bottom-bar">
+    <button id="btn-play-all" class="btn btn-accent">Play All Sequentially</button>
+    <button id="btn-random" class="btn">Trigger Random</button>
+    <span class="active-label">Active: <span id="active-effect">--</span></span>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
