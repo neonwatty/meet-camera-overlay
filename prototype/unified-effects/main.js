@@ -184,6 +184,8 @@ function smoothLandmarks(prev, raw) {
   }));
 }
 
+let _landmarkErrorLogged = false;
+
 function detectLandmarks(timestamp) {
   const w = elements.canvas.width;
   const h = elements.canvas.height;
@@ -195,7 +197,12 @@ function detectLandmarks(timestamp) {
         const raw = result.faceLandmarks[0].map((lm) => ({ x: lm.x * w, y: lm.y * h }));
         state.faceLandmarks = smoothLandmarks(state.faceLandmarks, raw);
       }
-    } catch { /* ignore per-frame errors */ }
+    } catch (err) {
+      if (!_landmarkErrorLogged) {
+        console.warn('[landmarks] Face detection error:', err.message || err);
+        _landmarkErrorLogged = true;
+      }
+    }
   }
 
   if (state.poseLandmarker) {
@@ -205,7 +212,12 @@ function detectLandmarks(timestamp) {
         const raw = result.landmarks[0].map((lm) => ({ x: lm.x * w, y: lm.y * h }));
         state.poseLandmarks = smoothLandmarks(state.poseLandmarks, raw);
       }
-    } catch { /* ignore per-frame errors */ }
+    } catch (err) {
+      if (!_landmarkErrorLogged) {
+        console.warn('[landmarks] Pose detection error:', err.message || err);
+        _landmarkErrorLogged = true;
+      }
+    }
   }
 
   manager.updateLandmarkCache(state.faceLandmarks, state.poseLandmarks);
@@ -229,7 +241,11 @@ function renderLoop(timestamp) {
     state.frameCount = 0;
     state.lastFpsTime = timestamp;
     const fpsEl = document.getElementById('fps-display');
-    if (fpsEl) fpsEl.textContent = state.fps;
+    if (fpsEl) {
+      const face = state.faceLandmarks ? '\u2714' : '\u2718';
+      const pose = state.poseLandmarks ? '\u2714' : '\u2718';
+      fpsEl.textContent = `${state.fps} | F:${face} P:${pose}`;
+    }
   }
 
   // 1. Draw webcam

@@ -65,13 +65,12 @@ export class PortalDissolveEffect extends BaseEffect {
       bottomRight: { x: r.bottomRight.x / 100 * w, y: r.bottomRight.y / 100 * h },
     };
 
-    const shimmer = 0.5 + 0.5 * Math.sin(elapsed * 0.005);
+    const shimmer = 0.6 + 0.4 * Math.sin(elapsed * 0.005);
     ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.strokeStyle = `rgba(100, 200, 255, ${intensity * shimmer * 0.6})`;
-    ctx.lineWidth = 6;
-    ctx.shadowColor = 'rgba(100, 200, 255, 0.5)';
-    ctx.shadowBlur = 20;
+    ctx.strokeStyle = `rgba(100, 200, 255, ${intensity * shimmer * 0.9})`;
+    ctx.lineWidth = 4;
+    ctx.shadowColor = `rgba(100, 200, 255, ${intensity * 0.7})`;
+    ctx.shadowBlur = 30;
     ctx.beginPath();
     ctx.moveTo(corners.topLeft.x, corners.topLeft.y);
     ctx.lineTo(corners.topRight.x, corners.topRight.y);
@@ -79,6 +78,16 @@ export class PortalDissolveEffect extends BaseEffect {
     ctx.lineTo(corners.bottomLeft.x, corners.bottomLeft.y);
     ctx.closePath();
     ctx.stroke();
+
+    // Label
+    const cx = (corners.topLeft.x + corners.topRight.x) / 2;
+    const labelY = corners.topLeft.y - 10;
+    ctx.shadowBlur = 0;
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillStyle = `rgba(100, 200, 255, ${intensity * 0.8})`;
+    ctx.textAlign = 'center';
+    ctx.fillText('PORTAL', cx, labelY > 12 ? labelY : corners.topLeft.y + 16);
+
     ctx.restore();
   }
 }

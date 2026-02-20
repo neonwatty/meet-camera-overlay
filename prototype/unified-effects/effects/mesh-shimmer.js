@@ -14,16 +14,11 @@ export class MeshShimmerEffect extends BaseEffect {
     this.canvasH = 0;
 
     this._manager = null;
-
-    this._faceLandmarker = null;
-    this._poseLandmarker = null;
     this._faceTesselation = null;
     this._poseConnections = null;
-    this._videoSource = null;
 
     this.faceLandmarks = null;
     this.poseLandmarks = null;
-    this._smoothingFactor = 0.3;
 
     this._maskOverlay = null;
     this._scanLines = [];
@@ -32,23 +27,20 @@ export class MeshShimmerEffect extends BaseEffect {
   }
 
   onTrigger(
-    _timestamp, contour, mask, maskW, maskH, canvasW, canvasH,
-    faceLandmarker, faceTesselation,
-    poseLandmarker, poseConnections,
-    videoSource, manager
+    _timestamp, _contour, mask, maskW, maskH, canvasW, canvasH,
+    _faceLandmarker, faceTesselation,
+    _poseLandmarker, poseConnections,
+    _videoSource, manager
   ) {
     this.canvasW = canvasW;
     this.canvasH = canvasH;
     this._manager = manager;
 
-    this._faceLandmarker = faceLandmarker;
     this._faceTesselation = faceTesselation;
-    this._poseLandmarker = poseLandmarker;
     this._poseConnections = poseConnections;
-    this._videoSource = videoSource;
 
     this._landmarksDetected = false;
-    this._detectLandmarks();
+    this._readCachedLandmarks();
     this._rebuildMaskData(mask, maskW, maskH, canvasW, canvasH);
     this._lastMaskRebuildTime = _timestamp;
   }
@@ -109,68 +101,22 @@ export class MeshShimmerEffect extends BaseEffect {
     }
   }
 
-  _smoothLandmarks(prev, raw) {
-    if (!prev || prev.length !== raw.length) return raw;
-    const a = this._smoothingFactor;
-    const b = 1 - a;
-    return raw.map((p, i) => ({
-      x: prev[i].x * b + p.x * a,
-      y: prev[i].y * b + p.y * a,
-    }));
-  }
+  _readCachedLandmarks() {
+    if (!this._manager) return;
 
-  _detectLandmarks() {
-    const ts = performance.now();
-    const w = this.canvasW;
-    const h = this.canvasH;
-
-    // Read detectors from manager so late-loaded models are picked up
-    const faceLM = this._manager?._faceLandmarker || this._faceLandmarker;
-    const poseLM = this._manager?._poseLandmarker || this._poseLandmarker;
-    const videoSrc = this._manager?._videoSource || this._videoSource;
-
-    if (faceLM && videoSrc) {
-      try {
-        const result = faceLM.detectForVideo(videoSrc, ts);
-        if (
-          result.faceLandmarks &&
-          result.faceLandmarks.length > 0
-        ) {
-          const raw = result.faceLandmarks[0].map((lm) => ({
-            x: lm.x * w,
-            y: lm.y * h,
-          }));
-          this.faceLandmarks = this._smoothLandmarks(
-            this.faceLandmarks, raw
-          );
-          // Pick up tesselation from manager if not set at trigger time
-          if (!this._faceTesselation && this._manager?._faceTesselation) {
-            this._faceTesselation = this._manager._faceTesselation;
-          }
-        }
-      } catch {
-        // Ignore per-frame detection errors
+    const cached = this._manager.getCachedFaceLandmarks();
+    if (cached && cached.length > 0) {
+      this.faceLandmarks = cached;
+      if (!this._faceTesselation && this._manager._faceTesselation) {
+        this._faceTesselation = this._manager._faceTesselation;
       }
     }
 
-    if (poseLM && videoSrc) {
-      try {
-        const result = poseLM.detectForVideo(videoSrc, ts + 1);
-        if (result.landmarks && result.landmarks.length > 0) {
-          const raw = result.landmarks[0].map((lm) => ({
-            x: lm.x * w,
-            y: lm.y * h,
-          }));
-          this.poseLandmarks = this._smoothLandmarks(
-            this.poseLandmarks, raw
-          );
-          // Pick up connections from manager if not set at trigger time
-          if (!this._poseConnections && this._manager?._poseConnections) {
-            this._poseConnections = this._manager._poseConnections;
-          }
-        }
-      } catch {
-        // Ignore per-frame detection errors
+    const cachedPose = this._manager.getCachedPoseLandmarks();
+    if (cachedPose && cachedPose.length > 0) {
+      this.poseLandmarks = cachedPose;
+      if (!this._poseConnections && this._manager._poseConnections) {
+        this._poseConnections = this._manager._poseConnections;
       }
     }
   }
@@ -181,7 +127,7 @@ export class MeshShimmerEffect extends BaseEffect {
 
     if (!this._maskOverlay && contour.length === 0) return;
 
-    this._detectLandmarks();
+    this._readCachedLandmarks();
 
     const now = this.startTime + elapsed;
     if (

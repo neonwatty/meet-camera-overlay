@@ -18,7 +18,7 @@ export class DepthParallaxEffect extends BaseEffect {
     this._manager = manager;
   }
 
-  render(_ctx, progress, elapsed, w, h) {
+  render(ctx, progress, elapsed, w, h) {
     if (!this._manager) return;
 
     const faceLandmarks = this._manager.getCachedFaceLandmarks();
@@ -48,5 +48,26 @@ export class DepthParallaxEffect extends BaseEffect {
     });
 
     this._manager._parallaxOffsets = offsets;
+
+    // Visual indicator: crosshair at nose position
+    const alpha = rampIn * rampOut * 0.4;
+    if (alpha > 0.02) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(0, 255, 65, ${alpha})`;
+      ctx.lineWidth = 1;
+      const nx = nose.x;
+      const ny = nose.y;
+      ctx.beginPath();
+      ctx.moveTo(nx - 12, ny);
+      ctx.lineTo(nx + 12, ny);
+      ctx.moveTo(nx, ny - 12);
+      ctx.lineTo(nx, ny + 12);
+      ctx.stroke();
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillStyle = `rgba(0, 255, 65, ${alpha})`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`parallax: ${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}`, nx + 16, ny + 4);
+      ctx.restore();
+    }
   }
 }
