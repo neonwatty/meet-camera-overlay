@@ -50,6 +50,7 @@ canvas {
   flex: 3;
   min-width: 240px;
   max-width: 320px;
+  min-height: 0;
   background: #151518;
   border-left: 1px solid rgba(255, 255, 255, 0.06);
   overflow-y: auto;
@@ -74,6 +75,7 @@ canvas {
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .panel-header {

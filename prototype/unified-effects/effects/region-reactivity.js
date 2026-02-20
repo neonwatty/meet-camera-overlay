@@ -71,7 +71,7 @@ export class RegionReactivityEffect extends BaseEffect {
     const mouthW = Math.hypot(mouthR.x - mouthL.x, mouthR.y - mouthL.y);
     const faceW = Math.hypot(faceR.x - faceL.x, faceR.y - faceL.y);
     const smileRatio = faceW > 0 ? mouthW / faceW : 0;
-    const isSmiling = smileRatio > 0.38 ? 1 : 0;
+    const isSmiling = smileRatio > 0.33 ? 1 : 0;
     this._smoothedSmile += (isSmiling - this._smoothedSmile) * this._ema;
   }
 
@@ -98,9 +98,9 @@ export class RegionReactivityEffect extends BaseEffect {
 
   _renderSmileWarmth(ctx, regions, fade, w, h) {
     const warmth = this._smoothedSmile * fade;
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.globalAlpha = warmth * 0.3;
-    ctx.fillStyle = '#ff8844';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = warmth * 0.5;
+    ctx.fillStyle = 'rgba(255, 180, 60, 0.7)';
     for (const region of regions) {
       const c = this._toPixels(region, w, h);
       ctx.beginPath();

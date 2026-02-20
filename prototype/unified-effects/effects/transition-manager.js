@@ -8,7 +8,9 @@ import { MeshShimmerEffect } from './mesh-shimmer.js';
 import { EdgeWireframeFlashEffect } from './edge-wireframe.js';
 import { AmbientAuraEffect } from './ambient-aura.js';
 import { DepthParallaxEffect } from './depth-parallax.js';
-import { RegionReactivityEffect } from './region-reactivity.js';
+import { SmileWarmthEffect } from './smile-warmth.js';
+import { HandHighlightEffect } from './hand-highlight.js';
+import { HeadTiltEffect } from './head-tilt.js';
 import { ContourParticlesEffect } from './contour-particles.js';
 import { PortalDissolveEffect } from './portal-dissolve.js';
 import { WireframeMorphEffect } from './wireframe-morph.js';
@@ -21,7 +23,9 @@ export class TransitionEffectManager {
     this.edgeWireframe = new EdgeWireframeFlashEffect();
     this.ambientAura = new AmbientAuraEffect();
     this.depthParallax = new DepthParallaxEffect();
-    this.regionReactivity = new RegionReactivityEffect();
+    this.smileWarmth = new SmileWarmthEffect();
+    this.handHighlight = new HandHighlightEffect();
+    this.headTilt = new HeadTiltEffect();
     this.contourParticles = new ContourParticlesEffect();
     this.portalDissolve = new PortalDissolveEffect();
     this.wireframeMorph = new WireframeMorphEffect();
@@ -68,7 +72,9 @@ export class TransitionEffectManager {
       this.edgeWireframe,
       this.ambientAura,
       this.depthParallax,
-      this.regionReactivity,
+      this.smileWarmth,
+      this.handHighlight,
+      this.headTilt,
       this.contourParticles,
       this.portalDissolve,
       this.wireframeMorph,
@@ -80,7 +86,9 @@ export class TransitionEffectManager {
       edgeWireframe: this.edgeWireframe,
       ambientAura: this.ambientAura,
       depthParallax: this.depthParallax,
-      regionReactivity: this.regionReactivity,
+      smileWarmth: this.smileWarmth,
+      handHighlight: this.handHighlight,
+      headTilt: this.headTilt,
       contourParticles: this.contourParticles,
       portalDissolve: this.portalDissolve,
       wireframeMorph: this.wireframeMorph,
@@ -246,8 +254,14 @@ export class TransitionEffectManager {
       case 'depthParallax':
         this.depthParallax.trigger(t, this);
         break;
-      case 'regionReactivity':
-        this.regionReactivity.trigger(t, this);
+      case 'smileWarmth':
+        this.smileWarmth.trigger(t, this);
+        break;
+      case 'handHighlight':
+        this.handHighlight.trigger(t, this);
+        break;
+      case 'headTilt':
+        this.headTilt.trigger(t, this);
         break;
       case 'contourParticles':
         this.contourParticles.trigger(t, this._lastContour);

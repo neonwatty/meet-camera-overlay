@@ -302,10 +302,14 @@ function renderLoop(timestamp) {
     const corners = regionToPixelCorners(region, w, h);
     const transform = { ...region.transform };
 
-    // Apply parallax offsets
+    // Apply parallax by shifting corner positions on screen
     if (parallaxOffsets && parallaxOffsets[i]) {
-      transform.panX = (transform.panX || 0) + parallaxOffsets[i].panX;
-      transform.panY = (transform.panY || 0) + parallaxOffsets[i].panY;
+      const dx = parallaxOffsets[i].panX;
+      const dy = parallaxOffsets[i].panY;
+      for (const key of ['topLeft', 'topRight', 'bottomLeft', 'bottomRight']) {
+        corners[key].x += dx;
+        corners[key].y += dy;
+      }
     }
 
     // Draw region to temp canvas, apply mask, composite

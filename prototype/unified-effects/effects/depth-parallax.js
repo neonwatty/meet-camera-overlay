@@ -11,7 +11,7 @@ export class DepthParallaxEffect extends BaseEffect {
     super();
     this.duration = 15000;
     this._manager = null;
-    this._parallaxStrength = 30;
+    this._parallaxStrength = 120;
   }
 
   onTrigger(_ts, manager) {

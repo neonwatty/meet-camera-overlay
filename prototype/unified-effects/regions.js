@@ -3,10 +3,10 @@
  */
 
 const ART_PATHS = [
-  '/assets/wall-art/abstract-ocean.png',
-  '/assets/wall-art/nature-mountain.png',
-  '/assets/wall-art/abstract-sunset.png',
-  '/assets/wall-art/pattern-geometric.png',
+  'https://picsum.photos/seed/wall1/800/600',
+  'https://picsum.photos/seed/wall2/800/600',
+  'https://picsum.photos/seed/wall3/800/600',
+  'https://picsum.photos/seed/wall4/800/600',
 ];
 
 const REGION_PRESETS = {

@@ -101,7 +101,7 @@ export function setupUI(manager, scannerSequence, state) {
   document.getElementById('btn-play-all')?.addEventListener('click', () => {
     const effectNames = [
       'meshShimmer', 'edgeWireframe',
-      'ambientAura', 'depthParallax', 'regionReactivity',
+      'ambientAura', 'depthParallax', 'smileWarmth', 'handHighlight', 'headTilt',
       'contourParticles', 'portalDissolve', 'wireframeMorph', 'environmentalGlow',
     ];
     let delay = 0;
