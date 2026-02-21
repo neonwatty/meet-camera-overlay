@@ -17,5 +17,18 @@
     "dev/**",
     "dev-assets/**",
     "prototype/**"
+  ],
+  "ignoreDependencies": [
+    "@commitlint/cli",
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/github",
+    "husky",
+    "semantic-release"
+  ],
+  "ignoreBinaries": [
+    "commitlint",
+    "husky",
+    "semantic-release"
   ]
 }
