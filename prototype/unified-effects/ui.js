@@ -53,7 +53,7 @@ export function setupScannerCallbacks(scannerSequence, manager, state, elements)
 // ============================================
 
 export function setupUI(manager, scannerSequence, state) {
-  // Effect buttons
+  // Effect buttons — all are toggles, one active at a time
   document.querySelectorAll('.fx-btn[data-fx]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const fx = btn.dataset.fx;
@@ -61,7 +61,7 @@ export function setupUI(manager, scannerSequence, state) {
         scannerSequence.start();
         return;
       }
-      manager.triggerEffect(fx, performance.now());
+      manager.toggleEffect(fx, performance.now());
     });
   });
 
@@ -101,7 +101,7 @@ export function setupUI(manager, scannerSequence, state) {
   document.getElementById('btn-play-all')?.addEventListener('click', () => {
     const effectNames = [
       'meshShimmer', 'edgeWireframe',
-      'ambientAura', 'depthParallax', 'smileWarmth', 'handHighlight', 'headTilt',
+      'ambientAura', 'depthParallax', 'artSwap', 'moodShift', 'perspectiveShift',
       'contourParticles', 'portalDissolve', 'wireframeMorph', 'environmentalGlow',
     ];
     let delay = 0;
@@ -135,11 +135,19 @@ export function setupUI(manager, scannerSequence, state) {
           progressBar.className = 'fx-progress';
           btn.appendChild(progressBar);
         }
-        const elapsed = performance.now() - effect.startTime;
-        const pct = Math.min(elapsed / effect.duration * 100, 100);
-        progressBar.style.width = `${pct}%`;
+        if (effect.isToggle) {
+          // Toggle effects: solid green bar
+          btn.classList.add('toggle-on');
+          progressBar.style.width = '100%';
+        } else {
+          btn.classList.remove('toggle-on');
+          const elapsed = performance.now() - effect.startTime;
+          const pct = Math.min(elapsed / effect.duration * 100, 100);
+          progressBar.style.width = `${pct}%`;
+        }
       } else {
         btn.classList.remove('active');
+        btn.classList.remove('toggle-on');
         if (progressBar) progressBar.style.width = '0%';
       }
     });
