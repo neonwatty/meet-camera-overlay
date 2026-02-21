@@ -74,6 +74,17 @@ export default [
     },
   },
   {
+    // CommonJS config files (commitlint, etc.)
+    files: ['*.config.cjs', '*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        module: 'readonly',
+        require: 'readonly',
+      },
+    },
+  },
+  {
     // Test files configuration
     files: ['tests/**/*.js', '*.config.js'],
     languageOptions: {
