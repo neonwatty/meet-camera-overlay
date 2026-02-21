@@ -8,9 +8,9 @@ import { MeshShimmerEffect } from './mesh-shimmer.js';
 import { EdgeWireframeFlashEffect } from './edge-wireframe.js';
 import { AmbientAuraEffect } from './ambient-aura.js';
 import { DepthParallaxEffect } from './depth-parallax.js';
-import { SmileWarmthEffect } from './smile-warmth.js';
-import { HandHighlightEffect } from './hand-highlight.js';
-import { HeadTiltEffect } from './head-tilt.js';
+import { MoodShiftEffect } from './mood-shift.js';
+import { ArtSwapEffect } from './art-swap.js';
+import { PerspectiveShiftEffect } from './perspective-shift.js';
 import { ContourParticlesEffect } from './contour-particles.js';
 import { PortalDissolveEffect } from './portal-dissolve.js';
 import { WireframeMorphEffect } from './wireframe-morph.js';
@@ -23,13 +23,35 @@ export class TransitionEffectManager {
     this.edgeWireframe = new EdgeWireframeFlashEffect();
     this.ambientAura = new AmbientAuraEffect();
     this.depthParallax = new DepthParallaxEffect();
-    this.smileWarmth = new SmileWarmthEffect();
-    this.handHighlight = new HandHighlightEffect();
-    this.headTilt = new HeadTiltEffect();
+    this.moodShift = new MoodShiftEffect();
+    this.artSwap = new ArtSwapEffect();
+    this.perspectiveShift = new PerspectiveShiftEffect();
     this.contourParticles = new ContourParticlesEffect();
     this.portalDissolve = new PortalDissolveEffect();
     this.wireframeMorph = new WireframeMorphEffect();
     this.environmentalGlow = new EnvironmentalGlowEffect();
+
+    // Toggle management — only one effect active at a time
+    this._activeToggle = null;
+
+    // Mark all effects as toggles
+    for (const effect of [
+      this.meshShimmer, this.edgeWireframe, this.ambientAura,
+      this.depthParallax, this.moodShift, this.artSwap,
+      this.perspectiveShift, this.contourParticles, this.portalDissolve,
+      this.wireframeMorph, this.environmentalGlow,
+    ]) {
+      effect.isToggle = true;
+    }
+
+    // Gesture hooks (set per-frame by active gesture effect)
+    this._warmthIntensity = 0;
+    this._tiltCornerOffsets = null;
+    this._artSwapRequest = null;
+
+    // Gallery storage for art swap
+    this._artGalleries = new Map();
+    this._artGalleryIndex = new Map();
 
     this._firstSegmentationFired = false;
 
@@ -72,9 +94,9 @@ export class TransitionEffectManager {
       this.edgeWireframe,
       this.ambientAura,
       this.depthParallax,
-      this.smileWarmth,
-      this.handHighlight,
-      this.headTilt,
+      this.moodShift,
+      this.artSwap,
+      this.perspectiveShift,
       this.contourParticles,
       this.portalDissolve,
       this.wireframeMorph,
@@ -86,9 +108,9 @@ export class TransitionEffectManager {
       edgeWireframe: this.edgeWireframe,
       ambientAura: this.ambientAura,
       depthParallax: this.depthParallax,
-      smileWarmth: this.smileWarmth,
-      handHighlight: this.handHighlight,
-      headTilt: this.headTilt,
+      moodShift: this.moodShift,
+      artSwap: this.artSwap,
+      perspectiveShift: this.perspectiveShift,
       contourParticles: this.contourParticles,
       portalDissolve: this.portalDissolve,
       wireframeMorph: this.wireframeMorph,
@@ -113,6 +135,15 @@ export class TransitionEffectManager {
     // Clear parallax when effect is inactive
     if (this.depthParallax && !this.depthParallax.active) {
       this._parallaxOffsets = null;
+    }
+
+    // Clear toggle + gesture hooks when active effect becomes inactive
+    if (this._activeToggle) {
+      const activeEffect = this._effectMap[this._activeToggle];
+      if (activeEffect && !activeEffect.active) {
+        this._clearGestureHooks();
+        this._activeToggle = null;
+      }
     }
 
     for (const effect of this._allEffects) {
@@ -254,14 +285,14 @@ export class TransitionEffectManager {
       case 'depthParallax':
         this.depthParallax.trigger(t, this);
         break;
-      case 'smileWarmth':
-        this.smileWarmth.trigger(t, this);
+      case 'moodShift':
+        this.moodShift.trigger(t, this);
         break;
-      case 'handHighlight':
-        this.handHighlight.trigger(t, this);
+      case 'artSwap':
+        this.artSwap.trigger(t, this);
         break;
-      case 'headTilt':
-        this.headTilt.trigger(t, this);
+      case 'perspectiveShift':
+        this.perspectiveShift.trigger(t, this);
         break;
       case 'contourParticles':
         this.contourParticles.trigger(t, this._lastContour);
@@ -279,6 +310,33 @@ export class TransitionEffectManager {
         );
         break;
     }
+  }
+
+  toggleEffect(name, timestamp) {
+    const t = timestamp || performance.now();
+    // If same effect is active, deactivate it (toggle off)
+    if (this._activeToggle === name) {
+      const effect = this._effectMap[name];
+      if (effect) effect.deactivate();
+      this._clearGestureHooks();
+      this._activeToggle = null;
+      return;
+    }
+    // Deactivate current effect if different
+    if (this._activeToggle) {
+      const prev = this._effectMap[this._activeToggle];
+      if (prev) prev.deactivate();
+      this._clearGestureHooks();
+    }
+    // Activate new effect
+    this._activeToggle = name;
+    this.triggerEffect(name, t);
+  }
+
+  _clearGestureHooks() {
+    this._warmthIntensity = 0;
+    this._tiltCornerOffsets = null;
+    this._artSwapRequest = null;
   }
 
   triggerFirstSegmentation(personMask, maskW, maskH, canvasW, canvasH, timestamp) {

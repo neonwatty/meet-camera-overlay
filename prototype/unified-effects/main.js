@@ -4,15 +4,16 @@
  * + 9 transition effects + camera stabilization.
  */
 
-import { drawPerspectiveImage, applyPersonMask } from './render-pipeline.js';
 import { TransitionEffectManager } from './effects/transition-manager.js';
 import { ScannerSequence } from './effects/scanner-sequence.js';
 import {
   updateStatusDot, updateActiveDisplay, setupScannerCallbacks, setupUI,
 } from './ui.js';
 import {
-  regionToPixelCorners, loadArt, loadRegionPreset, updateRegionColors,
+  regionToPixelCorners, loadArt, loadArtGalleries, loadRegionPreset,
+  updateRegionColors,
 } from './regions.js';
+import { renderRegions } from './render-regions.js';
 
 // ============================================
 // State
@@ -288,50 +289,8 @@ function renderLoop(timestamp) {
     } catch { /* stabilization non-critical */ }
   }
 
-  // 5. Render regions
-  const portal = manager.getPortalRegion();
-  const parallaxOffsets = manager._parallaxOffsets;
-
-  for (let i = 0; i < state.regions.length; i++) {
-    const region = state.regions[i];
-    if (!region.active) continue;
-
-    const img = state.artImages.get(region.id);
-    if (!img) continue;
-
-    const corners = regionToPixelCorners(region, w, h);
-    const transform = { ...region.transform };
-
-    // Apply parallax by shifting corner positions on screen
-    if (parallaxOffsets && parallaxOffsets[i]) {
-      const dx = parallaxOffsets[i].panX;
-      const dy = parallaxOffsets[i].panY;
-      for (const key of ['topLeft', 'topRight', 'bottomLeft', 'bottomRight']) {
-        corners[key].x += dx;
-        corners[key].y += dy;
-      }
-    }
-
-    // Draw region to temp canvas, apply mask, composite
-    tempCtx.clearRect(0, 0, w, h);
-    drawPerspectiveImage(tempCtx, img, corners, transform);
-
-    // Apply person mask (skip for portal region)
-    const isPortal = portal.id === region.id && portal.intensity > 0;
-    if (personMask && state.segmentationEnabled && !isPortal) {
-      applyPersonMask(tempCtx, personMask, state.lastMaskW, state.lastMaskH);
-    } else if (isPortal && personMask) {
-      // Partial portal: blend mask intensity
-      if (portal.intensity < 1) {
-        // TODO: partial portal blending — for now, full skip above threshold
-        if (portal.intensity < 0.5) {
-          applyPersonMask(tempCtx, personMask, state.lastMaskW, state.lastMaskH);
-        }
-      }
-    }
-
-    ctx.drawImage(tempCanvas, 0, 0);
-  }
+  // 5. Render regions (with gesture hooks: tilt, warmth, art swap)
+  renderRegions(ctx, tempCtx, tempCanvas, state, manager, timestamp);
 
   // 6. Effects layer
   manager.update(ctx, timestamp, w, h);
@@ -389,6 +348,7 @@ async function init() {
 
   manager.setVideoSource(elements.webcam);
   await loadArt(state.artImages);
+  await loadArtGalleries(manager);
   updateRegionColors(state, manager, w(), h());
 
   // Start render loop before models load (shows webcam immediately)

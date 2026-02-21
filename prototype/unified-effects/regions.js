@@ -27,6 +27,33 @@ const REGION_PRESETS = {
   ],
 };
 
+const GALLERY_SEEDS = {
+  r1: ['wall1', 'gallery1a', 'gallery1b', 'gallery1c'],
+  r2: ['wall2', 'gallery2a', 'gallery2b', 'gallery2c'],
+  r3: ['wall3', 'gallery3a', 'gallery3b', 'gallery3c'],
+  r4: ['wall4', 'gallery4a', 'gallery4b', 'gallery4c'],
+};
+
+export async function loadArtGalleries(manager) {
+  const promises = [];
+  for (const [regionId, seeds] of Object.entries(GALLERY_SEEDS)) {
+    const gallery = [];
+    manager._artGalleryIndex.set(regionId, 0);
+    for (const seed of seeds) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const p = new Promise((resolve) => {
+        img.onload = () => { gallery.push(img); resolve(); };
+        img.onerror = () => resolve();
+        img.src = `https://picsum.photos/seed/${seed}/800/600`;
+      });
+      promises.push(p);
+    }
+    manager._artGalleries.set(regionId, gallery);
+  }
+  await Promise.all(promises);
+}
+
 export function regionToPixelCorners(region, w, h) {
   const r = region.region;
   return {
